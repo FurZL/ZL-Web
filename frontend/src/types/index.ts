@@ -286,3 +286,11 @@ export interface PageVersion {
   change_summary: string | null
   created_at: string | null
 }
+
+// ---------- 图片管理 ----------
+export interface AdminImageStats {
+  total: number
+  pending: number
+  approved: number
+  rejected: number
+}

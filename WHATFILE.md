@@ -60,7 +60,8 @@
 | `events.ts` | 活动 API（列表/详情/报名/取消/签到 + 管理 CRUD/报名列表/管理员签到） |
 | `mock.ts` | Mock 数据（首页公告、精选图片、成员列表、课表样例）— 部分页面仍在用，待逐步替换 |
 | `pages.ts` | 动态页面 API（公开读取 + 管理 CRUD/发布/下线/版本列表/回滚） |
-| `index.ts` | API 模块统一导出（re-export client / token / schedule / site / events / pages） |
+| `adminImages.ts` | 图片管理 API（统计/列表/审核/公开/标签/删除） |
+| `index.ts` | API 模块统一导出（re-export client / token / schedule / site / events / pages / adminImages） |
 
 #### src/types/ — 类型定义
 
@@ -131,7 +132,7 @@
 |---|---|
 | `AdminDashboard.vue` | 仪表盘（用户数、待审批数、图片数等数字总览，已接真实接口） |
 | `AdminUsers.vue` | 用户管理（待审批列表、审批/拒绝操作、成员列表，已接真实接口） |
-| `AdminImages.vue` | 图片管理（占位，待阶段 5 开发） |
+| `AdminImages.vue` | 图片管理（统计卡片、审核/拒绝/公开/标签/删除、筛选 Tab、分页、图片详情弹窗） |
 | `AdminEvents.vue` | 活动管理（活动 CRUD、发布/取消、报名列表/签到管理弹窗） |
 | `AdminPages.vue` | 页面管理（页面列表、JSON Schema 编辑器、发布/下线、版本历史/回滚） |
 | `AdminAnnouncements.vue` | 公告管理（公告列表、新建/编辑弹窗、置顶/发布/删除操作） |
@@ -192,6 +193,7 @@
 | `admin_settings.py` | 网站设置管理端点（GET/PUT 读写 SiteSetting、Provider 测试） |
 | `announcements.py` | 公告端点（GET /published 公开列表、/admin CRUD：创建/编辑/置顶/发布/删除） |
 | `admin_events.py` | 活动管理端点（创建/编辑/发布/取消/删除/报名列表/管理员签到） |
+| `admin_images.py` | 图片管理端点（列表/统计/审核/公开/标签/删除） |
 
 ### app/core/ — 核心基础设施
 
@@ -257,7 +259,7 @@
 | `announcement.py` | 公告服务（公开列表：已发布+未过期+置顶在前；管理 CRUD：创建/更新/置顶/发布/删除） |
 | `event.py` | 活动服务（活动 CRUD、报名/候补/取消/签到，容量控制、幂等键、候补自动递补） |
 | `page.py` | 动态页面服务（页面 CRUD、版本快照、发布/下线、版本回滚） |
-| `event.py` | 活动服务（活动 CRUD、报名/候补/取消/签到，容量控制、幂等键、候补自动递补） |
+| `admin_image.py` | 图片管理服务（列表/审核/公开/标签/删除/统计，含派生图清理） |
 
 ### app/providers/ — 外部服务适配层
 
