@@ -41,6 +41,20 @@ export interface MeResponse {
   created_at: string
 }
 
+// 管理端用户（/admin/users 返回，snake_case）
+export interface AdminUser {
+  id: string
+  username: string
+  display_name: string
+  email: string
+  role: string
+  status: string
+  applied_role: string | null
+  application_reason: string | null
+  application_portfolio: string | null
+  created_at: string
+}
+
 export interface GalleryImage {
   id: string
   url: string

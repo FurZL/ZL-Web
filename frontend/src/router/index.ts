@@ -16,6 +16,22 @@ const router = createRouter({
     { path: '/forgot-password', name: 'forgot-password', component: () => import('@/views/ForgotPassword.vue') },
     { path: '/events', name: 'events', component: () => import('@/views/Events.vue') },
     { path: '/p/:slug', name: 'dynamic', component: () => import('@/views/DynamicPage.vue') },
+
+    // 管理后台
+    {
+      path: '/admin',
+      component: () => import('@/layouts/AdminLayout.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+      children: [
+        { path: '', name: 'admin-dashboard', component: () => import('@/views/admin/AdminDashboard.vue') },
+        { path: 'users', name: 'admin-users', component: () => import('@/views/admin/AdminUsers.vue') },
+        { path: 'images', name: 'admin-images', component: () => import('@/views/admin/AdminImages.vue') },
+        { path: 'events', name: 'admin-events', component: () => import('@/views/admin/AdminEvents.vue') },
+        { path: 'pages', name: 'admin-pages', component: () => import('@/views/admin/AdminPages.vue') },
+        { path: 'settings', name: 'admin-settings', component: () => import('@/views/admin/AdminSettings.vue') },
+      ],
+    },
+
     { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFound.vue') },
   ],
 })
@@ -25,6 +41,9 @@ router.beforeEach((to) => {
   const auth = useAuthStore()
   if (to.meta.requiresAuth && !auth.isLoggedIn) {
     return { name: 'login', query: { redirect: to.fullPath } }
+  }
+  if (to.meta.requiresAdmin && !auth.isAdmin) {
+    return { name: 'home' }
   }
 })
 
