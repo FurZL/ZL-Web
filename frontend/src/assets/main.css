@@ -6,9 +6,54 @@
   --color-primary: #6b5ce7;
 }
 
-body {
-  margin: 0;
-  font-family:
-    -apple-system, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    margin: 0;
+    color: theme('colors.ink');
+    background: theme('colors.canvas');
+    font-family: theme('fontFamily.sans');
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  /* 玻璃拟态卡片 */
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-xl border border-white/60 rounded-xl2 shadow-glass;
+  }
+
+  /* 主按钮 */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-primary text-white
+      px-6 py-2.5 text-sm font-medium transition
+      hover:bg-primary-600 active:scale-[0.98] shadow-glow;
+  }
+
+  /* 次按钮 */
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-primary-200
+      bg-white/60 text-primary-700 px-6 py-2.5 text-sm font-medium transition
+      hover:bg-primary-50 active:scale-[0.98];
+  }
+
+  /* 输入框 */
+  .input {
+    @apply w-full rounded-xl border border-primary-100 bg-white/70 px-4 py-2.5 text-sm
+      text-ink placeholder:text-faint outline-none transition
+      focus:border-primary-400 focus:ring-4 focus:ring-primary-100;
+  }
+
+  /* 字段标签 */
+  .label {
+    @apply block text-sm font-medium text-sub mb-1.5;
+  }
+
+  /* 玻璃导航栏 */
+  .topbar {
+    @apply sticky top-0 z-40 bg-white/70 backdrop-blur-xl border-b border-white/60;
+  }
 }

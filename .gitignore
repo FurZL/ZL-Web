@@ -17,6 +17,7 @@ htmlcov/
 node_modules/
 frontend/dist/
 frontend/.vite/
+*.tsbuildinfo
 
 # 环境与密钥（严禁提交）
 .env
