@@ -57,13 +57,28 @@ export interface AdminUser {
 
 export interface GalleryImage {
   id: string
-  url: string
+  url: string | null
+  object_key: string | null
+  original_name: string | null
   title: string
+  description: string | null
   tags: string[]
   photographer: string
-  width: number
-  height: number
-  uploadedAt: string
+  moderation_status: string
+  is_public: boolean
+  width: number | null
+  height: number | null
+  uploaded_at: string | null
+}
+
+// 后端 /images/upload-intent 返回
+export interface UploadIntent {
+  storage_provider: string
+  bucket: string
+  object_key: string
+  visibility: string
+  upload_url: string
+  expires_in: number
 }
 
 export interface Announcement {

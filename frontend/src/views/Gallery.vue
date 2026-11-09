@@ -1,21 +1,42 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ImagePlaceholder from '@/components/ImagePlaceholder.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
-import { galleryImages, tags } from '@/api/mock'
+import { tags as mockTags } from '@/api/mock'
+import { request } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
-import type { GalleryImage } from '@/types'
+import type { GalleryImage, UploadIntent } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
+const images = ref<GalleryImage[]>([])
+const loading = ref(false)
+const loadError = ref('')
+
 const activeTag = ref('全部')
 const search = ref('')
 
+async function loadImages() {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const data = await request<{ items: GalleryImage[]; pagination: { total: number } }>({
+      method: 'GET',
+      url: '/images/',
+    })
+    images.value = data.items
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : '图片加载失败'
+  } finally {
+    loading.value = false
+  }
+}
+
 const filtered = computed(() => {
-  let list = galleryImages
+  let list = images.value
   if (activeTag.value !== '全部') list = list.filter((i) => i.tags.includes(activeTag.value))
   if (search.value.trim()) {
     const q = search.value.trim()
@@ -33,29 +54,114 @@ function closeDetail() {
   selected.value = null
 }
 
-// 上传弹窗（响应 ?upload=1 或角色按钮）
+async function downloadImage(img: GalleryImage) {
+  try {
+    const data = await request<{ url: string }>({ method: 'GET', url: `/images/${img.id}/download` })
+    window.open(data.url, '_blank')
+  } catch (e) {
+    alert(e instanceof Error ? e.message : '下载失败')
+  }
+}
+
+// 上传弹窗
 const showUpload = ref(route.query.upload === '1')
+const file = ref<File | null>(null)
+const filePreview = ref('')
+const uploadTitle = ref('')
+const uploadTags = ref('')
+const uploading = ref(false)
+const uploadError = ref('')
+const uploaded = ref(false)
+
 function openUpload() {
   showUpload.value = true
 }
 function closeUpload() {
-  showUpload.value = false
-  if (route.query.upload) router.replace({ query: {} })
+  if (!uploading.value) {
+    showUpload.value = false
+    resetUpload()
+    if (route.query.upload) router.replace({ query: {} })
+  }
 }
 
-// 上传表单
-const uploadTitle = ref('')
-const uploadTags = ref('')
-const uploaded = ref(false)
-function submitUpload() {
-  uploaded.value = true
-  setTimeout(() => {
-    showUpload.value = false
-    uploaded.value = false
-    uploadTitle.value = ''
-    uploadTags.value = ''
-  }, 1200)
+function resetUpload() {
+  file.value = null
+  filePreview.value = ''
+  uploadTitle.value = ''
+  uploadTags.value = ''
+  uploadError.value = ''
+  uploaded.value = false
 }
+
+function onFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const f = input.files?.[0]
+  if (!f) return
+  // 客户端预校验类型
+  if (!f.type.startsWith('image/')) {
+    uploadError.value = '请选择图片文件'
+    return
+  }
+  file.value = f
+  uploadError.value = ''
+  filePreview.value = URL.createObjectURL(f)
+  if (!uploadTitle.value) uploadTitle.value = f.name.replace(/\.[^.]+$/, '')
+}
+
+async function doUpload() {
+  if (!file.value) {
+    uploadError.value = '请先选择图片'
+    return
+  }
+  uploading.value = true
+  uploadError.value = ''
+  try {
+    // 1. 申请上传意图
+    const intent = await request<UploadIntent>({
+      method: 'POST',
+      url: '/images/upload-intent',
+      data: {
+        filename: file.value.name,
+        mime_type: file.value.type || 'image/jpeg',
+        size_bytes: file.value.size,
+        purpose: 'gallery',
+      },
+    })
+
+    // 2. 直传 COS（预签名 PUT）
+    await fetch(intent.upload_url, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.value.type || 'image/jpeg' },
+      body: file.value,
+    })
+
+    // 3. 通知后端完成
+    await request({
+      method: 'POST',
+      url: '/images/upload-complete',
+      data: {
+        bucket: intent.bucket,
+        object_key: intent.object_key,
+        purpose: 'gallery',
+        original_name: file.value.name,
+        description: uploadTitle.value || null,
+        tags: uploadTags.value.split(/[,，]/).map((t) => t.trim()).filter(Boolean),
+      },
+    })
+
+    uploaded.value = true
+    await loadImages()
+    setTimeout(() => {
+      closeUpload()
+    }, 1200)
+  } catch (e) {
+    uploadError.value = e instanceof Error ? e.message : '上传失败，请重试'
+  } finally {
+    uploading.value = false
+  }
+}
+
+onMounted(loadImages)
 </script>
 
 <template>
@@ -71,7 +177,7 @@ function submitUpload() {
     <!-- 筛选栏 -->
     <div class="mt-8 flex flex-wrap items-center gap-3">
       <button
-        v-for="t in tags"
+        v-for="t in mockTags"
         :key="t"
         class="px-4 py-1.5 rounded-full text-sm transition"
         :class="activeTag === t ? 'bg-primary text-white shadow-glow' : 'bg-white/70 text-sub hover:bg-primary-50 border border-white/60'"
@@ -82,16 +188,27 @@ function submitUpload() {
       <input v-model="search" class="input !w-56 ml-auto" placeholder="搜索标题 / 拍摄者 / 标签" />
     </div>
 
+    <!-- 加载/错误/空状态 -->
+    <div v-if="loading" class="mt-10 text-center text-sub py-20">图片加载中…</div>
+    <div v-else-if="loadError" class="mt-10 glass-card p-12 text-center">
+      <p class="text-blush">{{ loadError }}</p>
+    </div>
+    <div v-else-if="!images.length" class="mt-10 glass-card p-16 text-center">
+      <div class="text-5xl">🖼</div>
+      <p class="mt-4 text-ink font-medium">还没有公开图片</p>
+      <p class="mt-1 text-sm text-sub">摄影师上传并通过审核后，照片会展示在这里</p>
+    </div>
+
     <!-- 瀑布流 -->
-    <div class="mt-8 columns-1 sm:columns-2 lg:columns-3 gap-4 space-y-4">
+    <div v-else class="mt-8 columns-1 sm:columns-2 lg:columns-3 gap-4 space-y-4">
       <div v-for="img in filtered" :key="img.id" class="break-inside-avoid glass-card p-2 cursor-pointer hover:shadow-soft transition group" @click="openDetail(img)">
         <div class="rounded-xl overflow-hidden">
-          <ImagePlaceholder :title="img.title" :aspect="img.height > img.width ? '3/4' : '4/3'" />
+          <ImagePlaceholder :title="img.title" :src="img.url" :aspect="img.height && img.width && img.height > img.width ? '3/4' : '4/3'" />
         </div>
         <div class="px-2 py-2.5 flex items-center gap-2">
           <UserAvatar :name="img.photographer" :size="26" />
           <span class="text-sm text-ink truncate flex-1">{{ img.title }}</span>
-          <span class="text-xs text-faint shrink-0">{{ img.tags[0] }}</span>
+          <span v-if="img.tags[0]" class="text-xs text-faint shrink-0">{{ img.tags[0] }}</span>
         </div>
       </div>
     </div>
@@ -101,7 +218,7 @@ function submitUpload() {
       <div v-if="selected" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-sm" @click.self="closeDetail">
         <div class="glass-card max-w-4xl w-full overflow-hidden max-h-[90vh] flex flex-col md:flex-row">
           <div class="md:w-3/5 bg-white/30 flex items-center justify-center">
-            <ImagePlaceholder :title="selected.title" aspect="4/3" />
+            <ImagePlaceholder :title="selected.title" :src="selected.url" aspect="4/3" />
           </div>
           <div class="md:w-2/5 p-6 flex flex-col">
             <div class="flex items-start justify-between">
@@ -112,17 +229,17 @@ function submitUpload() {
               <UserAvatar :name="selected.photographer" :size="32" />
               <div>
                 <p class="text-sm text-ink">{{ selected.photographer }}</p>
-                <p class="text-xs text-faint">上传于 {{ selected.uploadedAt }}</p>
+                <p class="text-xs text-faint">上传于 {{ (selected.uploaded_at || '').slice(0, 10) }}</p>
               </div>
             </div>
             <div class="mt-4 flex flex-wrap gap-2">
               <span v-for="t in selected.tags" :key="t" class="text-xs text-primary-700 bg-primary-50 rounded-full px-3 py-1">{{ t }}</span>
             </div>
             <p class="mt-4 text-sm text-sub leading-relaxed flex-1">
-              这张照片还没有描述。摄影师用心记录下了此刻，希望你喜欢。
+              {{ selected.description || '这张照片还没有描述。摄影师用心记录下了此刻，希望你喜欢。' }}
             </p>
             <div class="mt-6 flex gap-3">
-              <button v-if="auth.isLoggedIn" class="btn-primary flex-1">下载原图</button>
+              <button v-if="auth.isLoggedIn" class="btn-primary flex-1" @click="downloadImage(selected)">下载原图</button>
               <button v-else class="btn-ghost flex-1" @click="router.push('/login')">登录后下载</button>
             </div>
           </div>
@@ -140,14 +257,23 @@ function submitUpload() {
           </div>
 
           <div v-if="!uploaded">
-            <!-- 拖拽区 -->
-            <div class="mt-6 border-2 border-dashed border-primary-200 rounded-xl2 p-10 text-center hover:border-primary-400 transition cursor-pointer">
-              <div class="w-12 h-12 mx-auto rounded-full bg-primary-50 flex items-center justify-center text-2xl text-primary">＋</div>
-              <p class="mt-3 text-sm text-sub">拖拽图片到这里，或点击选择</p>
-              <p class="mt-1 text-xs text-faint">支持多张、支持 JPG / PNG / WebP</p>
-            </div>
+            <!-- 文件选择 -->
+            <label class="mt-6 border-2 border-dashed rounded-xl2 p-8 text-center hover:border-primary-400 transition cursor-pointer block"
+              :class="file ? 'border-emerald-300' : 'border-primary-200'">
+              <input type="file" accept="image/*" class="hidden" @change="onFileChange" />
+              <template v-if="file">
+                <img :src="filePreview" alt="预览" class="max-h-40 mx-auto rounded-lg object-contain" />
+                <p class="mt-3 text-sm text-ink">{{ file.name }}</p>
+                <p class="mt-1 text-xs text-faint">{{ (file.size / 1024 / 1024).toFixed(2) }} MB</p>
+              </template>
+              <template v-else>
+                <div class="w-12 h-12 mx-auto rounded-full bg-primary-50 flex items-center justify-center text-2xl text-primary">＋</div>
+                <p class="mt-3 text-sm text-sub">点击选择图片</p>
+                <p class="mt-1 text-xs text-faint">支持 JPG / PNG / WebP / GIF / AVIF</p>
+              </template>
+            </label>
 
-            <div class="mt-6 space-y-4">
+            <div class="mt-5 space-y-4">
               <div>
                 <label class="label">描述</label>
                 <input v-model="uploadTitle" class="input" placeholder="给这张照片写点描述" />
@@ -158,15 +284,20 @@ function submitUpload() {
               </div>
             </div>
 
-            <div class="mt-8 flex gap-3">
-              <button class="btn-ghost flex-1" @click="closeUpload">取消</button>
-              <button class="btn-primary flex-1" @click="submitUpload">确认上传</button>
+            <div v-if="uploadError" class="mt-4 text-sm text-blush bg-blush/10 rounded-lg px-4 py-2.5">{{ uploadError }}</div>
+
+            <div class="mt-6 flex gap-3">
+              <button class="btn-ghost flex-1" :disabled="uploading" @click="closeUpload">取消</button>
+              <button class="btn-primary flex-1" :disabled="uploading" @click="doUpload">
+                {{ uploading ? '上传中…' : '确认上传' }}
+              </button>
             </div>
           </div>
 
           <div v-else class="py-16 text-center">
             <div class="w-14 h-14 mx-auto rounded-full bg-primary-50 flex items-center justify-center text-2xl text-primary">✓</div>
-            <p class="mt-4 text-ink font-medium">上传成功，已进入审核队列</p>
+            <p class="mt-4 text-ink font-medium">上传成功</p>
+            <p class="mt-1 text-sm text-sub">照片已发布到展示区</p>
           </div>
         </div>
       </div>

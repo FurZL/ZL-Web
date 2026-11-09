@@ -18,24 +18,31 @@ class UploadIntentResponse(BaseModel):
     storage_provider: str
     bucket: str
     object_key: str
+    visibility: str
     upload_url: str
     expires_in: int
 
 
 class UploadCompleteRequest(BaseModel):
-    storage_provider: str
     bucket: str
     object_key: str
+    purpose: str = "gallery"
+    original_name: str | None = None
+    description: str | None = None
+    tags: list[str] = Field(default_factory=list)
 
 
 class ImageOut(BaseModel):
-    id: uuid.UUID
+    id: str
+    url: str | None
+    object_key: str | None
     original_name: str | None
-    tags: str | None
-    width: int | None
-    height: int | None
+    title: str
     description: str | None
+    tags: list[str]
+    photographer: str
     moderation_status: str
     is_public: bool
-    copyright_owner: str | None
-    license_type: str | None
+    width: int | None
+    height: int | None
+    uploaded_at: str | None

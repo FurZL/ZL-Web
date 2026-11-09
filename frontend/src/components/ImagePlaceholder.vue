@@ -4,6 +4,7 @@ import { computed } from 'vue'
 const props = defineProps<{
   title: string
   aspect?: string // 例如 '3/4'
+  src?: string | null
 }>()
 
 const gradients = [
@@ -28,9 +29,13 @@ const bg = computed(() => {
 </script>
 
 <template>
-  <div class="relative w-full overflow-hidden" :style="{ aspectRatio: aspect ?? '1 / 1', background: bg }">
-    <!-- 柔和光斑，模拟毛茸茸质感 -->
-    <div class="absolute -top-6 -left-6 w-24 h-24 rounded-full bg-white/25 blur-xl"></div>
-    <div class="absolute bottom-4 right-4 w-20 h-20 rounded-full bg-white/15 blur-lg"></div>
+  <div class="relative w-full overflow-hidden" :style="{ aspectRatio: aspect ?? '1 / 1', background: src ? 'transparent' : bg }">
+    <!-- 真实图片 -->
+    <img v-if="src" :src="src" :alt="title" class="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+    <!-- 占位渐变 + 光斑 -->
+    <template v-else>
+      <div class="absolute -top-6 -left-6 w-24 h-24 rounded-full bg-white/25 blur-xl"></div>
+      <div class="absolute bottom-4 right-4 w-20 h-20 rounded-full bg-white/15 blur-lg"></div>
+    </template>
   </div>
 </template>

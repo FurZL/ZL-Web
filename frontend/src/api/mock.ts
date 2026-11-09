@@ -1,4 +1,13 @@
-import type { Announcement, CourseSlot, GalleryImage, User } from '@/types'
+import type { Announcement, CourseSlot, User } from '@/types'
+
+// 首页「精选图片」用的 mock 结构（真实图片已改为从 /images 接口加载）
+export interface MockFeaturedImage {
+  id: string
+  title: string
+  photographer: string
+  height: number
+  width: number
+}
 
 export const currentUser: User = {
   id: 'u-1',
@@ -17,15 +26,15 @@ export const members: User[] = [
   { id: 'u-5', username: 'sakura', displayName: '小樱', role: 'admin', avatar: '', bio: '社长，负责让大家开心。' },
 ]
 
-export const galleryImages: GalleryImage[] = [
-  { id: 'g1', url: '', title: '秋日校园', tags: ['日常', '校园'], photographer: '极光', width: 800, height: 1067, uploadedAt: '2026-10-12' },
-  { id: 'g2', url: '', title: '社团迎新夜', tags: ['活动'], photographer: '毛球', width: 800, height: 600, uploadedAt: '2026-09-28' },
-  { id: 'g3', url: '', title: '毛茸茸的午后', tags: ['日常', '治愈'], photographer: '摩卡', width: 800, height: 1000, uploadedAt: '2026-09-15' },
-  { id: 'g4', url: '', title: '万圣节派对', tags: ['节日'], photographer: '极光', width: 800, height: 640, uploadedAt: '2026-10-31' },
-  { id: 'g5', url: '', title: '图书馆一角', tags: ['校园'], photographer: '毛球', width: 800, height: 800, uploadedAt: '2026-10-05' },
-  { id: 'g6', url: '', title: '冬日暖阳', tags: ['日常'], photographer: '布丁', width: 800, height: 1100, uploadedAt: '2026-11-03' },
-  { id: 'g7', url: '', title: '社团例会', tags: ['活动', '日常'], photographer: '毛球', width: 800, height: 600, uploadedAt: '2026-10-20' },
-  { id: 'g8', url: '', title: '小雨中的钟楼', tags: ['校园', '治愈'], photographer: '极光', width: 800, height: 1050, uploadedAt: '2026-10-08' },
+export const galleryImages: MockFeaturedImage[] = [
+  { id: 'g1', title: '秋日校园', photographer: '极光', width: 800, height: 1067 },
+  { id: 'g2', title: '社团迎新夜', photographer: '毛球', width: 800, height: 600 },
+  { id: 'g3', title: '毛茸茸的午后', photographer: '摩卡', width: 800, height: 1000 },
+  { id: 'g4', title: '万圣节派对', photographer: '极光', width: 800, height: 640 },
+  { id: 'g5', title: '图书馆一角', photographer: '毛球', width: 800, height: 800 },
+  { id: 'g6', title: '冬日暖阳', photographer: '布丁', width: 800, height: 1100 },
+  { id: 'g7', title: '社团例会', photographer: '毛球', width: 800, height: 600 },
+  { id: 'g8', title: '小雨中的钟楼', photographer: '极光', width: 800, height: 1050 },
 ]
 
 export const announcements: Announcement[] = [
