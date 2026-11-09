@@ -86,6 +86,15 @@ class Settings(BaseSettings):
     # 上传
     upload_max_bytes: int = Field(default=52_428_800, alias="UPLOAD_MAX_BYTES")
 
+    # 图片处理（后台任务）
+    image_display_max_px: int = Field(default=2000, alias="IMAGE_DISPLAY_MAX_PX")
+    image_thumb_max_px: int = Field(default=800, alias="IMAGE_THUMB_MAX_PX")
+    image_quality: int = Field(default=85, alias="IMAGE_QUALITY")
+    image_max_pixels: int = Field(
+        default=40_000_000, alias="IMAGE_MAX_PIXELS"
+    )  # 防解压炸弹（约 40MP）
+    image_worker_concurrency: int = Field(default=2, alias="IMAGE_WORKER_CONCURRENCY")
+
     # 可观测性
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     sentry_dsn: str | None = Field(default=None, alias="SENTRY_DSN")

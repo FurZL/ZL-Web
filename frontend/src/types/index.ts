@@ -58,6 +58,8 @@ export interface AdminUser {
 export interface GalleryImage {
   id: string
   url: string | null
+  display_url: string | null
+  thumb_url: string | null
   object_key: string | null
   original_name: string | null
   title: string
@@ -69,6 +71,7 @@ export interface GalleryImage {
   width: number | null
   height: number | null
   uploaded_at: string | null
+  processing_status: string | null
 }
 
 // 后端 /images/upload-intent 返回

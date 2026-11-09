@@ -37,7 +37,8 @@ logs/
 vite-server.log
 vite-server.err
 shared/tmp/
-storage/
+# 仅忽略项目根的本地文件存储目录（不误伤 backend/app/providers/storage/ 代码包）
+/storage/
 
 # 本地机器专属脚本（含绝对路径，不进仓库）
 deploy/scripts/start-vite.ps1

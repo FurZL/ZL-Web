@@ -20,6 +20,7 @@ dependencies = [
     "PyJWT>=2.8",
     "argon2-cffi>=23.1",
     "cos-python-sdk-v5>=1.9.30",
+    "Pillow>=10.0",
 ]
 
 [project.optional-dependencies]

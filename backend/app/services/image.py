@@ -21,6 +21,7 @@ from app.core.config import settings
 from app.models.image import Image, StoredObject
 from app.models.user import User
 from app.providers.factory import get_storage_provider
+from app.services import image_processing
 
 # 图片类型白名单（拒绝 SVG/HTML/脚本/压缩包等高风险类型）
 ALLOWED_MIME = {
@@ -132,7 +133,7 @@ async def complete_upload(
         visibility=visibility,
         mime_type=None,  # 后续由处理任务补充精确 MIME/尺寸
         size_bytes=head.size_bytes,
-        processing_status="ready",
+        processing_status="pending",
         created_by=user.id,
     )
     db.add(stored)
@@ -153,6 +154,13 @@ async def complete_upload(
     db.add(image)
     await db.commit()
     await db.refresh(image)
+
+    # 公开图片触发后台处理（生成展示图/缩略图）
+    if purpose == "gallery":
+        from app.workers.image_worker import enqueue_image
+
+        enqueue_image(image.id)
+
     return image
 
 
@@ -188,12 +196,30 @@ async def list_public_images(
 async def _image_to_dict(db: AsyncSession, image: Image) -> dict:
     stored = await db.get(StoredObject, image.stored_object_id)
     storage = get_storage_provider()
-    url = storage.public_url(stored.bucket, stored.object_key) if stored else None
     uploader = await db.get(User, image.uploader_id)
+
+    object_key = stored.object_key if stored else None
+    url = storage.public_url(stored.bucket, object_key) if stored else None
+
+    # 派生图 URL（由 object_key 推导；未处理完成时可能 404，前端可回退原图）
+    display_url = thumb_url = None
+    if object_key and stored and stored.processing_status == "ready":
+        try:
+            display_url = storage.public_url(
+                stored.bucket, image_processing.derive_display_key(object_key)
+            )
+            thumb_url = storage.public_url(
+                stored.bucket, image_processing.derive_thumb_key(object_key)
+            )
+        except ValueError:
+            pass
+
     return {
         "id": str(image.id),
         "url": url,
-        "object_key": stored.object_key if stored else None,
+        "display_url": display_url,
+        "thumb_url": thumb_url,
+        "object_key": object_key,
         "original_name": image.original_name,
         "title": image.original_name or "未命名",
         "description": image.description,
@@ -204,4 +230,5 @@ async def _image_to_dict(db: AsyncSession, image: Image) -> dict:
         "width": image.width,
         "height": image.height,
         "uploaded_at": image.created_at.isoformat() if image.created_at else None,
+        "processing_status": stored.processing_status if stored else None,
     }

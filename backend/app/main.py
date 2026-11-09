@@ -16,12 +16,15 @@ from app.core.config import settings
 from app.core.logging import setup_logging
 from app.core.redis import close_redis, redis
 from app.middleware import setup_middleware
+from app.workers.image_worker import start_workers, stop_workers
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+    await start_workers()
     yield
+    await stop_workers()
     await close_redis()
 
 

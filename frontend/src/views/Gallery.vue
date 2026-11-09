@@ -203,7 +203,7 @@ onMounted(loadImages)
     <div v-else class="mt-8 columns-1 sm:columns-2 lg:columns-3 gap-4 space-y-4">
       <div v-for="img in filtered" :key="img.id" class="break-inside-avoid glass-card p-2 cursor-pointer hover:shadow-soft transition group" @click="openDetail(img)">
         <div class="rounded-xl overflow-hidden">
-          <ImagePlaceholder :title="img.title" :src="img.url" :aspect="img.height && img.width && img.height > img.width ? '3/4' : '4/3'" />
+          <ImagePlaceholder :title="img.title" :src="img.thumb_url || img.url" :aspect="img.height && img.width && img.height > img.width ? '3/4' : '4/3'" />
         </div>
         <div class="px-2 py-2.5 flex items-center gap-2">
           <UserAvatar :name="img.photographer" :size="26" />
@@ -218,7 +218,7 @@ onMounted(loadImages)
       <div v-if="selected" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-sm" @click.self="closeDetail">
         <div class="glass-card max-w-4xl w-full overflow-hidden max-h-[90vh] flex flex-col md:flex-row">
           <div class="md:w-3/5 bg-white/30 flex items-center justify-center">
-            <ImagePlaceholder :title="selected.title" :src="selected.url" aspect="4/3" />
+            <ImagePlaceholder :title="selected.title" :src="selected.display_url || selected.url" aspect="4/3" />
           </div>
           <div class="md:w-2/5 p-6 flex flex-col">
             <div class="flex items-start justify-between">
