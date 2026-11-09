@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, func
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -37,6 +37,10 @@ class User(TimestampMixin, Base):
         String(32), default="pending", index=True
     )  # pending / active / disabled
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
+    # 摄影师申请（注册时若申请摄影师则填写）
+    applied_role: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    application_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    application_portfolio: Mapped[str | None] = mapped_column(String(500), nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

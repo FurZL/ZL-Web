@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.permissions import require_permission
+from app.models.user import User
 from app.services.auth import decode_access_token
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -19,8 +20,11 @@ async def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
-):
-    """从 Bearer Token 解析当前用户（轻量，不强制查库；需要时可扩展查询）。"""
+) -> User:
+    """从 Bearer Token 解析并查库返回真实用户。
+
+    权限最终以数据库中的 role/status 为准（不信任 JWT 中的陈旧 role）。
+    """
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -28,19 +32,25 @@ async def get_current_user(
         )
     try:
         payload = decode_access_token(credentials.credentials)
+        user_id = uuid.UUID(payload["sub"])
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"code": "INVALID_TOKEN", "message": "令牌无效或已过期"},
         )
-    user_id = uuid.UUID(payload["sub"])
-    role = payload.get("role", "member")
-    return {"id": user_id, "role": role}
+
+    user = await db.get(User, user_id)
+    if user is None or not user.is_active or user.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "INVALID_TOKEN", "message": "账号不可用"},
+        )
+    return user
 
 
 def require_role(*roles: str):
-    async def _dep(user=Depends(get_current_user)):
-        if user["role"] not in roles:
+    async def _dep(user: User = Depends(get_current_user)):
+        if user.role not in roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail={"code": "FORBIDDEN", "message": "权限不足"},
@@ -51,9 +61,9 @@ def require_role(*roles: str):
 
 
 def require_permission_dep(permission: str):
-    async def _dep(user=Depends(get_current_user)):
+    async def _dep(user: User = Depends(get_current_user)):
         try:
-            require_permission(user["role"], permission)
+            require_permission(user.role, permission)
         except PermissionError:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

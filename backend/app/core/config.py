@@ -77,6 +77,12 @@ class Settings(BaseSettings):
     auth_cookie_secure: bool = Field(default=False, alias="AUTH_COOKIE_SECURE")
     password_hash_scheme: str = Field(default="argon2", alias="PASSWORD_HASH_SCHEME")
 
+    # 验证码（OTP）
+    otp_ttl_seconds: int = Field(default=600, alias="OTP_TTL_SECONDS")
+    otp_max_attempts: int = Field(default=5, alias="OTP_MAX_ATTEMPTS")
+    # 开发模式：不真正发送邮件/短信，验证码返回在响应里（仅用于本地联调）
+    otp_dev_mode: bool = Field(default=False, alias="OTP_DEV_MODE")
+
     # 上传
     upload_max_bytes: int = Field(default=52_428_800, alias="UPLOAD_MAX_BYTES")
 

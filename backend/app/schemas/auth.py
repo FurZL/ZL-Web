@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class RegisterRequest(BaseModel):
@@ -16,6 +16,9 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     email_code: str
     phone_code: str
+    applied_role: str | None = Field(default=None, description="申请角色，例如 photographer")
+    application_reason: str | None = None
+    application_portfolio: str | None = None
 
 
 class LoginRequest(BaseModel):
@@ -55,10 +58,15 @@ class TokenPair(BaseModel):
 
 
 class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: uuid.UUID
     username: str
     display_name: str
     email: EmailStr
     role: str
     status: str
+    applied_role: str | None
+    application_reason: str | None
+    application_portfolio: str | None
     created_at: datetime
