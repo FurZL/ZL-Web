@@ -1,0 +1,17 @@
+/* 离线字体 — HarmonyOS Sans SC（鸿蒙简体中文，子集化 woff2） */
+
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./HarmonyOS_Sans_SC_Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./HarmonyOS_Sans_SC_Bold.woff2') format('woff2');
+}

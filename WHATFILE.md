@@ -34,8 +34,17 @@
 | `index.html` | SPA HTML 入口模板（挂载 #app） |
 | `env.d.ts` | TypeScript 环境声明（Vite import.meta.env 类型 + *.vue 模块声明） |
 | `.env.development` | 开发环境变量（VITE_API_BASE_URL → http://localhost:8000/api/v1） |
-| `.env.production` | 生产环境变量（VITE_API_BASE_URL、VITE_PUBLIC_ASSET_BASE_URL） |
+| `.env.production` | 生产环境变量（VITE_API_BASE_URL） |
 | `.gitignore` | 前端 Git 忽略规则（dist、node_modules 等） |
+
+### frontend/public/ — 静态资源（原样输出到 dist/）
+
+| 文件 | 用途 |
+|---|---|
+| `fonts/loader.js` | 字体加载器：Google Fonts (Noto Sans SC) 优先，失败/超时回退本地鸿蒙字体 |
+| `fonts/fonts.css` | 本地字体 `@font-face` 声明（HarmonyOS Sans SC，子集化 woff2） |
+| `fonts/HarmonyOS_Sans_SC_Regular.woff2` | 鸿蒙简体中文 Regular（子集化 154KB，覆盖项目全部用到的字符） |
+| `fonts/HarmonyOS_Sans_SC_Bold.woff2` | 鸿蒙简体中文 Bold（子集化 152KB） |
 | `vite-server.log` | Vite 开发服务器运行日志（临时文件，可安全删除） |
 | `vite-server.err` | Vite 开发服务器错误日志（临时文件，可安全删除） |
 

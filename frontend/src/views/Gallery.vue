@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ImagePlaceholder from '@/components/ImagePlaceholder.vue'
 import ImageLightbox from '@/components/ImageLightbox.vue'
@@ -70,6 +70,14 @@ async function downloadImage(img: GalleryImage) {
 
 // 上传弹窗
 const showUpload = ref(route.query.upload === '1')
+
+// 监听 query 变化：从顶栏重复点击「上传图片」时，同一路由不触发挂载，但 query 会变
+watch(
+  () => route.query.upload,
+  (val) => {
+    if (val === '1') showUpload.value = true
+  },
+)
 const file = ref<File | null>(null)
 const filePreview = ref('')
 const uploadTitle = ref('')

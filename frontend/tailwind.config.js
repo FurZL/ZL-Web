@@ -27,7 +27,9 @@ export default {
       },
       fontFamily: {
         sans: [
-          '-apple-system',
+          'Noto Sans SC',
+          'HarmonyOS Sans SC',
+          'HarmonyOS Sans',
           'PingFang SC',
           'Microsoft YaHei',
           'system-ui',

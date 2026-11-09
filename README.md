@@ -192,6 +192,10 @@ border: 1px solid rgba(255, 255, 255, 0.6);
 - **UI 统一：顶栏导航更新**：新增「活动」入口（所有人可见）；「课表工具」改名「课表」且仅登录后可见；`navLinks` 改为 `computed` 响应式；下拉菜单内外圆角统一 `rounded-xl2`。
 - **UI 修复：管理后台侧边栏对齐**：图标固定 `w-5 h-5` 容器居中，选中态套用主题色减淡规范；移动端横滑 Tab 同步统一。
 - **视觉规范重写**：README 按交互意图（选择类/操作类/容器级）重写控件风格规范。
+- **离线字体 + CDN 回退**：全站字体统一为鸿蒙 HarmonyOS Sans SC（子集化 woff2，15.8MB → 306KB，仅保留项目用到的 803 个字符）。`loader.js` 实现 Google Fonts (Noto Sans SC) 优先加载，失败/超时自动回退本地鸿蒙字体；CSS 字体栈 `Noto Sans SC → HarmonyOS Sans SC → 系统字体`，渲染无感知切换，全程 `font-display: swap` 不白屏。
+- **移除多余字体**：删除 Quicksand、站酷快乐体等临时字体，仅保留鸿蒙子集 woff2。
+- **下拉菜单修复**：`backdrop-filter` 层叠上下文问题（`::before` 伪元素 + Teleport body）；菜单圆角统一 `rounded-xl2`；CSS 三角箭头旋转动画；点击外部自动关闭。
+- **上传图片入口**：移除顶栏「上传图片」按钮，Gallery 页面内保留上传入口。
 
 ## 分层约定
 

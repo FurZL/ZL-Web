@@ -88,8 +88,8 @@ onBeforeUnmount(() => {
           v-for="link in navLinks"
           :key="link.to"
           :to="link.to"
-          class="shrink-0 px-3 py-2 text-sm rounded-lg text-sub hover:text-primary-700 hover:bg-primary-50 transition"
-          active-class="text-primary-700 bg-primary/15 backdrop-blur-md border border-primary/20 font-medium shadow-glass"
+          class="shrink-0 px-4 py-2 text-sm rounded-full text-primary-700 bg-primary/5 border border-primary/10 hover:bg-primary/15 transition"
+          active-class="bg-primary/30 border border-primary/30 shadow-glass text-primary-800 font-medium"
         >
           {{ link.label }}
         </RouterLink>
@@ -106,14 +106,6 @@ onBeforeUnmount(() => {
         </template>
 
         <template v-else>
-          <RouterLink
-            v-if="auth.isPhotographer"
-            to="/gallery?upload=1"
-            class="hidden sm:inline-flex items-center gap-1.5 text-sm text-primary-700 bg-primary/15 backdrop-blur-md border border-primary/20 hover:bg-primary/25 rounded-full px-4 py-2 transition shadow-glass"
-          >
-            上传图片
-          </RouterLink>
-
           <button ref="triggerRef" class="flex items-center gap-2" @click.stop="toggleMenu">
             <UserAvatar :name="auth.user!.displayName" :size="36" />
             <span class="hidden sm:block text-sm text-ink">{{ auth.user!.displayName }}</span>
