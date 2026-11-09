@@ -215,3 +215,73 @@ export interface SiteSettingRecord {
   is_public: boolean
   updated_at: string | null
 }
+
+// ---------- 活动 ----------
+export interface EventRecord {
+  id: string
+  title: string
+  description: string | null
+  location: string | null
+  starts_at: string | null
+  ends_at: string | null
+  capacity: number | null
+  registration_starts_at: string | null
+  registration_ends_at: string | null
+  status: string // draft / published / cancelled
+  created_by: string | null
+  registered_count: number
+  waitlist_count: number
+  my_status?: string | null // registered / waitlisted / checked_in / null
+  my_registration?: EventRegistration | null
+}
+
+export interface EventRegistration {
+  id: string
+  event_id: string
+  user_id: string
+  status: string // registered / waitlisted / cancelled / checked_in
+  signup_at: string | null
+  checkin_at: string | null
+  user?: {
+    id: string
+    username: string
+    display_name: string
+  }
+}
+
+// ---------- 动态页面 ----------
+export interface PageBlock {
+  type: string
+  props: Record<string, unknown>
+}
+
+export interface PageSchema {
+  slug?: string
+  title?: string
+  theme?: { primary?: string; background?: string }
+  blocks: PageBlock[]
+}
+
+export interface PageRecord {
+  id: string
+  slug: string
+  title: string
+  status: string // draft / published / archived
+  schema_json: PageSchema | Record<string, unknown>
+  starts_at: string | null
+  ends_at: string | null
+  seo_title: string | null
+  seo_description: string | null
+  published_at: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface PageVersion {
+  id: string
+  page_id: string
+  version: number
+  schema_snapshot: PageSchema | Record<string, unknown>
+  change_summary: string | null
+  created_at: string | null
+}

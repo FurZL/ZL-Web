@@ -1,35 +1,104 @@
-"""活动与公告端点。"""
+"""活动端点：列表、详情、报名、取消、签到。"""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.api.response import ok
+from app.core.database import get_db
+from app.models.user import User
+from app.services.event import EventError
+from app.services import event as event_service
 
 router = APIRouter(prefix="/events", tags=["events"])
 
 
+class RegisterRequest(BaseModel):
+    idempotency_key: str | None = Field(default=None, max_length=128)
+
+
+def _parse_uuid(s: str) -> uuid.UUID:
+    try:
+        return uuid.UUID(s)
+    except ValueError:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_ID", "message": "无效的 ID"})
+
+
+def _handle_error(exc: EventError) -> HTTPException:
+    return HTTPException(
+        status_code=exc.status_code,
+        detail={"code": exc.code, "message": exc.message},
+    )
+
+
 @router.get("/")
-async def list_events(request: Request):
-    return ok({"items": []})
+async def list_events(
+    user: User | None = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """公开活动列表（登录后含自己的报名状态）。"""
+    try:
+        result = await event_service.list_events(db, user)
+    except EventError as exc:
+        raise _handle_error(exc)
+    return ok(result)
 
 
 @router.get("/{event_id}")
-async def get_event(event_id: str, request: Request):
-    return ok({"id": event_id})
+async def get_event(
+    event_id: str,
+    user: User | None = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        result = await event_service.get_event(db, _parse_uuid(event_id), user)
+    except EventError as exc:
+        raise _handle_error(exc)
+    return ok(result)
 
 
 @router.post("/{event_id}/register")
-async def register_event(event_id: str, request: Request, user=Depends(get_current_user)):
-    return ok({"message": "register stub"})
+async def register_event(
+    event_id: str,
+    body: RegisterRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        result = await event_service.register(
+            db, _parse_uuid(event_id), user, body.idempotency_key
+        )
+    except EventError as exc:
+        raise _handle_error(exc)
+    return ok(result)
 
 
 @router.delete("/{event_id}/register")
-async def cancel_registration(event_id: str, request: Request, user=Depends(get_current_user)):
-    return ok({"message": "cancel stub"})
+async def cancel_registration(
+    event_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        result = await event_service.cancel_registration(db, _parse_uuid(event_id), user)
+    except EventError as exc:
+        raise _handle_error(exc)
+    return ok(result)
 
 
 @router.post("/{event_id}/checkin")
-async def checkin(event_id: str, request: Request, user=Depends(get_current_user)):
-    return ok({"message": "checkin stub"})
+async def checkin(
+    event_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        result = await event_service.checkin(db, _parse_uuid(event_id), user)
+    except EventError as exc:
+        raise _handle_error(exc)
+    return ok(result)
