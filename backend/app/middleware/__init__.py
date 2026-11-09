@@ -1,0 +1,1 @@
+from app.middleware.request_id import RequestIdMiddleware, setup_middleware  # noqa: F401

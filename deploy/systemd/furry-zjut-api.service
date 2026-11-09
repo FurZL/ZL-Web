@@ -1,0 +1,26 @@
+[Unit]
+Description=Furry ZJUT FastAPI API
+After=network.target postgresql.service redis-server.service
+Wants=postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=furry
+Group=furry
+WorkingDirectory=/opt/furry-zjut/backend/current
+EnvironmentFile=/etc/furry-zjut/api.env
+ExecStart=/opt/furry-zjut/backend/current/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+KillSignal=SIGTERM
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+
+# 2C2G 机器上经观测后可选：
+# MemoryMax=500M
+# TasksMax=128
+
+[Install]
+WantedBy=multi-user.target

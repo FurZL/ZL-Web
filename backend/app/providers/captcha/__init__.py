@@ -1,0 +1,1 @@
+from app.providers.captcha.base import CaptchaProvider, NoopCaptchaProvider  # noqa: F401

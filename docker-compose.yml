@@ -1,0 +1,35 @@
+# 仅用于本地开发环境；生产环境不使用 Docker（见 docs/DEPLOYMENT.md）。
+# 本地试运行依赖：PostgreSQL + Redis。
+# 对象存储使用腾讯云 COS（不需 Docker 容器）。
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: furry-zjut-postgres
+    environment:
+      POSTGRES_USER: furry_app
+      POSTGRES_PASSWORD: furry_dev_password
+      POSTGRES_DB: furry_zjut
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U furry_app -d furry_zjut"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: furry-zjut-redis
+    command: ["redis-server", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:

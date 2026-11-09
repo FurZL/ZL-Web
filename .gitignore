@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node / 前端
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# 环境与密钥（严禁提交）
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# 数据库 / 日志 / 本地文件
+*.db
+*.sqlite3
+logs/
+*.log
+*.err
+vite-server.log
+vite-server.err
+shared/tmp/
+storage/
+
+# 本地机器专属脚本（含绝对路径，不进仓库）
+deploy/scripts/start-vite.ps1
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
