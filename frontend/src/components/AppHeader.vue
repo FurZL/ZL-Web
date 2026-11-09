@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import UserAvatar from '@/components/UserAvatar.vue'
@@ -7,12 +7,13 @@ import UserAvatar from '@/components/UserAvatar.vue'
 const auth = useAuthStore()
 const menuOpen = ref(false)
 
-const navLinks = [
+const navLinks = computed(() => [
   { to: '/', label: '首页' },
   { to: '/about', label: '社团介绍' },
   { to: '/gallery', label: '图片展示' },
-  ...(auth.isLoggedIn ? [{ to: '/schedule', label: '课表工具' }] : []),
-]
+  { to: '/events', label: '活动' },
+  ...(auth.isLoggedIn ? [{ to: '/schedule', label: '课表' }] : []),
+])
 
 function toggleMenu() {
   menuOpen.value = !menuOpen.value
@@ -137,16 +138,16 @@ onBeforeUnmount(() => {
         :style="menuStyle"
         @click="closeMenu"
       >
-        <RouterLink to="/profile" class="block px-3 py-2 text-sm rounded-lg hover:bg-primary-50 text-ink">
+        <RouterLink to="/profile" class="block px-3 py-2 text-sm rounded-xl2 hover:bg-primary-50 text-ink">
           个人空间
         </RouterLink>
-        <RouterLink to="/schedule" class="block px-3 py-2 text-sm rounded-lg hover:bg-primary-50 text-ink">
-          课表工具
+        <RouterLink to="/schedule" class="block px-3 py-2 text-sm rounded-xl2 hover:bg-primary-50 text-ink">
+          课表
         </RouterLink>
-        <RouterLink v-if="auth.isAdmin" to="/admin" class="block px-3 py-2 text-sm rounded-lg hover:bg-primary-50 text-ink">
+        <RouterLink v-if="auth.isAdmin" to="/admin" class="block px-3 py-2 text-sm rounded-xl2 hover:bg-primary-50 text-ink">
           管理后台
         </RouterLink>
-        <button class="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-primary-50 text-sub" @click="auth.logout()">
+        <button class="w-full text-left px-3 py-2 text-sm rounded-xl2 hover:bg-primary-50 text-sub" @click="auth.logout()">
           退出
         </button>
       </div>

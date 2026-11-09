@@ -84,15 +84,15 @@ onMounted(load)
     <!-- Tab 切换 -->
     <div class="mt-6 flex gap-2">
       <button
-        class="px-4 py-1.5 rounded-full text-sm transition"
-        :class="tab === 'pending' ? 'bg-primary text-white shadow-glow' : 'bg-white/70 text-sub hover:bg-primary-50'"
+        class="text-sm font-medium text-primary-700 rounded-full px-5 py-2 transition"
+        :class="tab === 'pending' ? 'bg-primary/30 border border-primary/30 shadow-glass text-primary-800' : 'bg-primary/5 border border-primary/10 hover:bg-primary/15'"
         @click="tab = 'pending'"
       >
         待审批
       </button>
       <button
-        class="px-4 py-1.5 rounded-full text-sm transition"
-        :class="tab === 'all' ? 'bg-primary text-white shadow-glow' : 'bg-white/70 text-sub hover:bg-primary-50'"
+        class="text-sm font-medium text-primary-700 rounded-full px-5 py-2 transition"
+        :class="tab === 'all' ? 'bg-primary/30 border border-primary/30 shadow-glass text-primary-800' : 'bg-primary/5 border border-primary/10 hover:bg-primary/15'"
         @click="tab = 'all'"
       >
         全部用户

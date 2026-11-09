@@ -89,44 +89,64 @@ npm run dev
 - 首页 Hero：流动渐变背景（12s 往返动画）+ 双按钮（已登录隐藏「加入我们」）。
 - 可点击链接（了解故事/查看全部/进入图片展示/去注册）统一圆角矩形控件。
 
-### 视觉规范 — 主题色减淡 & 背景模糊
+### 视觉规范 — 控件风格
 
-全站半透明元素统一遵循以下两种处理方式，新增组件请直接套用对应 class 组合。
+全站控件按**交互意图**分为两种风格，新增组件请根据用途选择对应 class 组合。
 
-#### 1. 玻璃拟态（中性半透明）
+#### 1. 选择类控件（半透明 / 主题色减淡）
 
-适用于卡片、弹窗、下拉菜单等通用容器，视觉上与顶栏保持一致。
+用于**切换视图、筛选选项、选中态**等不产生数据变更的控件——Tab 标签、筛选按钮、导航选中项、上传入口等。视觉上轻盈、不抢内容。
+
+```html
+<!-- 未选中 -->
+class="text-sm font-medium text-primary-700 rounded-full px-5 py-2
+       bg-primary/5 border border-primary/10 hover:bg-primary/15 transition"
+
+<!-- 选中 -->
+class="text-sm font-medium text-primary-700 rounded-full px-5 py-2
+       bg-primary/30 border border-primary/30 shadow-glass text-primary-800 transition"
+```
+
+| 状态 | 底色 | 边框 | 文字 |
+|---|---|---|---|
+| 未选中 | `bg-primary/5` | `border-primary/10` | `text-primary-700` |
+| 选中 | `bg-primary/30` | `border-primary/30` | `text-primary-800` + `shadow-glass` |
+
+> 玻璃拟态容器（卡片、弹窗、下拉菜单）使用 `.glass-card`（`bg-white/70 backdrop-blur-xl border-white/60`），与选择类控件配合使用。
+> 下拉菜单等 Teleport 到 body 的元素，`backdrop-filter` 必须写入 inline style（Tailwind 类在 Teleport + transition 下可能失效）。
+
+#### 2. 操作类控件（实色块）
+
+用于**确认、提交、删除、保存、报名**等产生数据变更或不可逆操作的控件。视觉上明确、有重量感，让用户清楚"点击会执行动作"。
+
+```html
+<!-- 主操作（确认/提交/保存） -->
+class="btn-primary"  <!-- 实色主题底 + 白字 -->
+
+<!-- 次操作（取消/返回） -->
+class="btn-ghost"    <!-- 白底 + 主题色边框 + 主题色文字 -->
+
+<!-- 危险操作（删除/拒绝） -->
+class="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition"
+```
+
+| 类型 | 样式类 | 用途 |
+|---|---|---|
+| 主操作 | `btn-primary` | 确认、提交、保存、报名、签到 |
+| 次操作 | `btn-ghost` | 取消、返回、上一步 |
+| 危险操作 | 红色边框 + 红字 | 删除、拒绝、取消报名 |
+
+> 操作类控件**不使用半透明底色**，始终为实色块，确保用户能清晰区分"选择"和"执行"。
+
+#### 3. 玻璃模糊（容器级背景）
+
+卡片、弹窗、页脚、遮罩等**容器级**元素使用模糊背景，营造深度层次：
 
 ```css
-/* 背景模糊 + 半透明白底 + 细边框 */
 background: rgba(255, 255, 255, 0.7);
 backdrop-filter: blur(24px);
 -webkit-backdrop-filter: blur(24px);
 border: 1px solid rgba(255, 255, 255, 0.6);
-border-radius: 1.25rem;
-```
-
-> 项目内 `.glass-card` 已封装（`bg-white/70 backdrop-blur-xl border border-white/60`），可直接使用。
-> 下拉菜单等 Teleport 到 body 的元素，`backdrop-filter` 必须写入 inline style（Tailwind 类在 Teleport + transition 下可能失效）。
-
-#### 2. 主题色减淡（交互高亮）
-
-适用于当前选中项、主操作按钮等需要强调但保留可读性的元素。
-
-| 属性 | 值 | Tailwind |
-|---|---|---|
-| 底色 | `#6B5CE7` @ 15% 透明度 | `bg-primary/15` |
-| 边框 | `#6B5CE7` @ 20% 透明度 | `border-primary/20` |
-| 文字 | `#493DB0`（primary-700） | `text-primary-700` |
-| 模糊 | `blur(24px)` | `backdrop-blur-md` |
-| 阴影 | 标准玻璃阴影 | `shadow-glass` |
-
-```html
-<!-- 选中态 -->
-class="text-primary-700 bg-primary/15 backdrop-blur-md border border-primary/20 font-medium shadow-glass"
-
-<!-- 按钮 hover 加深 -->
-class="text-primary-700 bg-primary/15 backdrop-blur-md border border-primary/20 hover:bg-primary/25 shadow-glass"
 ```
 
 #### 注意事项
@@ -134,6 +154,7 @@ class="text-primary-700 bg-primary/15 backdrop-blur-md border border-primary/20 
 - `.topbar` 的模糊背景由 `::before` 伪元素承担（`z-index: -1`），避免 `backdrop-filter` 在导航栏本体创建层叠上下文导致下拉菜单被遮挡。
 - 下拉菜单通过 `<Teleport to="body">` + `fixed` 定位脱离顶栏层叠上下文，`z-index: 200`。
 - 半透明底色搭配 `backdrop-blur` 使用，避免仅降低透明度导致文字与背景对比度不足。
+- **选择类 ≠ 操作类**：筛选按钮可以用半透明，但「确认上传」「立即报名」等必须用实色块。
 
 ### 本地联调速查
 
@@ -167,6 +188,10 @@ class="text-primary-700 bg-primary/15 backdrop-blur-md border border-primary/20 
 - **优化：消除刷新页面 401 噪音**：新增 `ensureAccessToken()`，`App.vue` 启动时先静默刷新 access token 再请求 `/auth/me`，不再产生首个 401。
 - **优化：Hero 背景流动渐变**：CSS `background-position` 动画循环流动（12s 往返），`prefers-reduced-motion` 下自动停止。
 - **UI 统一：圆角矩形控件规范**：导航选中态、上传按钮、登录/注册、Hero 按钮、页面内链接统一套用主题色减淡 `bg-primary/10~15 border-primary/20 rounded-full` 风格；登录后隐藏首页「加入我们」和社团介绍「怎么加入我们」栏目。
+- **UI 统一：控件风格规范**（选择类半透明 / 操作类实色块）：所有 Tab/筛选控件（Gallery 标签、Events 筛选、AdminImages、AdminSettings、AdminUsers、AdminLayout）统一为 `bg-primary/5`（未选中）/ `bg-primary/30`（选中）；操作按钮（确认/保存/删除/报名等）保留实色块 `btn-primary`/`btn-ghost`。
+- **UI 统一：顶栏导航更新**：新增「活动」入口（所有人可见）；「课表工具」改名「课表」且仅登录后可见；`navLinks` 改为 `computed` 响应式；下拉菜单内外圆角统一 `rounded-xl2`。
+- **UI 修复：管理后台侧边栏对齐**：图标固定 `w-5 h-5` 容器居中，选中态套用主题色减淡规范；移动端横滑 Tab 同步统一。
+- **视觉规范重写**：README 按交互意图（选择类/操作类/容器级）重写控件风格规范。
 
 ## 分层约定
 

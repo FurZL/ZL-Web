@@ -122,8 +122,8 @@ const tabs = [
       <button
         v-for="t in tabs"
         :key="t.key"
-        class="px-4 py-2 rounded-full text-sm transition"
-        :class="filter === t.key ? 'bg-primary text-white shadow-glow' : 'bg-white/70 text-sub hover:bg-primary-50'"
+        class="text-sm font-medium text-primary-700 rounded-full px-5 py-2 transition"
+        :class="filter === t.key ? 'bg-primary/30 border border-primary/30 shadow-glass text-primary-800' : 'bg-primary/5 border border-primary/10 hover:bg-primary/15'"
         @click="filter = t.key"
       >
         {{ t.label }}

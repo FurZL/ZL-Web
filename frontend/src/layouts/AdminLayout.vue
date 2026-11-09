@@ -31,10 +31,10 @@ function isActive(to: string, exact: boolean | undefined) {
               v-for="m in menus"
               :key="m.to"
               :to="m.to"
-              class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition"
-              :class="isActive(m.to, m.exact) ? 'bg-primary text-white shadow-glow' : 'text-sub hover:bg-primary-50'"
+              class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition"
+              :class="isActive(m.to, m.exact) ? 'bg-primary/15 border border-primary/20 text-primary-800 font-medium shadow-glass' : 'text-sub hover:bg-primary/5 border border-transparent'"
             >
-              <span>{{ m.icon }}</span>
+              <span class="w-5 h-5 flex items-center justify-center text-xs shrink-0">{{ m.icon }}</span>
               <span>{{ m.label }}</span>
             </RouterLink>
           </nav>
@@ -49,8 +49,8 @@ function isActive(to: string, exact: boolean | undefined) {
             v-for="m in menus"
             :key="m.to"
             :to="m.to"
-            class="shrink-0 px-3 py-1.5 rounded-full text-sm whitespace-nowrap"
-            :class="isActive(m.to, m.exact) ? 'bg-primary text-white' : 'bg-white/70 text-sub'"
+            class="shrink-0 px-4 py-1.5 rounded-full text-sm whitespace-nowrap transition"
+            :class="isActive(m.to, m.exact) ? 'bg-primary/30 text-primary-800 border border-primary/30 font-medium' : 'bg-primary/5 text-primary-700 border border-primary/10 hover:bg-primary/15'"
           >
             {{ m.icon }} {{ m.label }}
           </RouterLink>
