@@ -83,24 +83,24 @@ onBeforeUnmount(() => {
         <span class="hidden lg:inline font-semibold text-ink tracking-wide">浙江理工福瑞圈</span>
       </RouterLink>
 
-      <div class="flex items-center gap-1 overflow-x-auto no-scrollbar">
+      <div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
         <RouterLink
           v-for="link in navLinks"
           :key="link.to"
           :to="link.to"
-          class="shrink-0 px-4 py-2 text-sm rounded-full text-primary-700 bg-primary/5 border border-primary/10 hover:bg-primary/15 transition"
-          active-class="bg-primary/30 border border-primary/30 shadow-glass text-primary-800 font-medium"
+          class="shrink-0 px-3 py-1.5 text-[13px] rounded-lg text-primary-700 bg-primary/5 border border-primary/10 hover:bg-primary/15 transition"
+          active-class="bg-primary/40 border-primary/40 text-primary-900 font-medium"
         >
           {{ link.label }}
         </RouterLink>
       </div>
 
-      <div class="ml-auto flex items-center gap-3">
+      <div class="ml-auto flex items-center gap-3.5">
         <template v-if="!auth.isLoggedIn">
-          <RouterLink to="/login" class="text-sm font-medium text-primary-700 bg-primary/10 border border-primary/20 hover:bg-primary/20 rounded-full px-5 py-2 transition">
+          <RouterLink to="/login" class="text-[13px] font-medium text-primary-700 bg-primary/5 border border-primary/10 hover:bg-primary/15 rounded-lg px-3 py-1.5 transition">
             登录
           </RouterLink>
-          <RouterLink to="/register" class="text-sm font-medium text-primary-700 bg-primary/15 border border-primary/20 hover:bg-primary/25 rounded-full px-5 py-2 shadow-glass transition">
+          <RouterLink to="/register" class="text-[13px] font-medium text-primary-700 bg-primary/15 border border-primary/20 hover:bg-primary/25 rounded-lg px-3.5 py-1.5 shadow-glass transition">
             注册
           </RouterLink>
         </template>

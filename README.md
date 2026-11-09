@@ -196,6 +196,7 @@ border: 1px solid rgba(255, 255, 255, 0.6);
 - **移除多余字体**：删除 Quicksand、站酷快乐体等临时字体，仅保留鸿蒙子集 woff2。
 - **下拉菜单修复**：`backdrop-filter` 层叠上下文问题（`::before` 伪元素 + Teleport body）；菜单圆角统一 `rounded-xl2`；CSS 三角箭头旋转动画；点击外部自动关闭。
 - **上传图片入口**：移除顶栏「上传图片」按钮，Gallery 页面内保留上传入口。
+- **顶栏导航优化**：页面切换按钮改为更紧凑的圆角矩形（`rounded-lg`、13px 字号、`px-3 py-1.5`），选中态加深底色（`bg-primary/40` + `text-primary-900`），按钮间距增大。
 
 ## 分层约定
 
