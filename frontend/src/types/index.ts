@@ -84,6 +84,18 @@ export interface UploadIntent {
   expires_in: number
 }
 
+// 私有相册图片（/profile/me/images 返回）
+export interface ProfileImage {
+  id: string
+  original_name: string | null
+  description: string | null
+  width: number | null
+  height: number | null
+  created_at: string | null
+  processing_status: string | null
+  thumb_url: string | null
+}
+
 export interface Announcement {
   id: string
   title: string

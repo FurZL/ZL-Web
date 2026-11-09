@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ImagePlaceholder from '@/components/ImagePlaceholder.vue'
+import ImageLightbox from '@/components/ImageLightbox.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { tags as mockTags } from '@/api/mock'
 import { request } from '@/api/client'
@@ -52,6 +53,10 @@ function openDetail(img: GalleryImage) {
 }
 function closeDetail() {
   selected.value = null
+}
+
+async function downloadSelected() {
+  if (selected.value) await downloadImage(selected.value)
 }
 
 async function downloadImage(img: GalleryImage) {
@@ -213,39 +218,31 @@ onMounted(loadImages)
       </div>
     </div>
 
-    <!-- 详情弹窗 -->
-    <Teleport to="body">
-      <div v-if="selected" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-sm" @click.self="closeDetail">
-        <div class="glass-card max-w-4xl w-full overflow-hidden max-h-[90vh] flex flex-col md:flex-row">
-          <div class="md:w-3/5 bg-white/30 flex items-center justify-center">
-            <ImagePlaceholder :title="selected.title" :src="selected.display_url || selected.url" aspect="4/3" />
-          </div>
-          <div class="md:w-2/5 p-6 flex flex-col">
-            <div class="flex items-start justify-between">
-              <h2 class="text-xl font-bold text-ink">{{ selected.title }}</h2>
-              <button class="text-faint hover:text-ink" @click="closeDetail">✕</button>
-            </div>
-            <div class="mt-4 flex items-center gap-2">
-              <UserAvatar :name="selected.photographer" :size="32" />
-              <div>
-                <p class="text-sm text-ink">{{ selected.photographer }}</p>
-                <p class="text-xs text-faint">上传于 {{ (selected.uploaded_at || '').slice(0, 10) }}</p>
-              </div>
-            </div>
-            <div class="mt-4 flex flex-wrap gap-2">
-              <span v-for="t in selected.tags" :key="t" class="text-xs text-primary-700 bg-primary-50 rounded-full px-3 py-1">{{ t }}</span>
-            </div>
-            <p class="mt-4 text-sm text-sub leading-relaxed flex-1">
-              {{ selected.description || '这张照片还没有描述。摄影师用心记录下了此刻，希望你喜欢。' }}
-            </p>
-            <div class="mt-6 flex gap-3">
-              <button v-if="auth.isLoggedIn" class="btn-primary flex-1" @click="downloadImage(selected)">下载原图</button>
-              <button v-else class="btn-ghost flex-1" @click="router.push('/login')">登录后下载</button>
-            </div>
+    <!-- 详情弹窗（复用公共组件） -->
+    <ImageLightbox
+      :open="!!selected"
+      :title="selected?.title ?? ''"
+      :image-url="selected ? (selected.display_url || selected.url) : null"
+      :description="selected?.description ?? null"
+      @close="closeDetail"
+    >
+      <template #meta>
+        <div class="mt-4 flex items-center gap-2">
+          <UserAvatar :name="selected?.photographer ?? ''" :size="32" />
+          <div>
+            <p class="text-sm text-ink">{{ selected?.photographer }}</p>
+            <p class="text-xs text-faint">上传于 {{ (selected?.uploaded_at || '').slice(0, 10) }}</p>
           </div>
         </div>
-      </div>
-    </Teleport>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <span v-for="t in selected?.tags ?? []" :key="t" class="text-xs text-primary-700 bg-primary-50 rounded-full px-3 py-1">{{ t }}</span>
+        </div>
+      </template>
+      <template #actions>
+        <button v-if="auth.isLoggedIn" class="btn-primary w-full" @click="downloadSelected">下载原图</button>
+        <button v-else class="btn-ghost w-full" @click="router.push('/login')">登录后下载</button>
+      </template>
+    </ImageLightbox>
 
     <!-- 上传弹窗 -->
     <Teleport to="body">

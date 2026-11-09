@@ -1,10 +1,15 @@
 """腾讯云 COS 存储 Provider（官方 SDK cos-python-sdk-v5）。
 
-单桶模式：公开/私有内容靠 object_key 的 public//private/ 前缀隔离。
+单桶模式：公开/私有内容靠 object_key 的 public/private/ 前缀隔离。
 数据库只存 bucket + object_key。
+
+COS SDK 是同步阻塞 API，所有方法用 asyncio.to_thread 包装成真正的 async，
+避免阻塞 FastAPI 事件循环。
 """
 
 from __future__ import annotations
+
+import asyncio
 
 from app.core.config import settings
 from app.providers.storage.base import (
@@ -45,7 +50,7 @@ class CosStorageProvider(StorageProvider):
             raise RuntimeError("未配置 COS Bucket")
         return resolved
 
-    def presign_upload(
+    async def presign_upload(
         self,
         bucket: str,
         object_key: str,
@@ -54,15 +59,19 @@ class CosStorageProvider(StorageProvider):
         expires_in: int = 900,
     ) -> UploadPresign:
         bucket = self._resolve_bucket(bucket)
-        try:
+
+        def _do() -> str:
             client = self._client()
-            url = client.get_presigned_url(
+            return client.get_presigned_url(
                 Method="PUT",
                 Bucket=bucket,
                 Key=object_key,
                 Expired=expires_in,
                 Headers={"Content-Type": content_type},
             )
+
+        try:
+            url = await asyncio.to_thread(_do)
         except Exception as exc:
             raise RuntimeError("生成 COS 上传凭证失败") from exc
         return UploadPresign(
@@ -72,11 +81,12 @@ class CosStorageProvider(StorageProvider):
             expires_in=expires_in,
         )
 
-    def presign_download(
+    async def presign_download(
         self, bucket: str, object_key: str, expires_in: int = 900
     ) -> str:
         bucket = self._resolve_bucket(bucket)
-        try:
+
+        def _do() -> str:
             client = self._client()
             return client.get_presigned_url(
                 Method="GET",
@@ -84,29 +94,40 @@ class CosStorageProvider(StorageProvider):
                 Key=object_key,
                 Expired=expires_in,
             )
+
+        try:
+            return await asyncio.to_thread(_do)
         except Exception as exc:
             raise RuntimeError("生成 COS 下载凭证失败") from exc
 
-    def head_object(self, bucket: str, object_key: str) -> ObjectHead:
+    async def head_object(self, bucket: str, object_key: str) -> ObjectHead:
         bucket = self._resolve_bucket(bucket)
-        from qcloud_cos.cos_exception import CosServiceError
 
-        try:
+        def _do() -> ObjectHead:
+            from qcloud_cos.cos_exception import CosServiceError
+
             client = self._client()
-            resp = client.head_object(Bucket=bucket, Key=object_key)
-            return ObjectHead(
-                exists=True,
-                size_bytes=int(resp.get("Content-Length", 0)) or None,
-                content_type=resp.get("Content-Type"),
-            )
-        except CosServiceError as exc:
-            if exc.get_error_code() in ("NoSuchKey", "404", "NoSuchResource"):
-                return ObjectHead(exists=False)
-            raise
+            try:
+                resp = client.head_object(Bucket=bucket, Key=object_key)
+                return ObjectHead(
+                    exists=True,
+                    size_bytes=int(resp.get("Content-Length", 0)) or None,
+                    content_type=resp.get("Content-Type"),
+                )
+            except CosServiceError as exc:
+                if exc.get_error_code() in ("NoSuchKey", "404", "NoSuchResource"):
+                    return ObjectHead(exists=False)
+                raise
 
-    def delete_object(self, bucket: str, object_key: str) -> None:
+        return await asyncio.to_thread(_do)
+
+    async def delete_object(self, bucket: str, object_key: str) -> None:
         bucket = self._resolve_bucket(bucket)
-        self._client().delete_object(Bucket=bucket, Key=object_key)
+
+        def _do() -> None:
+            self._client().delete_object(Bucket=bucket, Key=object_key)
+
+        await asyncio.to_thread(_do)
 
     def public_url(self, bucket: str, object_key: str) -> str:
         # 公开内容走自定义 CDN 域名；未配置时回退 COS 默认域名。
@@ -117,17 +138,25 @@ class CosStorageProvider(StorageProvider):
 
     async def get_object_bytes(self, bucket: str, object_key: str) -> bytes:
         bucket = self._resolve_bucket(bucket)
-        resp = self._client().get_object(Bucket=bucket, Key=object_key)
-        return resp["Body"].get_raw_stream().read()
+
+        def _do() -> bytes:
+            resp = self._client().get_object(Bucket=bucket, Key=object_key)
+            return resp["Body"].get_raw_stream().read()
+
+        return await asyncio.to_thread(_do)
 
     async def put_object_bytes(
         self, bucket: str, object_key: str, data: bytes, content_type: str
     ) -> None:
         bucket = self._resolve_bucket(bucket)
-        self._client().put_object(
-            Bucket=bucket,
-            Key=object_key,
-            Body=data,
-            ContentType=content_type,
-            CacheControl="public, max-age=31536000, immutable",
-        )
+
+        def _do() -> None:
+            self._client().put_object(
+                Bucket=bucket,
+                Key=object_key,
+                Body=data,
+                ContentType=content_type,
+                CacheControl="public, max-age=31536000, immutable",
+            )
+
+        await asyncio.to_thread(_do)

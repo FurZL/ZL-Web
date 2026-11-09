@@ -51,6 +51,18 @@ def derive_thumb_key(object_key: str) -> str:
     return f"{_derive_dir(object_key)}/thumb_{px}.webp"
 
 
+def derive_profile_thumb_key(object_key: str) -> str:
+    """私有图缩略图 key：private/profiles/{user_id}/{token} -> private/profiles/{user_id}/thumb/{token}.webp"""
+    p = PurePosixPath(object_key)
+    parts = p.parts
+    if len(parts) < 4 or parts[0] != "private" or parts[1] != "profiles":
+        raise ValueError(f"非 profile 原图 Key: {object_key}")
+    user_id = parts[2]
+    token = parts[-1]
+    px = settings.image_thumb_max_px
+    return f"private/profiles/{user_id}/thumb_{px}/{token}.webp"
+
+
 def _decode(data: bytes) -> PILImage.Image:
     img = PILImage.open(io.BytesIO(data))
     img.load()
@@ -129,6 +141,44 @@ async def process_image(db: AsyncSession, image_id) -> None:
         logger.info("图片处理完成 image_id=%s %sx%s", image.id, width, height)
     except Exception as exc:
         logger.exception("图片处理失败 image_id=%s: %s", image.id, exc)
+        stored.processing_status = "failed"
+        await db.commit()
+        raise
+
+
+async def process_profile_image(db: AsyncSession, image_id) -> None:
+    """处理私有相册图：生成缩略图，更新 ProfileImage 尺寸。"""
+    from app.models.image import ProfileImage as ProfileImageModel
+
+    image = await db.get(ProfileImageModel, image_id)
+    if image is None:
+        return
+
+    stored = await db.get(StoredObject, image.stored_object_id)
+    if stored is None:
+        return
+
+    stored.processing_status = "processing"
+    await db.commit()
+
+    storage = get_storage_provider()
+    try:
+        original = await storage.get_object_bytes(stored.bucket, stored.object_key)
+        img = await asyncio.to_thread(_decode, original)
+        width, height = img.size
+
+        thumb = await asyncio.to_thread(_resize, img, settings.image_thumb_max_px)
+        thumb_bytes = await asyncio.to_thread(_encode_webp, thumb, settings.image_quality)
+        thumb_key = derive_profile_thumb_key(stored.object_key)
+        await storage.put_object_bytes(stored.bucket, thumb_key, thumb_bytes, "image/webp")
+
+        image.width = width
+        image.height = height
+        stored.processing_status = "ready"
+        await db.commit()
+        logger.info("私有图处理完成 profile_image_id=%s %sx%s", image.id, width, height)
+    except Exception as exc:
+        logger.exception("私有图处理失败 profile_image_id=%s: %s", image.id, exc)
         stored.processing_status = "failed"
         await db.commit()
         raise

@@ -10,28 +10,41 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from dataclasses import dataclass
 
 from app.core.config import settings
 from app.core.database import async_session_factory
-from app.services.image_processing import process_image
+from app.services.image_processing import process_image, process_profile_image
 
 logger = logging.getLogger(__name__)
 
-_queue: asyncio.Queue[uuid.UUID] = asyncio.Queue()
+
+@dataclass
+class _Job:
+    kind: str  # "gallery" | "profile"
+    image_id: uuid.UUID
+
+
+_queue: asyncio.Queue[_Job] = asyncio.Queue()
 _workers: list[asyncio.Task] = []
 _stop = asyncio.Event()
 
 
 def enqueue_image(image_id: uuid.UUID) -> None:
-    _queue.put_nowait(image_id)
-    logger.info("图片处理入队 image_id=%s（队列长度 %s）", image_id, _queue.qsize())
+    _queue.put_nowait(_Job("gallery", image_id))
+    logger.info("公开图处理入队 image_id=%s（队列长度 %s）", image_id, _queue.qsize())
+
+
+def enqueue_profile_image(image_id: uuid.UUID) -> None:
+    _queue.put_nowait(_Job("profile", image_id))
+    logger.info("私有图处理入队 image_id=%s（队列长度 %s）", image_id, _queue.qsize())
 
 
 async def _worker(name: int) -> None:
     logger.info("图片处理 worker %s 启动", name)
     while True:
         try:
-            image_id = await asyncio.wait_for(_queue.get(), timeout=1.0)
+            job = await asyncio.wait_for(_queue.get(), timeout=1.0)
         except asyncio.TimeoutError:
             if _stop.is_set():
                 break
@@ -39,9 +52,12 @@ async def _worker(name: int) -> None:
 
         try:
             async with async_session_factory() as db:
-                await process_image(db, image_id)
+                if job.kind == "gallery":
+                    await process_image(db, job.image_id)
+                else:
+                    await process_profile_image(db, job.image_id)
         except Exception:
-            logger.exception("worker %s 处理失败 image_id=%s", name, image_id)
+            logger.exception("worker %s 处理失败 kind=%s image_id=%s", name, job.kind, job.image_id)
         finally:
             _queue.task_done()
 

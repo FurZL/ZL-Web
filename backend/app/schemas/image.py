@@ -32,6 +32,19 @@ class UploadCompleteRequest(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
 
+class ProfileUploadIntentRequest(BaseModel):
+    filename: str
+    mime_type: str
+    size_bytes: int = Field(gt=0)
+
+
+class ProfileUploadCompleteRequest(BaseModel):
+    bucket: str
+    object_key: str
+    original_name: str | None = None
+    description: str | None = None
+
+
 class ImageOut(BaseModel):
     id: str
     url: str | None

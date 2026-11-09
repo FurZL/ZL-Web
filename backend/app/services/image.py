@@ -79,7 +79,7 @@ async def create_upload_intent(
     object_key, visibility = _generate_object_key(purpose, user.id)
 
     storage = get_storage_provider()
-    presign = storage.presign_upload(
+    presign = await storage.presign_upload(
         bucket=storage.bucket,
         object_key=object_key,
         content_type=mime,
@@ -120,7 +120,7 @@ async def complete_upload(
         raise ImageError("INVALID_KEY", "无效的对象 Key")
 
     storage = get_storage_provider()
-    head = storage.head_object(bucket or storage.bucket, object_key)
+    head = await storage.head_object(bucket or storage.bucket, object_key)
     if not head.exists:
         raise ImageError("OBJECT_NOT_FOUND", "对象不存在，请重新上传")
 
