@@ -1,10 +1,33 @@
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import ImagePlaceholder from '@/components/ImagePlaceholder.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
-import { announcements, galleryImages } from '@/api/mock'
+import { getPublishedAnnouncements } from '@/api/site'
+import { request } from '@/api/client'
+import type { AnnouncementRecord, GalleryImage } from '@/types'
 
-const featured = galleryImages.slice(0, 6)
+const announcements = ref<AnnouncementRecord[]>([])
+const featuredImages = ref<GalleryImage[]>([])
+
+onMounted(async () => {
+  try {
+    const data = await getPublishedAnnouncements()
+    announcements.value = data.items.slice(0, 3)
+  } catch {
+    // 静默失败，保持空列表
+  }
+  try {
+    const data = await request<{ items: GalleryImage[] }>({ method: 'GET', url: '/images/' })
+    featuredImages.value = data.items.slice(0, 6)
+  } catch {
+    // 静默失败
+  }
+})
+
+function fmtDate(iso: string | null) {
+  return iso ? iso.slice(0, 10) : ''
+}
 </script>
 
 <template>
@@ -70,11 +93,11 @@ const featured = galleryImages.slice(0, 6)
       <div class="grid md:grid-cols-3 gap-4">
         <article v-for="a in announcements" :key="a.id" class="glass-card p-6 hover:shadow-soft transition">
           <div class="flex items-center gap-2">
-            <span v-if="a.pinned" class="text-xs font-medium text-primary-700 bg-primary-100 rounded-full px-2.5 py-0.5">置顶</span>
-            <span class="text-xs text-faint">{{ a.date }}</span>
+            <span v-if="a.is_pinned" class="text-xs font-medium text-primary-700 bg-primary-100 rounded-full px-2.5 py-0.5">置顶</span>
+            <span class="text-xs text-faint">{{ fmtDate(a.published_at) }}</span>
           </div>
           <h3 class="mt-3 font-semibold text-ink leading-snug">{{ a.title }}</h3>
-          <p class="mt-2 text-sm text-sub leading-relaxed">{{ a.summary }}</p>
+          <p class="mt-2 text-sm text-sub leading-relaxed">{{ a.content }}</p>
         </article>
       </div>
     </section>
@@ -86,7 +109,7 @@ const featured = galleryImages.slice(0, 6)
         <RouterLink to="/gallery" class="text-sm text-primary-700 hover:underline">进入图片展示 →</RouterLink>
       </div>
       <div class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-        <div v-for="img in featured" :key="img.id" class="glass-card p-2 hover:shadow-soft transition">
+        <div v-for="img in featuredImages" :key="img.id" class="glass-card p-2 hover:shadow-soft transition">
           <div class="rounded-xl overflow-hidden">
             <ImagePlaceholder :title="img.title" :aspect="'4/3'" />
           </div>

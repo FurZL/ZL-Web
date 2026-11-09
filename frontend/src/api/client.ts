@@ -77,12 +77,27 @@ api.interceptors.response.use(
 
 // 统一 API 调用封装：自动解包 { success, data, error }
 export async function request<T>(config: AxiosRequestConfig): Promise<T> {
-  const res = await api.request<ApiResponse<T>>(config)
-  const body = res.data
-  if (!body.success) {
-    throw new Error(body.error?.message ?? '请求失败')
+  try {
+    const res = await api.request<ApiResponse<T>>(config)
+    const body = res.data
+    if (!body.success) {
+      throw new Error(body.error?.message ?? '请求失败')
+    }
+    return body.data as T
+  } catch (e) {
+    if (e instanceof AxiosError) {
+      const detail = e.response?.data?.detail
+      // 后端 HTTPException 返回 { detail: { code, message } }
+      if (detail && typeof detail === 'object' && 'message' in detail) {
+        throw new Error((detail as { message: string }).message)
+      }
+      if (typeof detail === 'string') {
+        throw new Error(detail)
+      }
+      throw new Error(e.message || '网络请求失败')
+    }
+    throw e
   }
-  return body.data as T
 }
 
 export default api

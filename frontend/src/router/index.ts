@@ -26,6 +26,7 @@ const router = createRouter({
         { path: '', name: 'admin-dashboard', component: () => import('@/views/admin/AdminDashboard.vue') },
         { path: 'users', name: 'admin-users', component: () => import('@/views/admin/AdminUsers.vue') },
         { path: 'images', name: 'admin-images', component: () => import('@/views/admin/AdminImages.vue') },
+        { path: 'announcements', name: 'admin-announcements', component: () => import('@/views/admin/AdminAnnouncements.vue') },
         { path: 'events', name: 'admin-events', component: () => import('@/views/admin/AdminEvents.vue') },
         { path: 'pages', name: 'admin-pages', component: () => import('@/views/admin/AdminPages.vue') },
         { path: 'settings', name: 'admin-settings', component: () => import('@/views/admin/AdminSettings.vue') },

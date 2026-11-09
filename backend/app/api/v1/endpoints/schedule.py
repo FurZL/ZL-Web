@@ -18,6 +18,7 @@ from app.schemas.schedule import (
     CompareRequest,
     ScheduleUploadCompleteRequest,
     ScheduleUploadIntentRequest,
+    ScheduleVisibilityRequest,
 )
 from app.services import schedule_service
 from app.services.image import ImageError
@@ -96,6 +97,36 @@ async def compare(body: CompareRequest, user: User = Depends(get_current_user)):
     slots_a = [CourseSlot(**s.model_dump()) for s in body.slots_a]
     slots_b = [CourseSlot(**s.model_dump()) for s in body.slots_b]
     return ok(compare_service(slots_a, slots_b))
+
+
+@router.patch("/{schedule_id}/visibility")
+async def set_visibility(
+    schedule_id: str,
+    body: ScheduleVisibilityRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        result = await schedule_service.set_schedule_visibility(
+            db, _parse_uuid(schedule_id), body.is_public, user
+        )
+    except ImageError as exc:
+        raise _img_error(exc)
+    return ok(result)
+
+
+@router.get("/shared/{username}")
+async def shared_schedule(
+    username: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """按用户名获取对方公开的课表（供对比使用）。"""
+    try:
+        result = await schedule_service.get_public_schedule_by_username(db, username)
+    except ImageError as exc:
+        raise _img_error(exc)
+    return ok(result)
 
 
 @router.delete("/{schedule_id}")

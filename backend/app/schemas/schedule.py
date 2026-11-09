@@ -46,6 +46,10 @@ class ScheduleUploadCompleteRequest(BaseModel):
     original_name: str
 
 
+class ScheduleVisibilityRequest(BaseModel):
+    is_public: bool
+
+
 class ScheduleOut(BaseModel):
     id: uuid.UUID
     owner_id: uuid.UUID

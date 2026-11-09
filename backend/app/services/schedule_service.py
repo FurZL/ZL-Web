@@ -143,6 +143,64 @@ async def delete_schedule(db: AsyncSession, schedule_id: uuid.UUID, user: User) 
     await db.commit()
 
 
+async def get_public_schedule_by_owner(db: AsyncSession, owner_id: uuid.UUID) -> dict:
+    """获取某用户的公开课表。仅返回最近一条已公开的课表。"""
+    s = (
+        await db.scalars(
+            select(Schedule)
+            .where(
+                Schedule.owner_id == owner_id,
+                Schedule.is_public.is_(True),
+            )
+            .order_by(Schedule.created_at.desc())
+            .limit(1)
+        )
+    ).first()
+    if s is None:
+        raise ImageError("NOT_FOUND", "该用户没有公开的课表", 404)
+    return await _schedule_to_dict(s)
+
+
+async def get_public_schedule_by_username(db: AsyncSession, username: str) -> dict:
+    """按用户名获取公开课表，附带公开的用户信息（供对比使用）。"""
+    from app.models.user import User
+
+    u = (
+        await db.scalars(select(User).where(User.username == username).limit(1))
+    ).first()
+    if u is None:
+        raise ImageError("NOT_FOUND", "用户不存在", 404)
+    s = (
+        await db.scalars(
+            select(Schedule)
+            .where(Schedule.owner_id == u.id, Schedule.is_public.is_(True))
+            .order_by(Schedule.created_at.desc())
+            .limit(1)
+        )
+    ).first()
+    if s is None:
+        raise ImageError("NOT_FOUND", "该用户没有公开的课表", 404)
+    data = await _schedule_to_dict(s)
+    data["owner"] = {
+        "id": str(u.id),
+        "username": u.username,
+        "display_name": u.display_name,
+    }
+    return data
+
+
+async def set_schedule_visibility(
+    db: AsyncSession, schedule_id: uuid.UUID, is_public: bool, user: User
+) -> dict:
+    s = await db.get(Schedule, schedule_id)
+    if s is None or s.owner_id != user.id:
+        raise ImageError("NOT_FOUND", "课表不存在", 404)
+    s.is_public = is_public
+    await db.commit()
+    await db.refresh(s)
+    return await _schedule_to_dict(s)
+
+
 async def _schedule_to_dict(s: Schedule) -> dict:
     return {
         "id": str(s.id),

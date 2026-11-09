@@ -113,3 +113,105 @@ export interface CourseSlot {
   weeks: number[]
   campus?: string
 }
+
+// ---------- 课表（真实 API 返回，snake_case） ----------
+export interface ScheduleSlot {
+  name: string
+  location: string
+  weekday: number // 0=周一 … 6=周日
+  lesson_start: number
+  lesson_end: number
+  weeks: number[]
+  campus: string | null
+}
+
+export interface ScheduleRecord {
+  id: string
+  original_name: string | null
+  format: string | null
+  slots: ScheduleSlot[]
+  is_public: boolean
+  created_at: string | null
+  expires_at: string | null
+  owner?: { id: string; username: string; display_name: string }
+}
+
+export interface ScheduleUploadIntent {
+  storage_provider: string
+  bucket: string
+  object_key: string
+  upload_url: string
+  expires_in: number
+}
+
+export interface CompareFreeSlot {
+  weekday: number
+  lesson_start: number
+  lesson_end: number
+}
+
+export interface CompareConflict {
+  weekday: number
+  a: ScheduleSlot
+  b: ScheduleSlot
+}
+
+export interface ScheduleCompareResult {
+  same_classroom: CompareConflict[]
+  both_free: CompareFreeSlot[]
+  overlaps: CompareConflict[]
+}
+
+// ---------- 站点配置 / 公告 ----------
+export interface PublicConfig {
+  site_name: string
+  site_subtitle: string
+  logo_url: string | null
+  favicon_url: string | null
+  icp_number: string | null
+  police_number: string | null
+}
+
+export interface FooterLink {
+  label: string
+  href: string
+}
+
+export interface FooterConfig {
+  links: FooterLink[]
+  icp_number: string | null
+  police_number: string | null
+  copyright_owner: string
+}
+
+export interface LegalConfig {
+  terms_url: string | null
+  privacy_url: string | null
+  copyright_notice: string | null
+  contact_email: string | null
+}
+
+export interface ClubIntro {
+  title: string
+  content: string
+}
+
+export interface AnnouncementRecord {
+  id: string
+  title: string
+  content: string
+  status: string // draft / published / expired
+  is_pinned: boolean
+  published_at: string | null
+  expires_at: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface SiteSettingRecord {
+  key: string
+  value: Record<string, unknown>
+  category: string | null
+  is_public: boolean
+  updated_at: string | null
+}

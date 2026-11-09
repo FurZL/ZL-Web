@@ -7,6 +7,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     admin_settings,
     admin_users,
+    announcements,
     auth,
     club,
     events,
@@ -29,5 +30,6 @@ api_router.include_router(pages.router)
 api_router.include_router(events.router)
 api_router.include_router(site.router)
 api_router.include_router(club.router)
+api_router.include_router(announcements.router)
 api_router.include_router(admin_users.router)
 api_router.include_router(admin_settings.router)

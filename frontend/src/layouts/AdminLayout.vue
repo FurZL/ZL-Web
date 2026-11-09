@@ -7,6 +7,7 @@ const menus = [
   { to: '/admin', label: '仪表盘', icon: '📊', exact: true },
   { to: '/admin/users', label: '用户管理', icon: '👥' },
   { to: '/admin/images', label: '图片管理', icon: '🖼' },
+  { to: '/admin/announcements', label: '公告管理', icon: '📢' },
   { to: '/admin/events', label: '活动管理', icon: '📅' },
   { to: '/admin/pages', label: '页面管理', icon: '📄' },
   { to: '/admin/settings', label: '网站设置', icon: '⚙' },

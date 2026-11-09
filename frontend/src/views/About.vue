@@ -1,7 +1,23 @@
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
 import ImagePlaceholder from '@/components/ImagePlaceholder.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
+import { getClubIntro } from '@/api/site'
 import { members } from '@/api/mock'
+import type { ClubIntro } from '@/types'
+
+const intro = ref<ClubIntro>({ title: '关于我们', content: '' })
+const loading = ref(true)
+
+onMounted(async () => {
+  try {
+    intro.value = await getClubIntro()
+  } catch {
+    // 用默认值
+  } finally {
+    loading.value = false
+  }
+})
 
 const timeline = [
   { year: '2023', title: '社团成立', desc: '一群喜欢毛茸茸的伙伴聚在了一起，福瑞圈正式成立。' },
@@ -24,14 +40,21 @@ const timeline = [
     <!-- 社团故事 -->
     <div class="mt-12 glass-card p-8 md:p-12 grid md:grid-cols-2 gap-8 items-center">
       <div>
-        <h2 class="text-xl font-bold text-ink">我们的故事</h2>
-        <p class="mt-4 text-sub leading-relaxed">
-          从几位喜欢毛茸茸角色与创作的伙伴开始，我们在校园里慢慢聚集起了更多同好。
-          一起看展、一起画画、一起记录生活的美好，也互相陪伴成为更好的自己。
-        </p>
-        <p class="mt-3 text-sub leading-relaxed">
-          我们希望这里是一个所有人都能被温柔对待的地方——不论你是谁，喜欢什么，这里都有你的位置。
-        </p>
+        <h2 class="text-xl font-bold text-ink">{{ intro.title || '我们的故事' }}</h2>
+        <div v-if="loading" class="mt-4 space-y-2">
+          <div class="h-4 bg-primary-100 rounded animate-pulse"></div>
+          <div class="h-4 bg-primary-100 rounded animate-pulse w-3/4"></div>
+        </div>
+        <div v-else-if="intro.content" class="mt-4 text-sub leading-relaxed whitespace-pre-wrap">{{ intro.content }}</div>
+        <div v-else>
+          <p class="mt-4 text-sub leading-relaxed">
+            从几位喜欢毛茸茸角色与创作的伙伴开始，我们在校园里慢慢聚集起了更多同好。
+            一起看展、一起画画、一起记录生活的美好，也互相陪伴成为更好的自己。
+          </p>
+          <p class="mt-3 text-sub leading-relaxed">
+            我们希望这里是一个所有人都能被温柔对待的地方——不论你是谁，喜欢什么，这里都有你的位置。
+          </p>
+        </div>
       </div>
       <ImagePlaceholder title="社团大合照" aspect="4/3" />
     </div>
