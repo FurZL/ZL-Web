@@ -10,7 +10,13 @@ export interface Page<T> {
   pagination: { page: number; page_size: number; total: number }
 }
 
-export type Role = 'guest' | 'member' | 'photographer' | 'admin'
+export type Role =
+  | 'guest'
+  | 'member'
+  | 'photographer'
+  | 'moderator'
+  | 'admin'
+  | 'super_admin'
 
 export interface User {
   id: string
@@ -19,6 +25,20 @@ export interface User {
   role: Role
   avatar: string
   bio: string
+}
+
+// 后端 /auth/me 返回的原始结构（snake_case）
+export interface MeResponse {
+  id: string
+  username: string
+  display_name: string
+  email: string
+  role: string
+  status: string
+  applied_role: string | null
+  application_reason: string | null
+  application_portfolio: string | null
+  created_at: string
 }
 
 export interface GalleryImage {

@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import { useAuthStore } from '@/stores/auth'
-
-const auth = useAuthStore()
+// 注册成功后进入等待审批页
 </script>
 
 <template>
@@ -14,7 +12,7 @@ const auth = useAuthStore()
         审批结果会尽快通知到你填写的邮箱/手机号。
       </p>
       <div class="mt-6 bg-primary-50 rounded-xl px-4 py-3 text-sm text-primary-800">
-        当前状态：{{ auth.pendingApproval ? '待审批' : '已提交' }}
+        当前状态：待审批
       </div>
       <RouterLink to="/" class="btn-ghost mt-8 inline-flex">返回首页</RouterLink>
     </div>
