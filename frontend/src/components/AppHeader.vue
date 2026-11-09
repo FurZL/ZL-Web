@@ -23,8 +23,8 @@ function toggleMenu() {
   <header class="topbar">
     <nav class="max-w-6xl mx-auto px-4 h-16 flex items-center gap-6">
       <RouterLink to="/" class="flex items-center gap-2 shrink-0">
-        <span class="w-8 h-8 rounded-xl bg-hero-gradient flex items-center justify-center text-white font-bold shadow-soft">
-          福
+        <span class="w-9 h-8 rounded-xl bg-hero-gradient flex items-center justify-center text-white font-bold shadow-soft tracking-tight text-[10px]">
+          FUR
         </span>
         <span class="font-semibold text-ink tracking-wide">浙江理工福瑞圈</span>
       </RouterLink>

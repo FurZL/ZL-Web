@@ -8,7 +8,7 @@ const year = new Date().getFullYear()
     <div class="max-w-6xl mx-auto px-4 py-10">
       <div class="flex flex-col md:flex-row items-center justify-between gap-6">
         <div class="flex items-center gap-2">
-          <span class="w-8 h-8 rounded-xl bg-hero-gradient flex items-center justify-center text-white font-bold">福</span>
+          <span class="w-9 h-8 rounded-xl bg-hero-gradient flex items-center justify-center text-white font-bold tracking-tight text-[10px]">FUR</span>
           <div>
             <p class="text-sm font-medium text-ink">浙江理工福瑞圈</p>
             <p class="text-xs text-faint">温暖、可爱、有社群感的 Furry 之家</p>

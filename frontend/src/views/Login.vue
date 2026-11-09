@@ -25,7 +25,7 @@ function submit() {
   <div class="max-w-md mx-auto px-4 py-16">
     <div class="glass-card p-8">
       <div class="text-center">
-        <span class="w-14 h-14 inline-flex items-center justify-center rounded-2xl bg-hero-gradient text-white text-2xl font-bold mx-auto">福</span>
+        <span class="w-16 h-14 inline-flex items-center justify-center rounded-2xl bg-hero-gradient text-white text-lg font-bold tracking-tight mx-auto">FUR</span>
         <h1 class="mt-4 text-2xl font-bold text-ink">欢迎回来</h1>
         <p class="mt-1 text-sm text-sub">登录浙江理工福瑞圈</p>
       </div>
