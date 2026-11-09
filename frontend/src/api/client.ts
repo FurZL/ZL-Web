@@ -100,4 +100,18 @@ export async function request<T>(config: AxiosRequestConfig): Promise<T> {
   }
 }
 
+/**
+ * 确保内存中有有效的 access token。
+ * 页面刷新后 access token 丢失，此函数用 refresh token 静默换取新 token，
+ * 避免首次请求因缺少凭证而产生 401 噪音。
+ */
+export async function ensureAccessToken(): Promise<string | null> {
+  if (getAccessToken()) return getAccessToken()
+  if (!getRefreshToken()) return null
+  refreshing = refreshing ?? doRefresh()
+  const token = await refreshing
+  refreshing = null
+  return token
+}
+
 export default api

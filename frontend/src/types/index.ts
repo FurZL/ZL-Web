@@ -88,6 +88,7 @@ export interface UploadIntent {
 export interface ProfileImage {
   id: string
   original_name: string | null
+  title: string | null
   description: string | null
   width: number | null
   height: number | null

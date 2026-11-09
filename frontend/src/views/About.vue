@@ -3,8 +3,11 @@ import { onMounted, ref } from 'vue'
 import ImagePlaceholder from '@/components/ImagePlaceholder.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { getClubIntro } from '@/api/site'
+import { useAuthStore } from '@/stores/auth'
 import { members } from '@/api/mock'
 import type { ClubIntro } from '@/types'
+
+const auth = useAuthStore()
 
 const intro = ref<ClubIntro>({ title: '关于我们', content: '' })
 const loading = ref(true)
@@ -90,13 +93,13 @@ const timeline = [
       </div>
     </div>
 
-    <!-- 加入方式 -->
-    <div class="mt-12 glass-card p-8 text-center max-w-2xl mx-auto">
+    <!-- 加入方式（仅未登录显示） -->
+    <div v-if="!auth.isLoggedIn" class="mt-12 glass-card p-8 text-center max-w-2xl mx-auto">
       <h2 class="text-xl font-bold text-ink">怎么加入我们？</h2>
       <p class="mt-3 text-sub text-sm leading-relaxed">
         点击注册，填写基本信息并提交申请。管理员审批通过后即可登录，开始你的毛茸茸之旅～
       </p>
-      <RouterLink to="/register" class="btn-primary mt-6 inline-flex">去注册</RouterLink>
+      <RouterLink to="/register" class="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-primary-700 bg-primary/10 border border-primary/20 hover:bg-primary/20 rounded-full px-5 py-2 transition">去注册</RouterLink>
     </div>
   </div>
 </template>

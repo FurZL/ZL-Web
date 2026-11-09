@@ -41,9 +41,6 @@ class Settings(BaseSettings):
     frontend_origins: str = Field(
         default="http://localhost:5173", alias="FRONTEND_ORIGINS"
     )
-    public_api_base_url: str = Field(
-        default="http://127.0.0.1:8000/api/v1", alias="PUBLIC_API_BASE_URL"
-    )
 
     # 对象存储（本地测试与生产均使用腾讯云 COS；单桶，公开/私有靠前缀隔离）
     storage_provider: str = Field(default="cos", alias="STORAGE_PROVIDER")

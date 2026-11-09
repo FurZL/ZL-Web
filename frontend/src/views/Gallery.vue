@@ -208,12 +208,16 @@ onMounted(loadImages)
     <div v-else class="mt-8 columns-1 sm:columns-2 lg:columns-3 gap-4 space-y-4">
       <div v-for="img in filtered" :key="img.id" class="break-inside-avoid glass-card p-2 cursor-pointer hover:shadow-soft transition group" @click="openDetail(img)">
         <div class="rounded-xl overflow-hidden">
-          <ImagePlaceholder :title="img.title" :src="img.thumb_url || img.url" :aspect="img.height && img.width && img.height > img.width ? '3/4' : '4/3'" />
+          <ImagePlaceholder :title="img.description || img.title" :src="img.thumb_url || img.url" :aspect="img.height && img.width && img.height > img.width ? '3/4' : '4/3'" />
         </div>
-        <div class="px-2 py-2.5 flex items-center gap-2">
-          <UserAvatar :name="img.photographer" :size="26" />
-          <span class="text-sm text-ink truncate flex-1">{{ img.title }}</span>
-          <span v-if="img.tags[0]" class="text-xs text-faint shrink-0">{{ img.tags[0] }}</span>
+        <div class="px-2 py-2.5">
+          <div class="flex items-center gap-2">
+            <UserAvatar :name="img.photographer" :size="26" />
+            <span class="text-sm text-ink truncate flex-1">{{ img.description || img.title }}</span>
+          </div>
+          <div v-if="img.tags && img.tags.length" class="mt-1.5 flex flex-wrap gap-1.5">
+            <span v-for="t in img.tags.slice(0, 3)" :key="t" class="text-xs text-primary-700 bg-primary-50 rounded-full px-2 py-0.5">{{ t }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -221,7 +225,7 @@ onMounted(loadImages)
     <!-- 详情弹窗（复用公共组件） -->
     <ImageLightbox
       :open="!!selected"
-      :title="selected?.title ?? ''"
+      :title="selected?.description || selected?.title || ''"
       :image-url="selected ? (selected.display_url || selected.url) : null"
       :description="selected?.description ?? null"
       @close="closeDetail"

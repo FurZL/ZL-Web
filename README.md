@@ -85,6 +85,55 @@ npm run dev
 - 管理后台界面：侧边栏布局 + 用户审批 + 仪表盘 + 公告管理 + 网站设置（均已接真实接口）。
 - 公共组件：`ImageLightbox`（图片详情弹窗，Gallery 与私有相册共用）、`UserAvatar`、`ImagePlaceholder`。
 - 导航栏按角色动态变化；窄屏横滑可见全部入口；logo 为「FUR」。
+- 顶栏下拉菜单：`Teleport to body` + `fixed` 定位，CSS 三角箭头旋转动画，点击外部自动关闭。
+- 首页 Hero：流动渐变背景（12s 往返动画）+ 双按钮（已登录隐藏「加入我们」）。
+- 可点击链接（了解故事/查看全部/进入图片展示/去注册）统一圆角矩形控件。
+
+### 视觉规范 — 主题色减淡 & 背景模糊
+
+全站半透明元素统一遵循以下两种处理方式，新增组件请直接套用对应 class 组合。
+
+#### 1. 玻璃拟态（中性半透明）
+
+适用于卡片、弹窗、下拉菜单等通用容器，视觉上与顶栏保持一致。
+
+```css
+/* 背景模糊 + 半透明白底 + 细边框 */
+background: rgba(255, 255, 255, 0.7);
+backdrop-filter: blur(24px);
+-webkit-backdrop-filter: blur(24px);
+border: 1px solid rgba(255, 255, 255, 0.6);
+border-radius: 1.25rem;
+```
+
+> 项目内 `.glass-card` 已封装（`bg-white/70 backdrop-blur-xl border border-white/60`），可直接使用。
+> 下拉菜单等 Teleport 到 body 的元素，`backdrop-filter` 必须写入 inline style（Tailwind 类在 Teleport + transition 下可能失效）。
+
+#### 2. 主题色减淡（交互高亮）
+
+适用于当前选中项、主操作按钮等需要强调但保留可读性的元素。
+
+| 属性 | 值 | Tailwind |
+|---|---|---|
+| 底色 | `#6B5CE7` @ 15% 透明度 | `bg-primary/15` |
+| 边框 | `#6B5CE7` @ 20% 透明度 | `border-primary/20` |
+| 文字 | `#493DB0`（primary-700） | `text-primary-700` |
+| 模糊 | `blur(24px)` | `backdrop-blur-md` |
+| 阴影 | 标准玻璃阴影 | `shadow-glass` |
+
+```html
+<!-- 选中态 -->
+class="text-primary-700 bg-primary/15 backdrop-blur-md border border-primary/20 font-medium shadow-glass"
+
+<!-- 按钮 hover 加深 -->
+class="text-primary-700 bg-primary/15 backdrop-blur-md border border-primary/20 hover:bg-primary/25 shadow-glass"
+```
+
+#### 注意事项
+
+- `.topbar` 的模糊背景由 `::before` 伪元素承担（`z-index: -1`），避免 `backdrop-filter` 在导航栏本体创建层叠上下文导致下拉菜单被遮挡。
+- 下拉菜单通过 `<Teleport to="body">` + `fixed` 定位脱离顶栏层叠上下文，`z-index: 200`。
+- 半透明底色搭配 `backdrop-blur` 使用，避免仅降低透明度导致文字与背景对比度不足。
 
 ### 本地联调速查
 
@@ -105,6 +154,19 @@ npm run dev
 - 管理后台：用户审批、仪表盘、公告管理、网站设置、活动管理、页面管理已接真实接口；图片模块占位。
 
 > 图例：✅ 完成　🟡 部分完成　⬜ 未开始
+
+## 变更记录
+
+- **移除 `PUBLIC_API_BASE_URL`**：该环境变量从未被后端或前端代码消费（前端实际使用 `VITE_API_BASE_URL`），属于死配置，已从 `config.py`、`.env.example`、`backend/.env` 中删除。将来如需拼接对外 API 链接（如邮件中的跳转链接），再按实际需求引入。
+- **移除前端 `VITE_PUBLIC_ASSET_BASE_URL`**：前端图片 URL 全部来自后端 API 响应的 `thumb_url` / `display_url` 字段（后端已根据 `PUBLIC_ASSET_BASE_URL` 生成完整 URL），前端不需要自己拼图片域名，该变量从未被 `src/` 消费。已从 `frontend/.env.development`、`frontend/.env.production`、`deploy/edgeone/README.md` 中删除。
+- **图片域名 `PUBLIC_ASSET_BASE_URL` 仅后端使用**：唯一消费方是 `providers/storage/cos.py` 的 `public_url()`，由后端在 API 响应中生成完整图片 URL。当前值含 `example.com` 时自动回退 COS 默认域名；将来绑定 `img.example.com` 等自定义 CDN 域名时，只需改后端 `.env` 的 `PUBLIC_ASSET_BASE_URL` 一个值，历史图片记录无需变更。
+- **Bug 修复：首页精选图片无法加载**：`Home.vue` 的 `ImagePlaceholder` 未传 `:src`，图片只显示文件名占位；已补上 `thumb_url → display_url → url` 三级回退。
+- **Bug 修复：图片面板展示描述而非文件名**：后端上传时文件名经 `sanitize_filename()` 清理后以 **base64 编码** 存储（不再明文）；`title` 字段改为 **描述优先 → 兜底"未命名"**。Gallery / Home / Profile 所有面板统一展示图片描述。
+- **Bug 修复：标签被描述挤出**：图片卡片布局改为两行结构——描述独占第一行（截断），标签独立第二行（最多 3 个）。
+- **Bug 修复：下拉菜单遮挡顶栏 + 模糊失效**：`backdrop-filter` 在 `.topbar` 上创建层叠上下文，下拉菜单无法突破；改为 `::before` 伪元素承担模糊，菜单用 `<Teleport to="body">` + `fixed` 定位脱离层叠，`z-index: 200`。
+- **优化：消除刷新页面 401 噪音**：新增 `ensureAccessToken()`，`App.vue` 启动时先静默刷新 access token 再请求 `/auth/me`，不再产生首个 401。
+- **优化：Hero 背景流动渐变**：CSS `background-position` 动画循环流动（12s 往返），`prefers-reduced-motion` 下自动停止。
+- **UI 统一：圆角矩形控件规范**：导航选中态、上传按钮、登录/注册、Hero 按钮、页面内链接统一套用主题色减淡 `bg-primary/10~15 border-primary/20 rounded-full` 风格；登录后隐藏首页「加入我们」和社团介绍「怎么加入我们」栏目。
 
 ## 分层约定
 

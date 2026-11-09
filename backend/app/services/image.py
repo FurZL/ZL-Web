@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+import base64
+import re
 import secrets
 import uuid
 from datetime import datetime, timezone
@@ -31,6 +33,16 @@ ALLOWED_MIME = {
     "image/gif",
     "image/avif",
 }
+
+
+def sanitize_filename(filename: str) -> str:
+    """格式化上传文件名：清理危险字符后以 base64 编码存储，避免明文泄露。"""
+    name = filename.replace("\\", "/").rsplit("/", 1)[-1]
+    name = re.sub(r'[<>:"|?*\x00-\x1f]', "", name).strip()
+    name = re.sub(r"\s+", " ", name)
+    if not name:
+        name = "未命名图片"
+    return base64.b64encode(name.encode("utf-8")).decode("ascii")
 
 
 class ImageError(Exception):
@@ -143,7 +155,7 @@ async def complete_upload(
     tag_str = ",".join([t.strip() for t in (tags or []) if t.strip()]) or None
     image = Image(
         stored_object_id=stored.id,
-        original_name=original_name,
+        original_name=sanitize_filename(original_name),
         uploader_id=user.id,
         tags=tag_str,
         description=description,
@@ -221,7 +233,7 @@ async def _image_to_dict(db: AsyncSession, image: Image) -> dict:
         "thumb_url": thumb_url,
         "object_key": object_key,
         "original_name": image.original_name,
-        "title": image.original_name or "未命名",
+        "title": image.description or "未命名",
         "description": image.description,
         "tags": [t for t in (image.tags or "").split(",") if t],
         "photographer": uploader.display_name if uploader else "未知",

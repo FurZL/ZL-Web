@@ -52,8 +52,51 @@
     @apply block text-sm font-medium text-sub mb-1.5;
   }
 
-  /* 玻璃导航栏 */
+  /* 玻璃导航栏 — 用伪元素做模糊，避免 backdrop-filter 创建层叠上下文 */
   .topbar {
-    @apply sticky top-0 z-40 bg-white/70 backdrop-blur-xl border-b border-white/60;
+    @apply sticky top-0 z-40 border-b border-white/60;
+  }
+  .topbar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    z-index: -1;
+  }
+
+  /* 流动渐变 Hero 背景 */
+  .hero-gradient-animated {
+    background: linear-gradient(
+      120deg,
+      #6B5CE7 0%,
+      #8B7CF0 25%,
+      #F0A6C8 50%,
+      #8B7CF0 75%,
+      #6B5CE7 100%
+    );
+    background-size: 300% 300%;
+    animation: hero-flow 12s ease-in-out infinite;
+  }
+}
+
+@keyframes hero-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-gradient-animated {
+    animation: none;
+    background-size: 100% 100%;
+    background-position: 0% 50%;
   }
 }

@@ -22,7 +22,6 @@ Vue Router 使用 `createWebHistory()`，需将未知前端路由回退到 `inde
 
 ```dotenv
 VITE_API_BASE_URL=https://api.example.com/api/v1
-VITE_PUBLIC_ASSET_BASE_URL=https://img.example.com
 ```
 
 `VITE_*` 只会进入浏览器构建产物，禁止放数据库密码、JWT Secret、COS Secret 等敏感信息。

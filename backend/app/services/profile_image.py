@@ -18,7 +18,7 @@ from app.core.config import settings
 from app.models.image import ProfileImage, StoredObject
 from app.models.user import User
 from app.providers.factory import get_storage_provider
-from app.services.image import ImageError, complete_upload, create_upload_intent
+from app.services.image import ImageError, complete_upload, create_upload_intent, sanitize_filename
 
 
 async def create_profile_upload_intent(
@@ -68,7 +68,7 @@ async def complete_profile_upload(
     image = ProfileImage(
         owner_id=user.id,
         stored_object_id=stored.id,
-        original_name=original_name,
+        original_name=sanitize_filename(original_name),
         description=description,
     )
     db.add(image)
@@ -114,6 +114,7 @@ async def list_my_profile_images(
         items.append({
             "id": str(img.id),
             "original_name": img.original_name,
+            "title": img.description or "未命名",
             "description": img.description,
             "width": img.width,
             "height": img.height,

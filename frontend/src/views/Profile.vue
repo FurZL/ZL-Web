@@ -147,7 +147,7 @@ async function downloadCurrent() {
 async function deleteFromPreview() {
   if (!previewing.value) return
   const img = previewing.value
-  if (!confirm(`确定删除「${img.original_name}」吗？`)) return
+  if (!confirm(`确定删除「${img.title ?? '这张图片'}」吗？`)) return
   try {
     await request({ method: 'DELETE', url: `/profile/me/images/${img.id}` })
     closePreview()
@@ -160,7 +160,7 @@ async function deleteFromPreview() {
 // 删除
 const deletingId = ref<string | null>(null)
 async function deletePhoto(img: ProfileImage) {
-  if (!confirm(`确定删除「${img.original_name}」吗？`)) return
+  if (!confirm(`确定删除「${img.title ?? '这张图片'}」吗？`)) return
   deletingId.value = img.id
   try {
     await request({ method: 'DELETE', url: `/profile/me/images/${img.id}` })
@@ -216,21 +216,24 @@ onMounted(loadPhotos)
       <div v-else class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
         <div v-for="p in photos" :key="p.id" class="glass-card p-2 group relative">
           <div class="rounded-xl overflow-hidden cursor-pointer" @click="openPreview(p)">
-            <ImagePlaceholder :title="p.original_name ?? '图片'" :src="p.thumb_url" aspect="1/1" />
+            <ImagePlaceholder :title="p.title ?? '图片'" :src="p.thumb_url" aspect="1/1" />
           </div>
-          <div class="px-2 py-2 flex items-center justify-between gap-2">
-            <div class="min-w-0">
-              <p class="text-sm text-ink truncate">{{ p.original_name }}</p>
-              <p class="text-xs text-faint">{{ (p.created_at || '').slice(0, 10) }}</p>
+          <div class="px-2 py-2">
+            <div class="flex items-center gap-2">
+              <p class="text-sm text-ink truncate flex-1">{{ p.title ?? '未命名' }}</p>
+              <button
+                class="text-faint hover:text-blush shrink-0 opacity-0 group-hover:opacity-100 transition disabled:opacity-50"
+                title="删除"
+                :disabled="deletingId === p.id"
+                @click="deletePhoto(p)"
+              >
+                {{ deletingId === p.id ? '…' : '🗑' }}
+              </button>
             </div>
-            <button
-              class="text-faint hover:text-blush shrink-0 opacity-0 group-hover:opacity-100 transition disabled:opacity-50"
-              title="删除"
-              :disabled="deletingId === p.id"
-              @click="deletePhoto(p)"
-            >
-              {{ deletingId === p.id ? '…' : '🗑' }}
-            </button>
+            <div class="mt-1.5 flex items-center gap-1.5">
+              <span class="text-xs text-faint">{{ (p.created_at || '').slice(0, 10) }}</span>
+              <span v-if="p.description && p.description !== p.title" class="text-xs text-sub truncate">{{ p.description }}</span>
+            </div>
           </div>
           <span v-if="p.processing_status === 'pending' || p.processing_status === 'processing'" class="absolute top-3 right-3 text-[10px] bg-ink/60 text-white rounded-full px-2 py-0.5">处理中</span>
         </div>
@@ -289,7 +292,7 @@ onMounted(loadPhotos)
     <!-- 预览 lightbox（复用公共组件，与图片展示一致） -->
     <ImageLightbox
       :open="!!previewing"
-      :title="previewing?.original_name ?? ''"
+      :title="previewing?.title ?? ''"
       :image-url="previewUrl"
       :description="previewing?.description ?? null"
       :loading="previewLoading"

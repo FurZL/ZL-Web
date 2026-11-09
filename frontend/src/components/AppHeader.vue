@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import UserAvatar from '@/components/UserAvatar.vue'
@@ -16,11 +16,64 @@ const navLinks = [
 
 function toggleMenu() {
   menuOpen.value = !menuOpen.value
+  if (menuOpen.value) {
+    nextTick(updateMenuPos)
+    setTimeout(() => document.addEventListener('click', onClickOutside), 0)
+  } else {
+    document.removeEventListener('click', onClickOutside)
+  }
 }
+
+function closeMenu() {
+  menuOpen.value = false
+  document.removeEventListener('click', onClickOutside)
+}
+
+function onClickOutside(e: MouseEvent) {
+  if (triggerRef.value && !triggerRef.value.contains(e.target as Node)) {
+    closeMenu()
+  }
+}
+
+const triggerRef = ref<HTMLElement | null>(null)
+const headerRef = ref<HTMLElement | null>(null)
+const menuStyle = ref<Record<string, string>>({})
+
+function updateMenuPos() {
+  const btn = triggerRef.value
+  const header = headerRef.value
+  if (!btn) return
+  const btnRect = btn.getBoundingClientRect()
+  const headerBottom = header ? header.getBoundingClientRect().bottom : btnRect.bottom
+  menuStyle.value = {
+    position: 'fixed',
+    top: `${headerBottom}px`,
+    right: `${window.innerWidth - btnRect.right - 12}px`,
+    zIndex: '200',
+    background: 'rgba(255, 255, 255, 0.7)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+  }
+}
+
+function onScrollOrResize() {
+  if (menuOpen.value) updateMenuPos()
+}
+
+onMounted(() => {
+  window.addEventListener('scroll', onScrollOrResize, true)
+  window.addEventListener('resize', onScrollOrResize)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onClickOutside)
+  window.removeEventListener('scroll', onScrollOrResize, true)
+  window.removeEventListener('resize', onScrollOrResize)
+})
 </script>
 
 <template>
-  <header class="topbar">
+  <header ref="headerRef" class="topbar">
     <nav class="max-w-6xl mx-auto px-4 h-16 flex items-center gap-6">
       <RouterLink to="/" class="flex items-center gap-2 shrink-0">
         <span class="w-9 h-8 rounded-xl bg-hero-gradient flex items-center justify-center text-white font-bold shadow-soft tracking-tight text-[10px]">
@@ -35,83 +88,80 @@ function toggleMenu() {
           :key="link.to"
           :to="link.to"
           class="shrink-0 px-3 py-2 text-sm rounded-lg text-sub hover:text-primary-700 hover:bg-primary-50 transition"
-          active-class="text-primary-700 bg-primary-50 font-medium"
+          active-class="text-primary-700 bg-primary/15 backdrop-blur-md border border-primary/20 font-medium shadow-glass"
         >
           {{ link.label }}
         </RouterLink>
       </div>
 
       <div class="ml-auto flex items-center gap-3">
-        <!-- 未登录 -->
         <template v-if="!auth.isLoggedIn">
-          <RouterLink to="/login" class="text-sm text-sub hover:text-primary-700 px-3 py-2">登录</RouterLink>
-          <RouterLink to="/register" class="btn-primary !px-5 !py-2">注册</RouterLink>
+          <RouterLink to="/login" class="text-sm font-medium text-primary-700 bg-primary/10 border border-primary/20 hover:bg-primary/20 rounded-full px-5 py-2 transition">
+            登录
+          </RouterLink>
+          <RouterLink to="/register" class="text-sm font-medium text-primary-700 bg-primary/15 border border-primary/20 hover:bg-primary/25 rounded-full px-5 py-2 shadow-glass transition">
+            注册
+          </RouterLink>
         </template>
 
-        <!-- 已登录 -->
         <template v-else>
           <RouterLink
             v-if="auth.isPhotographer"
             to="/gallery?upload=1"
-            class="hidden sm:inline-flex items-center gap-1.5 text-sm text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-full px-4 py-2 transition"
+            class="hidden sm:inline-flex items-center gap-1.5 text-sm text-primary-700 bg-primary/15 backdrop-blur-md border border-primary/20 hover:bg-primary/25 rounded-full px-4 py-2 transition shadow-glass"
           >
             上传图片
           </RouterLink>
 
-          <div class="relative">
-            <button class="flex items-center gap-2" @click="toggleMenu">
-              <UserAvatar :name="auth.user!.displayName" :size="36" />
-              <span class="hidden sm:block text-sm text-ink">{{ auth.user!.displayName }}</span>
-              <span class="text-faint text-xs">▼</span>
-            </button>
-
-            <transition name="menu">
-              <div
-                v-if="menuOpen"
-                class="absolute right-0 mt-2 w-44 glass-card p-1.5 z-50"
-                @click="menuOpen = false"
-              >
-                <RouterLink to="/profile" class="block px-3 py-2 text-sm rounded-lg hover:bg-primary-50 text-ink">
-                  个人空间
-                </RouterLink>
-                <RouterLink
-                  v-if="auth.isLoggedIn"
-                  to="/schedule"
-                  class="block px-3 py-2 text-sm rounded-lg hover:bg-primary-50 text-ink"
-                >
-                  课表工具
-                </RouterLink>
-                <RouterLink
-                  v-if="auth.isAdmin"
-                  to="/admin"
-                  class="block px-3 py-2 text-sm rounded-lg hover:bg-primary-50 text-ink"
-                >
-                  管理后台
-                </RouterLink>
-                <button
-                  class="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-primary-50 text-sub"
-                  @click="auth.logout()"
-                >
-                  退出
-                </button>
-              </div>
-            </transition>
-          </div>
+          <button ref="triggerRef" class="flex items-center gap-2" @click.stop="toggleMenu">
+            <UserAvatar :name="auth.user!.displayName" :size="36" />
+            <span class="hidden sm:block text-sm text-ink">{{ auth.user!.displayName }}</span>
+            <!-- CSS 三角形箭头 -->
+            <span
+              class="inline-block border-solid transition-transform duration-200"
+              :class="menuOpen ? 'rotate-180' : ''"
+              style="width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid currentColor;"
+            ></span>
+          </button>
         </template>
       </div>
     </nav>
   </header>
+
+  <!-- 菜单传送到 body 层，脱离 topbar 的 backdrop-blur 层叠上下文 -->
+  <Teleport to="body">
+    <transition name="menu">
+      <div
+        v-if="menuOpen"
+        class="w-44 rounded-xl2 border border-white/60 shadow-glass p-1.5"
+        :style="menuStyle"
+        @click="closeMenu"
+      >
+        <RouterLink to="/profile" class="block px-3 py-2 text-sm rounded-lg hover:bg-primary-50 text-ink">
+          个人空间
+        </RouterLink>
+        <RouterLink to="/schedule" class="block px-3 py-2 text-sm rounded-lg hover:bg-primary-50 text-ink">
+          课表工具
+        </RouterLink>
+        <RouterLink v-if="auth.isAdmin" to="/admin" class="block px-3 py-2 text-sm rounded-lg hover:bg-primary-50 text-ink">
+          管理后台
+        </RouterLink>
+        <button class="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-primary-50 text-sub" @click="auth.logout()">
+          退出
+        </button>
+      </div>
+    </transition>
+  </Teleport>
 </template>
 
 <style scoped>
 .menu-enter-active,
 .menu-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition: opacity 0.15s ease;
 }
 .menu-enter-from,
 .menu-leave-to {
   opacity: 0;
-  transform: translateY(-6px);
 }
 .no-scrollbar::-webkit-scrollbar {
   display: none;
