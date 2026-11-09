@@ -26,15 +26,15 @@ function toggleMenu() {
         <span class="w-9 h-8 rounded-xl bg-hero-gradient flex items-center justify-center text-white font-bold shadow-soft tracking-tight text-[10px]">
           FUR
         </span>
-        <span class="font-semibold text-ink tracking-wide">浙江理工福瑞圈</span>
+        <span class="hidden lg:inline font-semibold text-ink tracking-wide">浙江理工福瑞圈</span>
       </RouterLink>
 
-      <div class="hidden md:flex items-center gap-1">
+      <div class="flex items-center gap-1 overflow-x-auto no-scrollbar">
         <RouterLink
           v-for="link in navLinks"
           :key="link.to"
           :to="link.to"
-          class="px-3 py-2 text-sm rounded-lg text-sub hover:text-primary-700 hover:bg-primary-50 transition"
+          class="shrink-0 px-3 py-2 text-sm rounded-lg text-sub hover:text-primary-700 hover:bg-primary-50 transition"
           active-class="text-primary-700 bg-primary-50 font-medium"
         >
           {{ link.label }}
@@ -75,6 +75,13 @@ function toggleMenu() {
                   个人空间
                 </RouterLink>
                 <RouterLink
+                  v-if="auth.isLoggedIn"
+                  to="/schedule"
+                  class="block px-3 py-2 text-sm rounded-lg hover:bg-primary-50 text-ink"
+                >
+                  课表工具
+                </RouterLink>
+                <RouterLink
                   v-if="auth.isAdmin"
                   to="/admin"
                   class="block px-3 py-2 text-sm rounded-lg hover:bg-primary-50 text-ink"
@@ -105,5 +112,12 @@ function toggleMenu() {
 .menu-leave-to {
   opacity: 0;
   transform: translateY(-6px);
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 </style>

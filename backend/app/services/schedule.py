@@ -1,7 +1,7 @@
 """课表解析与对比服务。
 
-内部统一为 CourseSlot；支持 ICS / ZJUT PDF/TXT 解析，以及多人空闲时间对比。
-解析任务应异步执行，本模块只提供纯函数与规则，便于测试。
+内部统一为 CourseSlot；支持 ICS / ZJUT TXT 解析（PDF 占位），以及空闲时间对比。
+解析任务应异步执行，本模块提供纯函数与规则，便于测试。
 """
 
 from __future__ import annotations
@@ -158,3 +158,173 @@ def _free_slots(slots_a: list[CourseSlot], slots_b: list[CourseSlot]) -> list[di
                 {"weekday": day, "lesson_start": s, "lesson_end": e}
             )
     return result
+
+
+# ---------- 文件解析 ----------
+
+class ScheduleParseError(Exception):
+    def __init__(self, code: str, message: str) -> None:
+        self.code = code
+        self.message = message
+        super().__init__(message)
+
+
+def parse_schedule(data: bytes, filename: str) -> dict:
+    """根据文件名识别格式并解析为 CourseSlot 列表。
+
+    返回 {"slots": [...], "format": "ics"|"txt"}。
+    """
+    name = filename.lower()
+    if name.endswith(".ics"):
+        return {"slots": [s.to_dict() for s in parse_ics(data)], "format": "ics"}
+    if name.endswith(".txt"):
+        return {"slots": [s.to_dict() for s in parse_txt(data)], "format": "txt"}
+    if name.endswith(".pdf"):
+        raise ScheduleParseError(
+            "PDF_UNSUPPORTED",
+            "PDF 课表解析尚未实现，请改用 ICS 或 TXT 导出格式",
+        )
+    raise ScheduleParseError(
+        "UNSUPPORTED_FORMAT", "仅支持 .ics / .txt 文件（PDF 暂未支持）"
+    )
+
+
+def parse_ics(data: bytes) -> list[CourseSlot]:
+    """解析 ICS 课表：每个 VEVENT 映射为一个 CourseSlot。
+
+    约定：重复规则每周一次（FREQ=WEEKLY）映射为周次 + weekday；
+    不支持复杂 recur 的 event 按单次出现解析。
+    """
+    from icalendar import Calendar
+
+    try:
+        cal = Calendar.from_ical(data)
+    except Exception as exc:
+        raise ScheduleParseError("ICS_PARSE_FAILED", f"ICS 解析失败: {exc}") from exc
+
+    slots: list[CourseSlot] = []
+    for component in cal.walk("VEVENT"):
+        summary = str(component.get("SUMMARY", ""))
+        location = str(component.get("LOCATION", ""))
+        dtstart = component.get("DTSTART")
+        dtend = component.get("DTEND")
+        rrule = component.get("RRULE")
+
+        if dtstart is None:
+            continue
+        start = dtstart.dt
+        end = dtend.dt if dtend is not None else start
+
+        # weekday: 0=周一
+        weekday = start.weekday()
+
+        # 节次：按时间近似映射到 1-12 节（假设 8:00 起，每节 45min + 10min 休息）
+        lesson_start = _time_to_lesson(start)
+        lesson_end = _time_to_lesson(end, is_end=True)
+
+        # 周次：从 RRULE 或单次日期推导（简化：单次事件用当周，重复事件用 UNTIL/COUNT）
+        weeks = _extract_weeks(component, start)
+
+        slots.append(
+            CourseSlot(
+                name=summary or "未命名课程",
+                location=location,
+                weekday=weekday,
+                lesson_start=lesson_start,
+                lesson_end=lesson_end,
+                weeks=weeks,
+            )
+        )
+    return slots
+
+
+def _time_to_lesson(dt, is_end: bool = False) -> int:
+    """把时间映射到节次（近似：8:00 第一节，每 55 分钟一节）。"""
+    if not hasattr(dt, "hour"):
+        return 1
+    minutes = dt.hour * 60 + dt.minute
+    start_min = 8 * 60
+    if is_end:
+        # 结束时间：减 1 分钟再映射，避免边界
+        minutes -= 1
+    lesson = (minutes - start_min) // 55 + 1
+    return max(1, min(12, lesson))
+
+
+def _extract_weeks(component, start) -> list[int]:
+    """提取周次列表（简化实现）。"""
+    rrule = component.get("RRULE")
+    if rrule is not None:
+        rule = {k.upper(): v for k, v in dict(rrule).items()}
+        freq = rule.get("FREQ", [])[0] if rule.get("FREQ") else "WEEKLY"
+        # COUNT：重复次数 → 连续周
+        count = rule.get("COUNT")
+        if count:
+            return list(range(1, int(count[0]) + 1))
+        until = rule.get("UNTIL")
+        if until and freq == "WEEKLY":
+            # 按 UNTIL 估算周数
+            try:
+                n = int((until[0] - start.date()).days / 7) + 1
+                return list(range(1, n + 1))
+            except Exception:
+                pass
+        # 默认单周
+        return [1]
+    # 无 RRULE：单次事件，用日期所在周（简化：第 1 周）
+    return [1]
+
+
+def parse_txt(data: bytes) -> list[CourseSlot]:
+    """解析 ZJUT TXT 课表。
+
+    示例格式（每行一门课，制表符或空格分隔星期与单元格内容）：
+    <星期> <单元格内容>
+    单元格内容格式：课程名★ (3-5节)1-11周/校区:下沙校区/场地:2-N130/教师:xxx
+    """
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            text = data.decode("gbk")
+        except UnicodeDecodeError as exc:
+            raise ScheduleParseError("TXT_DECODE_FAILED", "无法识别文件编码") from exc
+
+    slots: list[CourseSlot] = []
+    weekday_map = {
+        "周一": 0, "星期二": 1, "周三": 2, "星期四": 3, "周五": 4, "周六": 5, "周日": 6,
+        "星期一": 0, "周二": 1, "星期二": 1, "周三": 2, "星期三": 2,
+        "周四": 3, "星期四": 3, "周五": 4, "星期五": 4, "周六": 5, "星期六": 5,
+        "星期日": 6, "星期天": 6, "周天": 6,
+    }
+
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        # 尝试按星期前缀解析：如 "周一\t课程名★..."
+        weekday = None
+        cell = line
+        for key, val in weekday_map.items():
+            if line.startswith(key):
+                weekday = val
+                cell = line[len(key):].strip(" \t:：")
+                break
+        if weekday is None:
+            # 无星期前缀，尝试按 tab 分割（第一列是星期索引 0-6）
+            parts = line.split("\t")
+            if len(parts) >= 2 and parts[0].strip().isdigit():
+                idx = int(parts[0].strip())
+                if 0 <= idx <= 6:
+                    weekday = idx
+                    cell = parts[1].strip()
+
+        if weekday is None:
+            continue
+
+        parsed = parse_zjut_cell(cell, weekday)
+        slots.extend(parsed)
+
+    if not slots:
+        raise ScheduleParseError("TXT_NO_COURSE", "未从文件中解析出课程，请检查格式")
+    return slots

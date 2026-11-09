@@ -35,6 +35,17 @@ class ScheduleJobOut(BaseModel):
     error: str | None = None
 
 
+class ScheduleUploadIntentRequest(BaseModel):
+    filename: str
+    size_bytes: int = Field(gt=0)
+
+
+class ScheduleUploadCompleteRequest(BaseModel):
+    bucket: str
+    object_key: str
+    original_name: str
+
+
 class ScheduleOut(BaseModel):
     id: uuid.UUID
     owner_id: uuid.UUID
