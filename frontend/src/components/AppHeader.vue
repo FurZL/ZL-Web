@@ -77,9 +77,13 @@ onBeforeUnmount(() => {
   <header ref="headerRef" class="topbar">
     <nav class="max-w-6xl mx-auto px-4 h-16 flex items-center gap-6">
       <RouterLink to="/" class="flex items-center gap-2 shrink-0">
-        <span class="w-9 h-8 rounded-xl bg-hero-gradient flex items-center justify-center text-white font-bold shadow-soft tracking-tight text-[10px]">
-          FUR
-        </span>
+        <img
+          src="/logo-m-96.png"
+          alt="浙江理工福瑞圈"
+          width="36"
+          height="36"
+          class="w-9 h-9 rounded-xl object-contain bg-white/80 border border-white/60 shadow-soft"
+        />
         <span class="hidden lg:inline font-semibold text-ink tracking-wide">浙江理工福瑞圈</span>
       </RouterLink>
 

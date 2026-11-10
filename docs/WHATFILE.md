@@ -30,22 +30,31 @@
 | `tsconfig.json` | TypeScript 编译选项（路径别名、严格模式） |
 | `tailwind.config.js` | Tailwind CSS 配置（自定义色板 primary/ink/sub/blush/faint、圆角、字体） |
 | `postcss.config.js` | PostCSS 配置（Tailwind CSS 集成） |
-| `index.html` | SPA HTML 入口模板（挂载 #app） |
+| `index.html` | SPA HTML 入口模板（挂载 #app；声明 favicon / apple-touch-icon / site.webmanifest） |
 | `env.d.ts` | TypeScript 环境声明（Vite import.meta.env 类型 + *.vue 模块声明） |
 | `.env.development` | 开发环境变量（VITE_API_BASE_URL → http://localhost:8000/api/v1） |
 | `.env.production` | 生产环境变量（VITE_API_BASE_URL） |
 | `.gitignore` | 前端 Git 忽略规则（dist、node_modules 等） |
+| `vite-server.log` | Vite 开发服务器运行日志（临时文件，可安全删除） |
+| `vite-server.err` | Vite 开发服务器错误日志（临时文件，可安全删除） |
 
 ### frontend/public/ — 静态资源（原样输出到 dist/）
 
 | 文件 | 用途 |
 |---|---|
+| `favicon.ico` | 多尺寸站点图标（16/24/32/48/64，由蓝绿 M 形 logo 生成），浏览器标签页 |
+| `favicon-32x32.png` | PNG 版 favicon（32×32），现代浏览器备用 |
+| `favicon.png` | PNG 版 favicon 同尺寸副本（兼容部分旧引用） |
+| `apple-touch-icon.png` | iOS 主屏图标（180×180） |
+| `icon-192.png` | PWA / manifest 图标（192×192） |
+| `icon-512.png` | PWA / manifest 图标（512×512） |
+| `site.webmanifest` | Web App Manifest（图标、主题色 `#6B5CE7`、standalone 显示） |
+| `logo-m.png` | M 形 logo 大图（512×512，顶栏/页脚等 UI 共用源图） |
+| `logo-m-96.png` | M 形 logo 小图（96×96），顶栏与页脚品牌位实际引用 |
 | `fonts/loader.js` | 字体加载器：Google Fonts (Noto Sans SC) 优先，失败/超时回退本地鸿蒙字体 |
 | `fonts/fonts.css` | 本地字体 `@font-face` 声明（HarmonyOS Sans SC，子集化 woff2） |
 | `fonts/HarmonyOS_Sans_SC_Regular.woff2` | 鸿蒙简体中文 Regular（子集化 154KB，覆盖项目全部用到的字符） |
 | `fonts/HarmonyOS_Sans_SC_Bold.woff2` | 鸿蒙简体中文 Bold（子集化 152KB） |
-| `vite-server.log` | Vite 开发服务器运行日志（临时文件，可安全删除） |
-| `vite-server.err` | Vite 开发服务器错误日志（临时文件，可安全删除） |
 
 ### src/ — 源代码
 

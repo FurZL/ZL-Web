@@ -86,7 +86,8 @@ npm run dev
 - 核心页面：首页 / 图片展示（瀑布流+详情+上传弹窗）/ 活动列表（报名/签到/候补）/ 课表 / 个人空间（自己/他人视角）/ 登录 / 注册（含摄影师申请）/ 等待审批 / 找回密码 / 社团介绍 / 动态页面（`/p/:slug`）/ 404。
 - 管理后台界面：侧边栏布局 + 用户审批 + 仪表盘 + 公告管理 + 网站设置 + 活动管理 + 页面管理 + 图片管理（均已接真实接口）。
 - 公共组件：`ImageLightbox`（图片详情弹窗，Gallery 与私有相册共用）、`UserAvatar`、`ImagePlaceholder`、`AppDialog`（全局 Toast/Confirm 对话框）。
-- 导航栏按角色动态变化；窄屏横滑可见全部入口；logo 为「FUR」。
+- 导航栏按角色动态变化；窄屏横滑可见全部入口；顶栏、页脚与登录页品牌位使用 M 形 logo。
+- 站点图标：浏览器 favicon / iOS 主屏 / PWA 使用蓝绿 M 形 logo 生成的一套静态资源（见 `frontend/public/favicon.ico` 等）。
 - 顶栏下拉菜单：`Teleport to body` + `fixed` 定位，CSS 三角箭头旋转动画，点击外部自动关闭。
 - 首页 Hero：流动渐变背景（12s 往返动画）+ 双按钮（已登录隐藏「加入我们」）。
 - 可点击链接（了解故事/查看全部/进入图片展示/去注册）统一圆角矩形控件。
@@ -228,6 +229,8 @@ UI 组件在 `components/AppDialog.vue`，挂载在 `App.vue` 根部，无需每
 
 ## 变更记录
 
+- **新增站点 favicon 全套资源**：由蓝绿 M 形 logo 生成并放入 `frontend/public/`——`favicon.ico`（16–64 多尺寸）、`favicon-32x32.png`、`favicon.png`、`apple-touch-icon.png`（180）、`icon-192.png` / `icon-512.png`、`site.webmanifest`（主题色 `#6B5CE7`）；`index.html` 补充 `rel="icon"` / `apple-touch-icon` / `manifest` 引用。原 `/favicon.ico` 仅有链接、文件缺失，现已补齐。
+- **顶栏 / 页脚 / 登录页品牌位换 M 形 logo**：`AppHeader.vue`、`AppFooter.vue`、`Login.vue` 原「FUR」渐变字标改为 `<img>` 引用 `/logo-m-96.png`（顶栏/页脚）或 `/logo-m.png`（登录页 72px）；配套源图 `logo-m.png`（512）。
 - **移除 `PUBLIC_API_BASE_URL`**：该环境变量从未被后端或前端代码消费（前端实际使用 `VITE_API_BASE_URL`），属于死配置，已从 `config.py`、`.env.example`、`backend/.env` 中删除。将来如需拼接对外 API 链接（如邮件中的跳转链接），再按实际需求引入。
 - **移除前端 `VITE_PUBLIC_ASSET_BASE_URL`**：前端图片 URL 全部来自后端 API 响应的 `thumb_url` / `display_url` 字段（后端已根据 `PUBLIC_ASSET_BASE_URL` 生成完整 URL），前端不需要自己拼图片域名，该变量从未被 `src/` 消费。已从 `frontend/.env.development`、`frontend/.env.production`、`deploy/edgeone/README.md` 中删除。
 - **图片域名 `PUBLIC_ASSET_BASE_URL` 仅后端使用**：唯一消费方是 `providers/storage/cos.py` 的 `public_url()`，由后端在 API 响应中生成完整图片 URL。当前值含 `example.com` 时自动回退 COS 默认域名；将来绑定 `img.example.com` 等自定义 CDN 域名时，只需改后端 `.env` 的 `PUBLIC_ASSET_BASE_URL` 一个值，历史图片记录无需变更。

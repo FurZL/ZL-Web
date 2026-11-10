@@ -19,8 +19,14 @@ onMounted(async () => {
   <footer class="mt-16 bg-white/60 backdrop-blur-xl border-t border-white/60">
     <div class="max-w-6xl mx-auto px-4 py-10">
       <div class="flex flex-col md:flex-row items-center justify-between gap-6">
-        <div class="flex items-center gap-2">
-          <span class="w-9 h-8 rounded-xl bg-hero-gradient flex items-center justify-center text-white font-bold tracking-tight text-[10px]">FUR</span>
+        <div class="flex items-center gap-2.5">
+          <img
+            src="/logo-m-96.png"
+            alt="浙江理工福瑞圈"
+            width="40"
+            height="40"
+            class="w-10 h-10 rounded-xl object-contain bg-white/80 border border-white/60 shadow-soft"
+          />
           <div>
             <p class="text-sm font-medium text-ink">{{ footer?.copyright_owner ?? '浙江理工福瑞圈' }}</p>
             <p class="text-xs text-faint">温暖、可爱、有社群感的 Furry 之家</p>

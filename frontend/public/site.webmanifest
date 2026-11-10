@@ -1,0 +1,12 @@
+{
+  "name": "浙江理工福瑞圈",
+  "short_name": "Furry ZJUT",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "theme_color": "#6B5CE7",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "start_url": "/"
+}
