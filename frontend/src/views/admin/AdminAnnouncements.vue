@@ -7,6 +7,9 @@ import {
   updateAnnouncement,
 } from '@/api/site'
 import type { AnnouncementRecord } from '@/types'
+import { useDialog } from '@/composables/useDialog'
+
+const { showConfirm } = useDialog()
 
 const announcements = ref<AnnouncementRecord[]>([])
 const loading = ref(true)
@@ -111,7 +114,7 @@ async function togglePublish(a: AnnouncementRecord) {
 }
 
 async function remove(a: AnnouncementRecord) {
-  if (!confirm(`确定删除公告「${a.title}」吗？`)) return
+  if (!(await showConfirm(`确定删除公告「${a.title}」吗？`))) return
   try {
     await deleteAnnouncement(a.id)
     await load()

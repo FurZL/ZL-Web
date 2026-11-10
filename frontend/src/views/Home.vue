@@ -7,7 +7,10 @@ import UserAvatar from '@/components/UserAvatar.vue'
 import { getPublishedAnnouncements } from '@/api/site'
 import { request } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
+import { useDialog } from '@/composables/useDialog'
 import type { AnnouncementRecord, GalleryImage } from '@/types'
+
+const { showToast } = useDialog()
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -49,7 +52,7 @@ async function downloadSelected() {
     const data = await request<{ url: string }>({ method: 'GET', url: `/images/${selected.value.id}/download` })
     window.open(data.url, '_blank')
   } catch (e) {
-    alert(e instanceof Error ? e.message : '下载失败')
+    showToast(e instanceof Error ? e.message : '下载失败')
   }
 }
 </script>

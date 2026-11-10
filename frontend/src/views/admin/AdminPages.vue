@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import {
   adminCreatePage,
   adminDeletePage,
@@ -10,7 +10,12 @@ import {
   adminUnpublishPage,
   adminUpdatePage,
 } from '@/api/pages'
+import PageFormDialog from '@/components/admin/PageFormDialog.vue'
+import PageVersionsDialog from '@/components/admin/PageVersionsDialog.vue'
 import type { PageRecord, PageVersion } from '@/types'
+import { useDialog } from '@/composables/useDialog'
+
+const { showConfirm } = useDialog()
 
 const pages = ref<PageRecord[]>([])
 const loading = ref(true)
@@ -70,52 +75,34 @@ const DEFAULT_SCHEMA = `{
 
 function openCreate() {
   editingId.value = null
-  form.slug = ''
-  form.title = ''
-  form.seo_title = ''
-  form.seo_description = ''
-  form.schemaText = DEFAULT_SCHEMA
+  Object.assign(form, { slug: '', title: '', seo_title: '', seo_description: '', schemaText: DEFAULT_SCHEMA })
   showForm.value = true
 }
 
 function openEdit(p: PageRecord) {
   editingId.value = p.id
-  form.slug = p.slug
-  form.title = p.title
-  form.seo_title = p.seo_title ?? ''
-  form.seo_description = p.seo_description ?? ''
-  form.schemaText = JSON.stringify(p.schema_json, null, 2)
+  Object.assign(form, {
+    slug: p.slug,
+    title: p.title,
+    seo_title: p.seo_title ?? '',
+    seo_description: p.seo_description ?? '',
+    schemaText: JSON.stringify(p.schema_json, null, 2),
+  })
   showForm.value = true
 }
-
-function closeForm() {
-  showForm.value = false
-  editingId.value = null
-}
-
-const schemaError = computed(() => {
-  if (!form.schemaText.trim()) return ''
-  try {
-    const parsed = JSON.parse(form.schemaText)
-    if (typeof parsed !== 'object' || parsed === null) return 'Schema 必须是 JSON 对象'
-    return ''
-  } catch {
-    return 'JSON 格式有误，请检查'
-  }
-})
 
 async function save() {
   if (!form.title.trim()) {
     error.value = '标题不能为空'
     return
   }
-  if (schemaError.value) {
-    error.value = schemaError.value
-    return
-  }
   let schema: Record<string, unknown>
   try {
     schema = JSON.parse(form.schemaText)
+    if (typeof schema !== 'object' || schema === null) {
+      error.value = 'Schema 必须是 JSON 对象'
+      return
+    }
   } catch {
     error.value = 'JSON 格式有误'
     return
@@ -140,7 +127,8 @@ async function save() {
         seo_description: form.seo_description || null,
       })
     }
-    closeForm()
+    showForm.value = false
+    editingId.value = null
     await load()
   } catch (e) {
     error.value = e instanceof Error ? e.message : '保存失败'
@@ -166,7 +154,7 @@ async function togglePublish(p: PageRecord) {
 }
 
 async function remove(p: PageRecord) {
-  if (!confirm(`确定删除页面「${p.title}」吗？`)) return
+  if (!(await showConfirm(`确定删除页面「${p.title}」吗？`))) return
   try {
     await adminDeletePage(p.id)
     await load()
@@ -190,15 +178,9 @@ async function openVersions(p: PageRecord) {
   }
 }
 
-function closeVersions() {
-  showVersions.value = false
-  versionPage.value = null
-  versions.value = []
-}
-
 async function doRollback(v: PageVersion) {
   if (!versionPage.value) return
-  if (!confirm(`确定回滚到版本 v${v.version} 吗？当前内容将被替换。`)) return
+  if (!(await showConfirm(`确定回滚到版本 v${v.version} 吗？当前内容将被替换。`))) return
   actingId.value = v.id
   try {
     await adminRollbackPage(versionPage.value.id, v.id)
@@ -258,12 +240,8 @@ function fmtDate(iso: string | null) {
           <a :href="`/p/${p.slug}`" target="_blank" class="text-xs px-3 py-1.5 rounded-lg border border-primary-200 text-primary-700 hover:bg-primary-50 transition">
             预览
           </a>
-          <button class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-faint hover:border-primary-200 transition" @click="openEdit(p)">
-            编辑
-          </button>
-          <button class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-faint hover:border-primary-200 transition" @click="openVersions(p)">
-            版本
-          </button>
+          <button class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-faint hover:border-primary-200 transition" @click="openEdit(p)">编辑</button>
+          <button class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-faint hover:border-primary-200 transition" @click="openVersions(p)">版本</button>
           <button
             class="text-xs px-3 py-1.5 rounded-lg border transition"
             :class="p.status === 'published' ? 'border-amber-200 text-amber-600 hover:bg-amber-50' : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'"
@@ -272,97 +250,29 @@ function fmtDate(iso: string | null) {
           >
             {{ p.status === 'published' ? '下线' : '发布' }}
           </button>
-          <button class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-red-500 hover:border-red-300 transition" @click="remove(p)">
-            删除
-          </button>
+          <button class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-red-500 hover:border-red-300 transition" @click="remove(p)">删除</button>
         </div>
       </div>
     </div>
 
-    <!-- 创建/编辑弹窗 -->
-    <div v-if="showForm" class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" @click.self="closeForm">
-      <div class="glass-card p-6 w-full max-w-2xl max-h-[85vh] overflow-auto">
-        <h2 class="text-lg font-bold text-ink">{{ editingId ? '编辑页面' : '新建页面' }}</h2>
-        <div v-if="error && showForm" class="mt-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{{ error }}</div>
-        <div class="mt-4 space-y-4">
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="label">Slug（URL 路径，仅小写字母/数字/短横线）</label>
-              <input v-model="form.slug" class="input" placeholder="welcome-party-2026" :disabled="!!editingId" />
-            </div>
-            <div>
-              <label class="label">页面标题</label>
-              <input v-model="form.title" class="input" placeholder="页面标题" />
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="label">SEO 标题（可选）</label>
-              <input v-model="form.seo_title" class="input" />
-            </div>
-            <div>
-              <label class="label">SEO 描述（可选）</label>
-              <input v-model="form.seo_description" class="input" />
-            </div>
-          </div>
-          <div>
-            <label class="label">页面 Schema（JSON）</label>
-            <textarea
-              v-model="form.schemaText"
-              class="input font-mono text-xs min-h-[240px]"
-              rows="16"
-              spellcheck="false"
-            ></textarea>
-            <p v-if="schemaError" class="mt-1 text-xs text-red-500">{{ schemaError }}</p>
-            <p v-else class="mt-1 text-xs text-faint">
-              支持组件：hero / rich_text / image / countdown / button / notice / event_info / card / divider
-            </p>
-          </div>
-        </div>
-        <div class="mt-6 flex gap-3">
-          <button class="btn-ghost flex-1" @click="closeForm">取消</button>
-          <button class="btn-primary flex-1" :disabled="saving || !!schemaError" @click="save">
-            {{ saving ? '保存中…' : '保存' }}
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 版本管理弹窗 -->
-    <div v-if="showVersions" class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" @click.self="closeVersions">
-      <div class="glass-card p-6 w-full max-w-lg max-h-[80vh] overflow-auto">
-        <div class="flex items-center justify-between">
-          <h2 class="text-lg font-bold text-ink">{{ versionPage?.title }} — 版本历史</h2>
-          <button class="text-sm text-faint hover:text-ink transition" @click="closeVersions">✕</button>
-        </div>
-
-        <div v-if="versionsLoading" class="mt-6 text-center py-8">
-          <div class="w-8 h-8 border-4 border-primary-200 border-t-primary rounded-full animate-spin mx-auto"></div>
-          <p class="mt-3 text-sm text-sub">加载中…</p>
-        </div>
-
-        <div v-else-if="versions.length === 0" class="mt-6 text-center py-8 text-sub">
-          暂无版本记录
-        </div>
-
-        <div v-else class="mt-4 space-y-2">
-          <div v-for="v in versions" :key="v.id" class="flex items-center gap-3 rounded-xl bg-white/60 px-4 py-3">
-            <div class="flex-1">
-              <p class="text-sm font-medium text-ink">v{{ v.version }}</p>
-              <p class="text-xs text-faint mt-0.5">
-                {{ v.change_summary || '—' }} · {{ fmtDate(v.created_at) }}
-              </p>
-            </div>
-            <button
-              class="text-xs px-3 py-1.5 rounded-lg border border-primary-200 text-primary-700 hover:bg-primary-50 transition"
-              :disabled="actingId === v.id"
-              @click="doRollback(v)"
-            >
-              {{ actingId === v.id ? '…' : '回滚' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- 弹窗 -->
+    <PageFormDialog
+      v-model:form="form"
+      :show="showForm"
+      :editing="!!editingId"
+      :error="error"
+      :saving="saving"
+      @close="showForm = false; editingId = null"
+      @save="save"
+    />
+    <PageVersionsDialog
+      :show="showVersions"
+      :page="versionPage"
+      :versions="versions"
+      :loading="versionsLoading"
+      :acting-id="actingId"
+      @close="showVersions = false; versionPage = null; versions = []"
+      @rollback="doRollback"
+    />
   </div>
 </template>

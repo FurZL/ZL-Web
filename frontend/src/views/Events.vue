@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { cancelEventRegistration, eventCheckin, listEvents, registerEvent } from '@/api/events'
+import { useDialog } from '@/composables/useDialog'
 import type { EventRecord } from '@/types'
+
+const { showToast, showConfirm } = useDialog()
 
 const events = ref<EventRecord[]>([])
 const loading = ref(true)
@@ -40,20 +43,20 @@ async function doRegister(e: EventRecord) {
     await registerEvent(e.id)
     await load()
   } catch (err) {
-    alert(err instanceof Error ? err.message : '报名失败')
+      showToast(err instanceof Error ? err.message : '报名失败')
   } finally {
     acting.value = null
   }
 }
 
 async function doCancel(e: EventRecord) {
-  if (!confirm(`确定取消报名「${e.title}」吗？`)) return
+  if (!(await showConfirm(`确定取消报名「${e.title}」吗？`))) return
   acting.value = e.id
   try {
     await cancelEventRegistration(e.id)
     await load()
   } catch (err) {
-    alert(err instanceof Error ? err.message : '取消失败')
+      showToast(err instanceof Error ? err.message : '取消失败')
   } finally {
     acting.value = null
   }
@@ -65,7 +68,7 @@ async function doCheckin(e: EventRecord) {
     await eventCheckin(e.id)
     await load()
   } catch (err) {
-    alert(err instanceof Error ? err.message : '签到失败')
+      showToast(err instanceof Error ? err.message : '签到失败')
   } finally {
     acting.value = null
   }

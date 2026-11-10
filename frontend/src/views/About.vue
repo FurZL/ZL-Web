@@ -4,10 +4,11 @@ import ImagePlaceholder from '@/components/ImagePlaceholder.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { getClubIntro } from '@/api/site'
 import { useAuthStore } from '@/stores/auth'
-import { members } from '@/api/mock'
-import type { ClubIntro } from '@/types'
+import { request } from '@/api/client'
+import type { ClubIntro, MemberProfile } from '@/types'
 
 const auth = useAuthStore()
+const members = ref<MemberProfile[]>([])
 
 const intro = ref<ClubIntro>({ title: '关于我们', content: '' })
 const loading = ref(true)
@@ -19,6 +20,13 @@ onMounted(async () => {
     // 用默认值
   } finally {
     loading.value = false
+  }
+  // 加载公开成员列表
+  try {
+    const data = await request<{ items: MemberProfile[] }>({ method: 'GET', url: '/profile/members' })
+    members.value = data.items
+  } catch {
+    // 成员加载失败不阻断页面
   }
 })
 
@@ -66,13 +74,13 @@ const timeline = [
     <div class="mt-12">
       <h2 class="text-xl font-bold text-ink mb-6">可爱的大家</h2>
       <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div v-for="m in members" :key="m.id" class="glass-card p-5 text-center hover:shadow-soft transition">
-          <div class="flex justify-center">
-            <UserAvatar :name="m.displayName" :size="56" />
+          <div v-for="m in members" :key="m.id" class="glass-card p-5 text-center hover:shadow-soft transition">
+            <div class="flex justify-center">
+              <UserAvatar :name="m.display_name" :size="56" />
+            </div>
+            <p class="mt-3 text-sm font-medium text-ink">{{ m.display_name }}</p>
+            <p class="text-xs text-faint mt-0.5">{{ m.bio || '这位同学还没有写简介' }}</p>
           </div>
-          <p class="mt-3 text-sm font-medium text-ink">{{ m.displayName }}</p>
-          <p class="text-xs text-faint mt-0.5">{{ m.bio }}</p>
-        </div>
       </div>
     </div>
 

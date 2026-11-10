@@ -296,3 +296,13 @@ export interface AdminImageStats {
   approved: number
   rejected: number
 }
+
+// 公开成员信息
+export interface MemberProfile {
+  id: string
+  username: string
+  display_name: string
+  role: string
+  bio: string
+  avatar_url: string | null
+}

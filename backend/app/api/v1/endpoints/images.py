@@ -8,25 +8,27 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_permission_dep
-from app.api.response import ok
+from app.api.response import error_to_http, ok, parse_uuid
 from app.core.database import get_db
+from app.core.permissions import has_permission
+from app.models.image import Image, StoredObject
+from app.models.report import Report
 from app.models.user import User
+from app.providers.factory import get_storage_provider
 from app.schemas.image import (
     UploadCompleteRequest,
     UploadIntentRequest,
     UploadIntentResponse,
 )
 from app.services import image as image_service
+from app.services.admin_image import delete_image as admin_delete_image
 from app.services.image import ImageError
 
 router = APIRouter(prefix="/images", tags=["images"])
-
-
-def _image_error(exc: ImageError) -> HTTPException:
-    return HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message})
 
 
 @router.get("/")
@@ -42,12 +44,8 @@ async def list_images(
 @router.get("/{image_id}")
 async def get_image(image_id: str, db: AsyncSession = Depends(get_db)):
     # 简化：直接查库返回单图
-    try:
-        uid = uuid.UUID(image_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_ID", "message": "无效的图片 ID"})
-    from sqlalchemy import select
-    from app.models.image import Image
+    uid = parse_uuid(image_id, "图片 ID")
+
 
     image = await db.get(Image, uid)
     if image is None:
@@ -69,7 +67,7 @@ async def upload_intent(
             purpose=body.purpose,
         )
     except ImageError as exc:
-        raise _image_error(exc)
+        raise error_to_http(exc)
     return ok(intent)
 
 
@@ -91,7 +89,7 @@ async def upload_complete(
             tags=body.tags,
         )
     except ImageError as exc:
-        raise _image_error(exc)
+        raise error_to_http(exc)
     return ok(await image_service._image_to_dict(db, image))
 
 
@@ -101,13 +99,10 @@ async def delete_image(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    from app.core.permissions import has_permission
 
-    try:
-        uid = uuid.UUID(image_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_ID", "message": "无效的图片 ID"})
-    from app.models.image import Image
+
+    uid = parse_uuid(image_id, "图片 ID")
+
 
     image = await db.get(Image, uid)
     if image is None:
@@ -117,13 +112,12 @@ async def delete_image(
     if image.uploader_id != user.id and not has_permission(user.role, "gallery.image.delete.any"):
         raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": "无权删除该图片"})
 
-    from app.services.admin_image import delete_image as _delete
-    from app.services.image import ImageError
+
 
     try:
-        await _delete(db, uid)
+        await admin_delete_image(db, uid)
     except ImageError as exc:
-        raise _image_error(exc)
+        raise error_to_http(exc)
     return ok({"message": "已删除"})
 
 
@@ -133,13 +127,10 @@ async def report_image(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    from app.models.report import Report
 
-    try:
-        uid = uuid.UUID(image_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_ID", "message": "无效的图片 ID"})
-    from app.models.image import Image
+
+    uid = parse_uuid(image_id, "图片 ID")
+
 
     image = await db.get(Image, uid)
     if image is None:
@@ -150,7 +141,7 @@ async def report_image(
         raise HTTPException(status_code=400, detail={"code": "SELF_REPORT", "message": "不能举报自己的图片"})
 
     # 同一用户对同一图片只能有一条未处理的举报
-    from sqlalchemy import select
+
 
     existing = (
         await db.scalars(
@@ -186,12 +177,9 @@ async def download_image(
     db: AsyncSession = Depends(get_db),
 ):
     # 私有/公开原图下载：签发短时效签名 URL
-    try:
-        uid = uuid.UUID(image_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_ID", "message": "无效的图片 ID"})
-    from sqlalchemy import select
-    from app.models.image import Image, StoredObject
+    uid = parse_uuid(image_id, "图片 ID")
+
+
 
     image = await db.get(Image, uid)
     if image is None:
@@ -201,7 +189,7 @@ async def download_image(
     if stored is None:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "对象不存在"})
 
-    from app.providers.factory import get_storage_provider
+
 
     storage = get_storage_provider()
     url = await storage.presign_download(stored.bucket, stored.object_key)

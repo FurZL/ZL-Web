@@ -4,10 +4,12 @@ import { useRoute, useRouter } from 'vue-router'
 import ImagePlaceholder from '@/components/ImagePlaceholder.vue'
 import ImageLightbox from '@/components/ImageLightbox.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
-import { tags as mockTags } from '@/api/mock'
 import { request } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
+import { useDialog } from '@/composables/useDialog'
 import type { GalleryImage, UploadIntent } from '@/types'
+
+const { showToast } = useDialog()
 
 const route = useRoute()
 const router = useRouter()
@@ -19,6 +21,15 @@ const loadError = ref('')
 
 const activeTag = ref('全部')
 const search = ref('')
+
+// 动态提取标签（去掉 mock）
+const allTags = computed(() => {
+  const set = new Set<string>()
+  for (const img of images.value) {
+    for (const t of img.tags) set.add(t)
+  }
+  return ['全部', ...Array.from(set).sort()]
+})
 
 async function loadImages() {
   loading.value = true
@@ -64,7 +75,7 @@ async function downloadImage(img: GalleryImage) {
     const data = await request<{ url: string }>({ method: 'GET', url: `/images/${img.id}/download` })
     window.open(data.url, '_blank')
   } catch (e) {
-    alert(e instanceof Error ? e.message : '下载失败')
+    showToast(e instanceof Error ? e.message : '下载失败')
   }
 }
 
@@ -190,7 +201,7 @@ onMounted(loadImages)
     <!-- 筛选栏 -->
     <div class="mt-8 flex flex-wrap items-center gap-3">
       <button
-        v-for="t in mockTags"
+        v-for="t in allTags"
         :key="t"
         class="text-sm font-medium text-primary-700 rounded-full px-5 py-2 transition"
         :class="activeTag === t ? 'bg-primary/30 border border-primary/30 shadow-glass text-primary-800' : 'bg-primary/5 border border-primary/10 hover:bg-primary/15'"

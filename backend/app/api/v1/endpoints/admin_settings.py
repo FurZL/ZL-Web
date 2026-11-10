@@ -10,6 +10,12 @@ from app.api.deps import require_permission_dep
 from app.api.response import ok
 from app.core.database import get_db
 from app.models.user import User
+from app.providers.factory import (
+    get_captcha_provider,
+    get_email_provider,
+    get_sms_provider,
+    get_storage_provider,
+)
 from app.services import site_setting
 
 router = APIRouter(
@@ -52,7 +58,7 @@ async def upsert_setting(
 
 @router.post("/storage/test")
 async def test_storage():
-    from app.providers.factory import get_storage_provider
+
 
     storage = get_storage_provider()
     configured = getattr(storage, "configured", False)
@@ -61,7 +67,7 @@ async def test_storage():
 
 @router.post("/email/test")
 async def test_email():
-    from app.providers.factory import get_email_provider
+
 
     provider = get_email_provider()
     return ok({"provider": type(provider).__name__})
@@ -69,7 +75,7 @@ async def test_email():
 
 @router.post("/sms/test")
 async def test_sms():
-    from app.providers.factory import get_sms_provider
+
 
     provider = get_sms_provider()
     return ok({"provider": type(provider).__name__})
@@ -77,7 +83,7 @@ async def test_sms():
 
 @router.post("/captcha/test")
 async def test_captcha():
-    from app.providers.factory import get_captcha_provider
+
 
     provider = get_captcha_provider()
     return ok({"provider": type(provider).__name__})

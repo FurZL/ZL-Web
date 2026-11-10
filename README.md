@@ -138,6 +138,26 @@ class="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:b
 
 > 操作类控件**不使用半透明底色**，始终为实色块，确保用户能清晰区分"选择"和"执行"。
 
+#### 4. 全局对话框（Toast / Confirm）
+
+替代原生 `alert()` / `confirm()`，全站统一使用 `useDialog` 组合式函数：
+
+```ts
+import { useDialog } from '@/composables/useDialog'
+const { showToast, showConfirm } = useDialog()
+
+showToast('操作成功')                            // 轻量提示，3 秒自动消失
+if (await showConfirm('确定删除吗？')) { ... }    // 确认弹窗，返回 Promise<boolean>
+```
+
+| 组件 | 用途 | 视觉 |
+|---|---|---|
+| **Toast** | 错误/成功提示 | 深色底（`bg-ink`）、白色文字、`rounded-xl2`、顶部滑入，3 秒消失 |
+| **Confirm** | 确认/取消操作 | 玻璃卡片弹窗（`glass-card`）、半透明遮罩（`bg-black/40`）、按钮用 `btn-primary`/`btn-ghost` |
+
+UI 组件在 `components/AppDialog.vue`，挂载在 `App.vue` 根部，无需每个页面单独引入。
+
+
 #### 3. 玻璃模糊（容器级背景）
 
 卡片、弹窗、页脚、遮罩等**容器级**元素使用模糊背景，营造深度层次：
@@ -202,6 +222,11 @@ border: 1px solid rgba(255, 255, 255, 0.6);
 - **修复 `await db.delete()` 运行时炸弹（11 处）**：SQLAlchemy 的 `db.delete()` 是同步方法，误加 `await` 会在运行时抛 TypeError；影响 6 个服务文件的全部删除操作（删活动/公告/页面/课表/私有图/图片），之前调用即 500。已全部移除 `await`。
 - **修复 N+1 查询**：`admin_events.py` 活动列表对每个活动逐个查报名统计；改为 `GROUP BY` 批量查询（`_batch_counts`），21 次查询 → 2 次。
 - **新增 `bio`/`avatar_url` 用户字段**：Alembic 迁移 `0addd5ed14cc`，`GET /profile/me` 返回 bio/avatar_url，`PUT /profile/me` 支持字段级更新；前端 Profile 页新增编辑资料弹窗。
+- **移除全部 `alert()`/`confirm()`（21 处）**：改用全局对话框 `useDialog`（`showToast` 轻量提示 + `showConfirm` 确认弹窗），UI 组件 `AppDialog.vue` 挂载于 `App.vue`，风格与全站玻璃拟态统一。
+- **提取公共辅助函数**：`api/response.py` 新增 `parse_uuid()` 和 `error_to_http()`，清理 10 个端点文件中的 17 处重复 `_parse_uuid`/`_img_error`/`_handle_error` 定义。
+- **清理函数内导入（19 处）**：`images.py`/`admin_settings.py`/`auth.py` 中的函数体 `import` 全部移至文件顶部。
+- **吞异常改为记日志（6 处）**：`except Exception: pass` 全部改为 `logger.warning(..., exc_info=True)`，删除对象存储文件等"尽力而为"操作不再无声丢失错误。
+- **新增 `admin_list_events` 批量统计**：活动管理列表用 `GROUP BY` 一次性查询报名/候补数，消除 N+1。
 
 ## 分层约定
 

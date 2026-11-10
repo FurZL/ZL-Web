@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.api.response import ok
+from app.api.response import error_to_http, ok, parse_uuid
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.schedule import (
@@ -26,17 +26,6 @@ from app.services.schedule import compare as compare_service
 from app.services.schedule import CourseSlot
 
 router = APIRouter(prefix="/schedule", tags=["schedule"])
-
-
-def _parse_uuid(s: str) -> uuid.UUID:
-    try:
-        return uuid.UUID(s)
-    except ValueError:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_ID", "message": "无效的 ID"})
-
-
-def _img_error(exc: ImageError) -> HTTPException:
-    return HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message})
 
 
 @router.get("/mine")
@@ -55,7 +44,7 @@ async def upload_intent(
             user=user, filename=body.filename, size_bytes=body.size_bytes
         )
     except ImageError as exc:
-        raise _img_error(exc)
+        raise error_to_http(exc)
     return ok(intent)
 
 
@@ -74,7 +63,7 @@ async def upload_complete(
             original_name=body.original_name,
         )
     except ImageError as exc:
-        raise _img_error(exc)
+        raise error_to_http(exc)
     result = await schedule_service.get_schedule(db, schedule.id, user)
     return ok(result)
 
@@ -86,9 +75,9 @@ async def get_schedule(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        result = await schedule_service.get_schedule(db, _parse_uuid(schedule_id), user)
+        result = await schedule_service.get_schedule(db, parse_uuid(schedule_id), user)
     except ImageError as exc:
-        raise _img_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -108,10 +97,10 @@ async def set_visibility(
 ):
     try:
         result = await schedule_service.set_schedule_visibility(
-            db, _parse_uuid(schedule_id), body.is_public, user
+            db, parse_uuid(schedule_id), body.is_public, user
         )
     except ImageError as exc:
-        raise _img_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -125,7 +114,7 @@ async def shared_schedule(
     try:
         result = await schedule_service.get_public_schedule_by_username(db, username)
     except ImageError as exc:
-        raise _img_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -136,7 +125,7 @@ async def delete_schedule(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        await schedule_service.delete_schedule(db, _parse_uuid(schedule_id), user)
+        await schedule_service.delete_schedule(db, parse_uuid(schedule_id), user)
     except ImageError as exc:
-        raise _img_error(exc)
+        raise error_to_http(exc)
     return ok({"message": "已删除"})

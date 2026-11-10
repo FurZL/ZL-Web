@@ -94,7 +94,8 @@
 
 | 文件 | 用途 |
 |---|---|
-| `index.ts` | 组合式函数统一导出入口（当前为空，预留 composable 挂载点） |
+| `index.ts` | 组合式函数统一导出入口（预留） |
+| `useDialog.ts` | 全局对话框（`showToast` 轻量提示 3 秒消失 + `showConfirm` 确认弹窗 Promise 化，替代 alert/confirm） |
 
 #### src/utils/ — 工具函数
 
@@ -112,11 +113,31 @@
 
 | 文件 | 用途 |
 |---|---|
+| `AppDialog.vue` | 全局对话框 UI（Toast 滑入提示 + Confirm 玻璃卡片弹窗，挂载于 App.vue） |
 | `AppHeader.vue` | 顶部导航栏（Logo「FUR」、导航链接、登录/注册按钮、角色动态菜单、窄屏横滑适配） |
 | `AppFooter.vue` | 页脚（从 /site/footer API 拉取版权/备案/协议链接，含默认回退值） |
 | `UserAvatar.vue` | 用户头像组件（首字母圆形头像、可调尺寸、渐变背景） |
 | `ImageLightbox.vue` | 图片详情弹窗（大图展示、描述、拍摄者、下载按钮，Gallery 与私有相册共用） |
 | `ImagePlaceholder.vue` | 图片占位符（加载/缺图时的渐变背景 + 首字母占位） |
+
+#### src/components/schedule/ — 课表对比子组件
+
+| 文件 | 用途 |
+|---|---|
+| `Step1Upload.vue` | Step 1：课表上传/已有课表列表/课程预览/分享开关/删除 |
+| `Step2Partner.vue` | Step 2：搜索圈友用户名、查看对方课表预览 |
+| `Step3Result.vue` | Step 3：对比结果周课表网格、空闲时段、同教室/冲突列表 |
+
+#### src/components/admin/ — 管理后台子组件
+
+| 文件 | 用途 |
+|---|---|
+| `EventFormDialog.vue` | 活动创建/编辑弹窗（标题/描述/地点/时间/容量） |
+| `EventRegistrationsDialog.vue` | 活动报名管理弹窗（报名列表/候补/代签到） |
+| `ImageCard.vue` | 图片管理卡片（缩略图/状态角标/审核/标签/删除操作） |
+| `ImageTagDialog.vue` | 图片标签编辑弹窗 |
+| `PageFormDialog.vue` | 动态页面创建/编辑弹窗（slug/标题/JSON Schema 编辑器） |
+| `PageVersionsDialog.vue` | 页面版本历史弹窗（版本列表/回滚） |
 
 #### src/views/ — 页面组件
 

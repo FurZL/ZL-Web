@@ -6,8 +6,11 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, asdict
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -268,7 +271,7 @@ def _extract_weeks(component, start) -> list[int]:
                 n = int((until[0] - start.date()).days / 7) + 1
                 return list(range(1, n + 1))
             except Exception:
-                pass
+                logger.debug("RRULE UNTIL 周数估算失败，回退默认单周", exc_info=True)
         # 默认单周
         return [1]
     # 无 RRULE：单次事件，用日期所在周（简化：第 1 周）

@@ -6,10 +6,12 @@ import ImagePlaceholder from '@/components/ImagePlaceholder.vue'
 import ImageLightbox from '@/components/ImageLightbox.vue'
 import { request } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
+import { useDialog } from '@/composables/useDialog'
 import type { ProfileImage, UploadIntent } from '@/types'
 
 const route = useRoute()
 const auth = useAuthStore()
+const { showToast, showConfirm } = useDialog()
 
 const isSelf = computed(() => !route.params.username)
 
@@ -118,7 +120,7 @@ async function openPreview(img: ProfileImage) {
     const data = await request<{ url: string }>({ method: 'GET', url: `/profile/me/images/${img.id}/url` })
     previewUrl.value = data.url
   } catch (e) {
-    alert(e instanceof Error ? e.message : '打开失败')
+    showToast(e instanceof Error ? e.message : '打开失败')
     previewing.value = null
   } finally {
     previewLoading.value = false
@@ -140,33 +142,33 @@ async function downloadCurrent() {
     }
     window.open(url, '_blank')
   } catch (e) {
-    alert(e instanceof Error ? e.message : '下载失败')
+    showToast(e instanceof Error ? e.message : '下载失败')
   }
 }
 
 async function deleteFromPreview() {
   if (!previewing.value) return
   const img = previewing.value
-  if (!confirm(`确定删除「${img.title ?? '这张图片'}」吗？`)) return
+  if (!(await showConfirm(`确定删除「${img.title ?? '这张图片'}」吗？`))) return
   try {
     await request({ method: 'DELETE', url: `/profile/me/images/${img.id}` })
     closePreview()
     await loadPhotos()
   } catch (e) {
-    alert(e instanceof Error ? e.message : '删除失败')
+    showToast(e instanceof Error ? e.message : '删除失败')
   }
 }
 
 // 删除
 const deletingId = ref<string | null>(null)
 async function deletePhoto(img: ProfileImage) {
-  if (!confirm(`确定删除「${img.title ?? '这张图片'}」吗？`)) return
+  if (!(await showConfirm(`确定删除「${img.title ?? '这张图片'}」吗？`))) return
   deletingId.value = img.id
   try {
     await request({ method: 'DELETE', url: `/profile/me/images/${img.id}` })
     await loadPhotos()
   } catch (e) {
-    alert(e instanceof Error ? e.message : '删除失败')
+    showToast(e instanceof Error ? e.message : '删除失败')
   } finally {
     deletingId.value = null
   }

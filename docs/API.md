@@ -546,6 +546,8 @@
 |---|---|
 | `ok(data, request) -> dict` | 成功响应 `{success: true, data, error: null, request_id}` |
 | `err(code, message, request) -> dict` | 失败响应 `{success: false, data: null, error: {code, message}, request_id}` |
+| `parse_uuid(value, field) -> uuid.UUID` | 统一 UUID 解析，失败抛 400 HTTPException |
+| `error_to_http(exc) -> HTTPException` | ServiceError（ImageError/EventError/PageError 等）→ HTTPException 转换 |
 
 ### `core/security.py` — 安全工具
 

@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.api.response import ok
+from app.api.response import error_to_http, ok, parse_uuid
 from app.core.database import get_db
 from app.models.user import User
 from app.services.event import EventError
@@ -22,20 +22,6 @@ class RegisterRequest(BaseModel):
     idempotency_key: str | None = Field(default=None, max_length=128)
 
 
-def _parse_uuid(s: str) -> uuid.UUID:
-    try:
-        return uuid.UUID(s)
-    except ValueError:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_ID", "message": "无效的 ID"})
-
-
-def _handle_error(exc: EventError) -> HTTPException:
-    return HTTPException(
-        status_code=exc.status_code,
-        detail={"code": exc.code, "message": exc.message},
-    )
-
-
 @router.get("/")
 async def list_events(
     user: User | None = Depends(get_current_user),
@@ -45,7 +31,7 @@ async def list_events(
     try:
         result = await event_service.list_events(db, user)
     except EventError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -56,9 +42,9 @@ async def get_event(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        result = await event_service.get_event(db, _parse_uuid(event_id), user)
+        result = await event_service.get_event(db, parse_uuid(event_id), user)
     except EventError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -71,10 +57,10 @@ async def register_event(
 ):
     try:
         result = await event_service.register(
-            db, _parse_uuid(event_id), user, body.idempotency_key
+            db, parse_uuid(event_id), user, body.idempotency_key
         )
     except EventError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -85,9 +71,9 @@ async def cancel_registration(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        result = await event_service.cancel_registration(db, _parse_uuid(event_id), user)
+        result = await event_service.cancel_registration(db, parse_uuid(event_id), user)
     except EventError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -98,7 +84,7 @@ async def checkin(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        result = await event_service.checkin(db, _parse_uuid(event_id), user)
+        result = await event_service.checkin(db, parse_uuid(event_id), user)
     except EventError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)

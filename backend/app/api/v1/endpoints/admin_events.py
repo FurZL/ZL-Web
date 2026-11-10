@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permission_dep
-from app.api.response import ok
+from app.api.response import error_to_http, ok, parse_uuid
 from app.core.database import get_db
 from app.models.user import User
 from app.services.event import EventError
@@ -50,20 +50,6 @@ class EventStatusRequest(BaseModel):
     status: str  # draft / published / cancelled
 
 
-def _parse_uuid(s: str) -> uuid.UUID:
-    try:
-        return uuid.UUID(s)
-    except ValueError:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_ID", "message": "无效的 ID"})
-
-
-def _handle_error(exc: EventError) -> HTTPException:
-    return HTTPException(
-        status_code=exc.status_code,
-        detail={"code": exc.code, "message": exc.message},
-    )
-
-
 @router.get("/")
 async def list_events(db: AsyncSession = Depends(get_db)):
     return ok(await event_service.admin_list_events(db))
@@ -90,7 +76,7 @@ async def create_event(
             user=user,
         )
     except EventError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -100,10 +86,10 @@ async def get_event_detail(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        reg_info = await event_service.list_registrations(db, _parse_uuid(event_id))
+        reg_info = await event_service.list_registrations(db, parse_uuid(event_id))
         return ok(reg_info)
     except EventError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
 
 
 @router.patch("/{event_id}")
@@ -114,10 +100,10 @@ async def update_event(
 ):
     try:
         result = await event_service.update_event(
-            db, _parse_uuid(event_id), **body.model_dump(exclude_unset=True)
+            db, parse_uuid(event_id), **body.model_dump(exclude_unset=True)
         )
     except EventError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -128,9 +114,9 @@ async def set_event_status(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        result = await event_service.set_event_status(db, _parse_uuid(event_id), body.status)
+        result = await event_service.set_event_status(db, parse_uuid(event_id), body.status)
     except EventError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -140,9 +126,9 @@ async def delete_event(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        await event_service.delete_event(db, _parse_uuid(event_id))
+        await event_service.delete_event(db, parse_uuid(event_id))
     except EventError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok({"message": "已删除"})
 
 
@@ -152,9 +138,9 @@ async def list_registrations(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        result = await event_service.list_registrations(db, _parse_uuid(event_id))
+        result = await event_service.list_registrations(db, parse_uuid(event_id))
     except EventError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -166,8 +152,8 @@ async def admin_checkin(
 ):
     try:
         result = await event_service.admin_checkin(
-            db, _parse_uuid(event_id), _parse_uuid(registration_id)
+            db, parse_uuid(event_id), parse_uuid(registration_id)
         )
     except EventError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)

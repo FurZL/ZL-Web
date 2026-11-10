@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permission_dep
-from app.api.response import ok
+from app.api.response import ok, parse_uuid
 from app.core.database import get_db
 from app.models.user import User
 from app.services import announcement as announcement_service
@@ -32,13 +32,6 @@ class AnnouncementPatch(BaseModel):
     is_pinned: bool | None = None
     publish_now: bool | None = None
     expires_at: datetime | None = None
-
-
-def _parse_uuid(s: str) -> uuid.UUID:
-    try:
-        return uuid.UUID(s)
-    except ValueError:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_ID", "message": "无效的 ID"})
 
 
 # ---------- 公开 ----------
@@ -86,7 +79,7 @@ async def update_announcement(
 ):
     try:
         result = await announcement_service.update(
-            db, _parse_uuid(announcement_id), **body.model_dump(exclude_unset=True)
+            db, parse_uuid(announcement_id), **body.model_dump(exclude_unset=True)
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": str(exc)})
@@ -100,7 +93,7 @@ async def delete_announcement(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        await announcement_service.delete(db, _parse_uuid(announcement_id))
+        await announcement_service.delete(db, parse_uuid(announcement_id))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": str(exc)})
     return ok({"message": "已删除"})

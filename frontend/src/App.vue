@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
 import AppFooter from '@/components/AppFooter.vue'
 import AppHeader from '@/components/AppHeader.vue'
+import AppDialog from '@/components/AppDialog.vue'
 import { useAuthStore } from '@/stores/auth'
 import { getRefreshToken } from '@/api/token'
 import { ensureAccessToken } from '@/api/client'
@@ -30,5 +31,6 @@ onMounted(async () => {
       <RouterView />
     </main>
     <AppFooter />
+    <AppDialog />
   </div>
 </template>

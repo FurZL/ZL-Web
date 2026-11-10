@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permission_dep
-from app.api.response import ok
+from app.api.response import error_to_http, ok, parse_uuid
 from app.core.database import get_db
 from app.models.user import User
 from app.services.admin_image import (
@@ -41,17 +41,6 @@ class TagsRequest(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
 
-def _parse_uuid(s: str) -> uuid.UUID:
-    try:
-        return uuid.UUID(s)
-    except ValueError:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_ID", "message": "无效的 ID"})
-
-
-def _img_error(exc: ImageError) -> HTTPException:
-    return HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message})
-
-
 @router.get("/stats")
 async def stats(db: AsyncSession = Depends(get_db)):
     return ok(await get_stats(db))
@@ -70,7 +59,7 @@ async def list_images(
             db, page=page, page_size=page_size, status=status, is_public=is_public
         )
     except ImageError as exc:
-        raise _img_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -81,9 +70,9 @@ async def set_image_moderation(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        result = await set_moderation(db, _parse_uuid(image_id), body.moderation_status)
+        result = await set_moderation(db, parse_uuid(image_id), body.moderation_status)
     except ImageError as exc:
-        raise _img_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -94,9 +83,9 @@ async def set_image_visibility(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        result = await set_visibility(db, _parse_uuid(image_id), body.is_public)
+        result = await set_visibility(db, parse_uuid(image_id), body.is_public)
     except ImageError as exc:
-        raise _img_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -107,9 +96,9 @@ async def set_image_tags(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        result = await update_tags(db, _parse_uuid(image_id), body.tags)
+        result = await update_tags(db, parse_uuid(image_id), body.tags)
     except ImageError as exc:
-        raise _img_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -119,7 +108,7 @@ async def remove_image(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        await delete_image(db, _parse_uuid(image_id))
+        await delete_image(db, parse_uuid(image_id))
     except ImageError as exc:
-        raise _img_error(exc)
+        raise error_to_http(exc)
     return ok({"message": "已删除"})

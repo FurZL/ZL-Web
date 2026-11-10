@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 
 from sqlalchemy import delete, func, select
@@ -10,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.image import Image, StoredObject
 from app.models.user import User
 from app.services.image import ImageError, _image_to_dict
+
+logger = logging.getLogger(__name__)
 
 
 async def list_all_images(
@@ -105,9 +108,9 @@ async def delete_image(db: AsyncSession, image_id: uuid.UUID) -> None:
                 try:
                     await storage.delete_object(stored.bucket, derive(stored.object_key))
                 except Exception:
-                    pass
+                    logger.warning("删除派生图失败 key=%s", derive(stored.object_key), exc_info=True)
         except Exception:
-            pass
+            logger.warning("删除对象存储文件失败 key=%s", stored.object_key, exc_info=True)
         db.delete(stored)
 
     db.delete(image)

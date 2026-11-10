@@ -7,10 +7,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.api.response import ok
+from app.api.response import error_to_http, ok
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.auth import (
@@ -24,20 +25,10 @@ from app.schemas.auth import (
 )
 from app.services import auth as auth_service
 from app.services.auth import AuthError
+from app.core.security import hash_password
 from app.services.otp import OtpError, send_otp, verify_otp
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-def _auth_error(exc: AuthError) -> HTTPException:
-    return HTTPException(
-        status_code=exc.status_code,
-        detail={"code": exc.code, "message": exc.message},
-    )
-
-
-def _otp_error(exc: OtpError) -> HTTPException:
-    return HTTPException(status_code=400, detail={"code": exc.code, "message": exc.message})
 
 
 @router.post("/verify/email")
@@ -64,13 +55,13 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     try:
         await verify_otp(db, target=body.email, purpose="register", code=body.email_code)
     except OtpError as exc:
-        raise _otp_error(exc)
+        raise error_to_http(exc)
 
     # 校验手机验证码
     try:
         await verify_otp(db, target=body.phone, purpose="register", code=body.phone_code)
     except OtpError as exc:
-        raise _otp_error(exc)
+        raise error_to_http(exc)
 
     try:
         user = await auth_service.register_user(
@@ -85,7 +76,7 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
             application_portfolio=body.application_portfolio,
         )
     except AuthError as exc:
-        raise _auth_error(exc)
+        raise error_to_http(exc)
 
     return ok({"status": "pending", "message": "注册成功，等待管理员审批"})
 
@@ -104,7 +95,7 @@ async def login(
             user_agent=request.headers.get("user-agent"),
         )
     except AuthError as exc:
-        raise _auth_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -113,7 +104,7 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
     try:
         result = await auth_service.refresh_tokens(db, body.refresh_token)
     except AuthError as exc:
-        raise _auth_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -143,11 +134,9 @@ async def reset_password(body: PasswordResetRequest, db: AsyncSession = Depends(
     try:
         await verify_otp(db, target=body.target, purpose="reset", code=body.code)
     except OtpError as exc:
-        raise _otp_error(exc)
+        raise error_to_http(exc)
 
     # 找到目标用户并更新密码
-    from sqlalchemy import select
-    from app.core.security import hash_password
 
     account = body.target.strip()
     query = select(User).where(

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 import secrets
 import uuid
 from datetime import datetime, timezone
@@ -21,6 +22,8 @@ from app.models.user import User
 from app.providers.factory import get_storage_provider
 from app.services.image import ImageError
 from app.services.schedule import ScheduleParseError, parse_schedule
+
+logger = logging.getLogger(__name__)
 
 
 def _new_schedule_object_key(user_id: uuid.UUID) -> str:
@@ -137,7 +140,7 @@ async def delete_schedule(db: AsyncSession, schedule_id: uuid.UUID, user: User) 
             storage = get_storage_provider()
             await storage.delete_object(stored.bucket, stored.object_key)
         except Exception:
-            pass
+            logger.warning("删除课表对象失败 key=%s", stored.object_key, exc_info=True)
         db.delete(stored)
     db.delete(s)
     await db.commit()

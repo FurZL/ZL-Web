@@ -9,7 +9,12 @@ import {
   adminSetEventStatus,
   adminUpdateEvent,
 } from '@/api/events'
+import EventFormDialog from '@/components/admin/EventFormDialog.vue'
+import EventRegistrationsDialog from '@/components/admin/EventRegistrationsDialog.vue'
 import type { EventRecord, EventRegistration } from '@/types'
+import { useDialog } from '@/composables/useDialog'
+
+const { showConfirm } = useDialog()
 
 const events = ref<EventRecord[]>([])
 const loading = ref(true)
@@ -31,7 +36,7 @@ const form = reactive({
   publish_now: true,
 })
 
-// 详情/报名管理弹窗
+// 报名管理弹窗
 const showDetail = ref(false)
 const detailEvent = ref<EventRecord | null>(null)
 const detailRegs = ref<EventRegistration[]>([])
@@ -55,35 +60,27 @@ onMounted(load)
 
 function openCreate() {
   editingId.value = null
-  form.title = ''
-  form.description = ''
-  form.location = ''
-  form.starts_at = ''
-  form.ends_at = ''
-  form.capacity = ''
-  form.registration_starts_at = ''
-  form.registration_ends_at = ''
-  form.publish_now = true
+  Object.assign(form, {
+    title: '', description: '', location: '', starts_at: '', ends_at: '',
+    capacity: '', registration_starts_at: '', registration_ends_at: '', publish_now: true,
+  })
   showForm.value = true
 }
 
 function openEdit(e: EventRecord) {
   editingId.value = e.id
-  form.title = e.title
-  form.description = e.description ?? ''
-  form.location = e.location ?? ''
-  form.starts_at = e.starts_at ? e.starts_at.slice(0, 16) : ''
-  form.ends_at = e.ends_at ? e.ends_at.slice(0, 16) : ''
-  form.capacity = e.capacity ?? ''
-  form.registration_starts_at = e.registration_starts_at ? e.registration_starts_at.slice(0, 16) : ''
-  form.registration_ends_at = e.registration_ends_at ? e.registration_ends_at.slice(0, 16) : ''
-  form.publish_now = e.status === 'published'
+  Object.assign(form, {
+    title: e.title,
+    description: e.description ?? '',
+    location: e.location ?? '',
+    starts_at: e.starts_at ? e.starts_at.slice(0, 16) : '',
+    ends_at: e.ends_at ? e.ends_at.slice(0, 16) : '',
+    capacity: e.capacity ?? '',
+    registration_starts_at: e.registration_starts_at ? e.registration_starts_at.slice(0, 16) : '',
+    registration_ends_at: e.registration_ends_at ? e.registration_ends_at.slice(0, 16) : '',
+    publish_now: e.status === 'published',
+  })
   showForm.value = true
-}
-
-function closeForm() {
-  showForm.value = false
-  editingId.value = null
 }
 
 async function save() {
@@ -101,19 +98,16 @@ async function save() {
       starts_at: new Date(form.starts_at).toISOString(),
       ends_at: new Date(form.ends_at).toISOString(),
       capacity: form.capacity ? Number(form.capacity) : null,
-      registration_starts_at: form.registration_starts_at
-        ? new Date(form.registration_starts_at).toISOString()
-        : null,
-      registration_ends_at: form.registration_ends_at
-        ? new Date(form.registration_ends_at).toISOString()
-        : null,
+      registration_starts_at: form.registration_starts_at ? new Date(form.registration_starts_at).toISOString() : null,
+      registration_ends_at: form.registration_ends_at ? new Date(form.registration_ends_at).toISOString() : null,
     }
     if (editingId.value) {
       await adminUpdateEvent(editingId.value, payload)
     } else {
       await adminCreateEvent({ ...payload, publish_now: form.publish_now })
     }
-    closeForm()
+    showForm.value = false
+    editingId.value = null
     await load()
   } catch (e) {
     error.value = e instanceof Error ? e.message : '保存失败'
@@ -123,9 +117,8 @@ async function save() {
 }
 
 async function toggleStatus(e: EventRecord) {
-  const next = e.status === 'published' ? 'draft' : 'published'
   try {
-    await adminSetEventStatus(e.id, next)
+    await adminSetEventStatus(e.id, e.status === 'published' ? 'draft' : 'published')
     await load()
   } catch (err) {
     error.value = err instanceof Error ? err.message : '操作失败'
@@ -133,7 +126,7 @@ async function toggleStatus(e: EventRecord) {
 }
 
 async function cancelEvent(e: EventRecord) {
-  if (!confirm(`确定取消活动「${e.title}」吗？`)) return
+  if (!(await showConfirm(`确定取消活动「${e.title}」吗？`))) return
   try {
     await adminSetEventStatus(e.id, 'cancelled')
     await load()
@@ -143,7 +136,7 @@ async function cancelEvent(e: EventRecord) {
 }
 
 async function removeEvent(e: EventRecord) {
-  if (!confirm(`确定删除活动「${e.title}」吗？此操作不可恢复。`)) return
+  if (!(await showConfirm(`确定删除活动「${e.title}」吗？此操作不可恢复。`))) return
   try {
     await adminDeleteEvent(e.id)
     await load()
@@ -167,12 +160,6 @@ async function openDetail(e: EventRecord) {
   }
 }
 
-function closeDetail() {
-  showDetail.value = false
-  detailEvent.value = null
-  detailRegs.value = []
-}
-
 async function doCheckin(reg: EventRegistration) {
   if (!detailEvent.value) return
   actingId.value = reg.id
@@ -187,24 +174,9 @@ async function doCheckin(reg: EventRegistration) {
   }
 }
 
-const regStatus = computed(() => {
-  const map: Record<string, { text: string; cls: string }> = {
-    registered: { text: '已报名', cls: 'bg-emerald-100 text-emerald-700' },
-    waitlisted: { text: '候补', cls: 'bg-amber-100 text-amber-700' },
-    cancelled: { text: '已取消', cls: 'bg-gray-100 text-gray-500' },
-    checked_in: { text: '已签到', cls: 'bg-primary-100 text-primary-700' },
-  }
-  return map
-})
-
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
-  return new Date(iso).toLocaleString('zh-CN', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return new Date(iso).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 const eventStatus: Record<string, { text: string; cls: string }> = {
@@ -216,8 +188,6 @@ const eventStatus: Record<string, { text: string; cls: string }> = {
 const sortedEvents = computed(() =>
   [...events.value].sort((a, b) => (b.starts_at ?? '').localeCompare(a.starts_at ?? '')),
 )
-
-const registeredList = computed(() => detailRegs.value.filter((r) => r.status !== 'cancelled'))
 </script>
 
 <template>
@@ -246,18 +216,11 @@ const registeredList = computed(() => detailRegs.value.filter((r) => r.status !=
     </div>
 
     <div v-else class="mt-6 space-y-3">
-      <div
-        v-for="e in sortedEvents"
-        :key="e.id"
-        class="glass-card p-5 flex flex-col sm:flex-row sm:items-center gap-3"
-      >
+      <div v-for="e in sortedEvents" :key="e.id" class="glass-card p-5 flex flex-col sm:flex-row sm:items-center gap-3">
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2">
             <h3 class="font-semibold text-ink truncate">{{ e.title }}</h3>
-            <span
-              class="text-xs font-medium rounded-full px-2.5 py-0.5"
-              :class="eventStatus[e.status]?.cls ?? 'bg-gray-100 text-gray-600'"
-            >
+            <span class="text-xs font-medium rounded-full px-2.5 py-0.5" :class="eventStatus[e.status]?.cls ?? 'bg-gray-100 text-gray-600'">
               {{ eventStatus[e.status]?.text ?? e.status }}
             </span>
           </div>
@@ -269,12 +232,8 @@ const registeredList = computed(() => detailRegs.value.filter((r) => r.status !=
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0 flex-wrap">
-          <button class="text-xs px-3 py-1.5 rounded-lg border border-primary-200 text-primary-700 hover:bg-primary-50 transition" @click="openDetail(e)">
-            报名/签到
-          </button>
-          <button class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-faint hover:border-primary-200 transition" @click="openEdit(e)">
-            编辑
-          </button>
+          <button class="text-xs px-3 py-1.5 rounded-lg border border-primary-200 text-primary-700 hover:bg-primary-50 transition" @click="openDetail(e)">报名/签到</button>
+          <button class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-faint hover:border-primary-200 transition" @click="openEdit(e)">编辑</button>
           <button
             class="text-xs px-3 py-1.5 rounded-lg border transition"
             :class="e.status === 'published' ? 'border-amber-200 text-amber-600 hover:bg-amber-50' : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'"
@@ -289,129 +248,29 @@ const registeredList = computed(() => detailRegs.value.filter((r) => r.status !=
           >
             取消
           </button>
-          <button
-            class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-red-500 hover:border-red-300 transition"
-            @click="removeEvent(e)"
-          >
-            删除
-          </button>
+          <button class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-red-500 hover:border-red-300 transition" @click="removeEvent(e)">删除</button>
         </div>
       </div>
     </div>
 
-    <!-- 创建/编辑弹窗 -->
-    <div v-if="showForm" class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" @click.self="closeForm">
-      <div class="glass-card p-6 w-full max-w-lg max-h-[85vh] overflow-auto">
-        <h2 class="text-lg font-bold text-ink">{{ editingId ? '编辑活动' : '新建活动' }}</h2>
-        <div v-if="error && showForm" class="mt-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{{ error }}</div>
-        <div class="mt-4 space-y-4">
-          <div>
-            <label class="label">活动标题</label>
-            <input v-model="form.title" class="input" placeholder="活动标题" />
-          </div>
-          <div>
-            <label class="label">描述</label>
-            <textarea v-model="form.description" class="input min-h-[80px]" rows="3" placeholder="活动描述…"></textarea>
-          </div>
-          <div>
-            <label class="label">地点</label>
-            <input v-model="form.location" class="input" placeholder="活动地点" />
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="label">开始时间</label>
-              <input v-model="form.starts_at" type="datetime-local" class="input" />
-            </div>
-            <div>
-              <label class="label">结束时间</label>
-              <input v-model="form.ends_at" type="datetime-local" class="input" />
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="label">报名开始（可选）</label>
-              <input v-model="form.registration_starts_at" type="datetime-local" class="input" />
-            </div>
-            <div>
-              <label class="label">报名截止（可选）</label>
-              <input v-model="form.registration_ends_at" type="datetime-local" class="input" />
-            </div>
-          </div>
-          <div>
-            <label class="label">人数上限（留空不限）</label>
-            <input v-model="form.capacity" type="number" class="input" placeholder="不限" min="1" />
-          </div>
-          <label v-if="!editingId" class="flex items-center gap-2 text-sm text-sub cursor-pointer">
-            <input v-model="form.publish_now" type="checkbox" class="accent-primary" />
-            立即发布
-          </label>
-        </div>
-        <div class="mt-6 flex gap-3">
-          <button class="btn-ghost flex-1" @click="closeForm">取消</button>
-          <button class="btn-primary flex-1" :disabled="saving" @click="save">
-            {{ saving ? '保存中…' : '保存' }}
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 报名/签到详情弹窗 -->
-    <div v-if="showDetail" class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" @click.self="closeDetail">
-      <div class="glass-card p-6 w-full max-w-xl max-h-[85vh] overflow-auto">
-        <div class="flex items-center justify-between">
-          <h2 class="text-lg font-bold text-ink">{{ detailEvent?.title }} — 报名管理</h2>
-          <button class="text-sm text-faint hover:text-ink transition" @click="closeDetail">✕</button>
-        </div>
-
-        <div v-if="detailLoading" class="mt-6 text-center py-8">
-          <div class="w-8 h-8 border-4 border-primary-200 border-t-primary rounded-full animate-spin mx-auto"></div>
-          <p class="mt-3 text-sm text-sub">加载中…</p>
-        </div>
-
-        <template v-else>
-          <div class="mt-4 flex flex-wrap gap-4 text-sm text-sub">
-            <span>👥 正式报名 {{ detailEvent?.registered_count }}<template v-if="detailEvent?.capacity"> / {{ detailEvent?.capacity }}</template> 人</span>
-            <span v-if="detailEvent?.waitlist_count" class="text-amber-600">候补 {{ detailEvent?.waitlist_count }} 人</span>
-          </div>
-
-          <div v-if="registeredList.length === 0" class="mt-6 text-center py-8 text-sub">
-            暂无报名记录
-          </div>
-
-          <div v-else class="mt-4 space-y-2">
-            <div
-              v-for="r in registeredList"
-              :key="r.id"
-              class="flex items-center gap-3 rounded-xl bg-white/60 px-4 py-3"
-            >
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-ink">
-                  {{ r.user?.display_name ?? r.user_id.slice(0, 8) }}
-                  <span class="text-xs text-faint ml-1">@{{ r.user?.username ?? '' }}</span>
-                </p>
-                <p class="text-xs text-faint mt-0.5">
-                  报名于 {{ fmtDate(r.signup_at) }}
-                  <template v-if="r.checkin_at"> · 签到于 {{ fmtDate(r.checkin_at) }}</template>
-                </p>
-              </div>
-              <span
-                class="text-xs font-medium rounded-full px-2.5 py-0.5"
-                :class="regStatus[r.status]?.cls ?? 'bg-gray-100 text-gray-600'"
-              >
-                {{ regStatus[r.status]?.text ?? r.status }}
-              </span>
-              <button
-                v-if="r.status === 'registered'"
-                class="text-xs px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition"
-                :disabled="actingId === r.id"
-                @click="doCheckin(r)"
-              >
-                {{ actingId === r.id ? '…' : '签到' }}
-              </button>
-            </div>
-          </div>
-        </template>
-      </div>
-    </div>
+    <!-- 弹窗 -->
+    <EventFormDialog
+      v-model:form="form"
+      :show="showForm"
+      :editing="!!editingId"
+      :error="error"
+      :saving="saving"
+      @close="showForm = false; editingId = null"
+      @save="save"
+    />
+    <EventRegistrationsDialog
+      :show="showDetail"
+      :event="detailEvent"
+      :registrations="detailRegs"
+      :loading="detailLoading"
+      :acting-id="actingId"
+      @close="showDetail = false; detailEvent = null; detailRegs = []"
+      @checkin="doCheckin"
+    />
   </div>
 </template>

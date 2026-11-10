@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.api.response import ok
+from app.api.response import error_to_http, ok, parse_uuid
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.image import (
@@ -20,17 +20,6 @@ from app.services import profile_image as profile_image_service
 from app.services.image import ImageError
 
 router = APIRouter(prefix="/profile", tags=["profile"])
-
-
-def _parse_uuid(s: str) -> uuid.UUID:
-    try:
-        return uuid.UUID(s)
-    except ValueError:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_ID", "message": "无效的 ID"})
-
-
-def _img_error(exc: ImageError) -> HTTPException:
-    return HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": exc.message})
 
 
 @router.get("/me")
@@ -102,7 +91,7 @@ async def upload_intent(
             size_bytes=body.size_bytes,
         )
     except ImageError as exc:
-        raise _img_error(exc)
+        raise error_to_http(exc)
     return ok(intent)
 
 
@@ -122,7 +111,7 @@ async def upload_complete(
             description=body.description,
         )
     except ImageError as exc:
-        raise _img_error(exc)
+        raise error_to_http(exc)
     return ok({"id": str(image.id), "original_name": image.original_name})
 
 
@@ -134,10 +123,10 @@ async def image_signed_url(
 ):
     try:
         result = await profile_image_service.get_profile_image_signed_url(
-            db, user=user, image_id=_parse_uuid(image_id)
+            db, user=user, image_id=parse_uuid(image_id)
         )
     except ImageError as exc:
-        raise _img_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -148,15 +137,40 @@ async def delete_image(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        await profile_image_service.delete_profile_image(db, user=user, image_id=_parse_uuid(image_id))
+        await profile_image_service.delete_profile_image(db, user=user, image_id=parse_uuid(image_id))
     except ImageError as exc:
-        raise _img_error(exc)
+        raise error_to_http(exc)
     return ok({"message": "已删除"})
+
+
+@router.get("/members")
+async def list_members(db: AsyncSession = Depends(get_db)):
+    """公开成员列表（仅 active 用户，不含邮箱/手机等隐私）。"""
+    from sqlalchemy import select
+
+    users = (
+        await db.scalars(
+            select(User)
+            .where(User.status == "active")
+            .order_by(User.created_at.asc())
+        )
+    ).all()
+    return ok({"items": [
+        {
+            "id": str(u.id),
+            "username": u.username,
+            "display_name": u.display_name,
+            "role": u.role,
+            "bio": u.bio or "",
+            "avatar_url": u.avatar_url,
+        }
+        for u in users
+    ]})
 
 
 @router.get("/{user_id}")
 async def public_profile(user_id: str, db: AsyncSession = Depends(get_db)):
-    uid = _parse_uuid(user_id)
+    uid = parse_uuid(user_id)
     u = await db.get(User, uid)
     if u is None:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "用户不存在"})

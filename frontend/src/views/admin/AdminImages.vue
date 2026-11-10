@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import ImagePlaceholder from '@/components/ImagePlaceholder.vue'
 import ImageLightbox from '@/components/ImageLightbox.vue'
+import ImageCard from '@/components/admin/ImageCard.vue'
+import ImageTagDialog from '@/components/admin/ImageTagDialog.vue'
 import {
   adminDeleteImage,
   adminGetImageStats,
@@ -11,6 +12,9 @@ import {
   adminSetImageVisibility,
 } from '@/api/adminImages'
 import type { AdminImageStats, GalleryImage } from '@/types'
+import { useDialog } from '@/composables/useDialog'
+
+const { showConfirm } = useDialog()
 
 const images = ref<GalleryImage[]>([])
 const stats = ref<AdminImageStats | null>(null)
@@ -18,27 +22,16 @@ const loading = ref(true)
 const error = ref('')
 const acting = ref<string | null>(null)
 
-// 分页
 const page = ref(1)
 const pageSize = 20
 const total = ref(0)
 
-// 筛选
 const activeTab = ref<'all' | 'pending' | 'approved' | 'rejected'>('all')
 const publicFilter = ref<boolean | null>(null)
 
-// 标签编辑弹窗
 const editingTags = ref<GalleryImage | null>(null)
 const tagInput = ref('')
-
-// 详情弹窗
 const selected = ref<GalleryImage | null>(null)
-
-const statusMap: Record<string, { text: string; cls: string }> = {
-  pending: { text: '待审核', cls: 'bg-amber-100 text-amber-700' },
-  approved: { text: '已通过', cls: 'bg-emerald-100 text-emerald-700' },
-  rejected: { text: '已拒绝', cls: 'bg-red-100 text-red-600' },
-}
 
 const tabs = [
   { key: 'all', label: '全部' },
@@ -86,7 +79,6 @@ function goPage(p: number) {
   load()
 }
 
-// 审核
 async function approve(img: GalleryImage) {
   acting.value = img.id
   try {
@@ -111,7 +103,6 @@ async function reject(img: GalleryImage) {
   }
 }
 
-// 公开/私有
 async function toggleVisibility(img: GalleryImage) {
   acting.value = img.id
   try {
@@ -124,9 +115,8 @@ async function toggleVisibility(img: GalleryImage) {
   }
 }
 
-// 删除
 async function remove(img: GalleryImage) {
-  if (!confirm(`确定删除「${img.description || img.title}」吗？此操作不可恢复。`)) return
+  if (!(await showConfirm(`确定删除「${img.description || img.title}」吗？此操作不可恢复。`))) return
   acting.value = img.id
   try {
     await adminDeleteImage(img.id)
@@ -138,7 +128,6 @@ async function remove(img: GalleryImage) {
   }
 }
 
-// 标签编辑
 function openTagEditor(img: GalleryImage) {
   editingTags.value = img
   tagInput.value = img.tags.join(', ')
@@ -161,6 +150,12 @@ async function saveTags() {
 
 function fmtDate(iso: string | null) {
   return iso ? new Date(iso).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
+}
+
+const statusMap: Record<string, { text: string; cls: string }> = {
+  pending: { text: '待审核', cls: 'bg-amber-100 text-amber-700' },
+  approved: { text: '已通过', cls: 'bg-emerald-100 text-emerald-700' },
+  rejected: { text: '已拒绝', cls: 'bg-red-100 text-red-600' },
 }
 </script>
 
@@ -208,25 +203,13 @@ function fmtDate(iso: string | null) {
 
       <div class="ml-auto flex items-center gap-2">
         <button
+          v-for="f in [{ v: null, l: '全部' }, { v: true, l: '公开' }, { v: false, l: '非公开' }]"
+          :key="String(f.v)"
           class="text-sm font-medium rounded-full px-4 py-2 transition"
-          :class="publicFilter === null ? 'bg-primary/15 text-primary-700 border border-primary/20' : 'bg-primary/5 text-sub border border-primary/10 hover:bg-primary/15'"
-          @click="publicFilter = null; page = 1; load()"
+          :class="publicFilter === f.v ? 'bg-primary/15 text-primary-700 border border-primary/20' : 'bg-primary/5 text-sub border border-primary/10 hover:bg-primary/15'"
+          @click="publicFilter = f.v; page = 1; load()"
         >
-          全部
-        </button>
-        <button
-          class="text-sm font-medium rounded-full px-4 py-2 transition"
-          :class="publicFilter === true ? 'bg-primary/15 text-primary-700 border border-primary/20' : 'bg-primary/5 text-sub border border-primary/10 hover:bg-primary/15'"
-          @click="publicFilter = true; page = 1; load()"
-        >
-          公开
-        </button>
-        <button
-          class="text-sm font-medium rounded-full px-4 py-2 transition"
-          :class="publicFilter === false ? 'bg-primary/15 text-primary-700 border border-primary/20' : 'bg-primary/5 text-sub border border-primary/10 hover:bg-primary/15'"
-          @click="publicFilter = false; page = 1; load()"
-        >
-          非公开
+          {{ f.l }}
         </button>
       </div>
     </div>
@@ -246,106 +229,35 @@ function fmtDate(iso: string | null) {
     </div>
 
     <div v-else class="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-      <div v-for="img in images" :key="img.id" class="glass-card p-2">
-        <!-- 缩略图 -->
-        <div class="rounded-xl overflow-hidden cursor-pointer group relative" @click="selected = img">
-          <ImagePlaceholder
-            :title="img.description || img.title"
-            :src="img.thumb_url || img.display_url || img.url"
-            aspect="1/1"
-          />
-          <!-- 状态角标 -->
-          <span
-            class="absolute top-2 left-2 text-[10px] font-medium rounded-full px-2 py-0.5"
-            :class="statusMap[img.moderation_status]?.cls ?? 'bg-gray-100 text-gray-600'"
-          >
-            {{ statusMap[img.moderation_status]?.text ?? img.moderation_status }}
-          </span>
-          <span v-if="!img.is_public" class="absolute top-2 right-2 text-[10px] font-medium bg-ink/60 text-white rounded-full px-2 py-0.5">
-            私有
-          </span>
-        </div>
-
-        <!-- 信息 -->
-        <div class="px-2 py-2">
-          <p class="text-sm text-ink truncate">{{ img.description || img.title }}</p>
-          <p class="text-xs text-faint mt-0.5 truncate">{{ img.photographer }} · {{ fmtDate(img.uploaded_at) }}</p>
-          <!-- 标签 -->
-          <div v-if="img.tags.length" class="mt-1 flex flex-wrap gap-1">
-            <span v-for="t in img.tags.slice(0, 3)" :key="t" class="text-[10px] text-primary-700 bg-primary-50 rounded-full px-1.5 py-0.5">{{ t }}</span>
-          </div>
-        </div>
-
-        <!-- 操作按钮 -->
-        <div class="px-2 pb-2 flex flex-wrap gap-1.5">
-          <button
-            v-if="img.moderation_status !== 'approved'"
-            class="text-[11px] px-2.5 py-1 rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition"
-            :disabled="acting === img.id"
-            @click="approve(img)"
-          >
-            通过
-          </button>
-          <button
-            v-if="img.moderation_status !== 'rejected'"
-            class="text-[11px] px-2.5 py-1 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition"
-            :disabled="acting === img.id"
-            @click="reject(img)"
-          >
-            拒绝
-          </button>
-          <button
-            class="text-[11px] px-2.5 py-1 rounded-lg border border-gray-200 text-faint hover:border-primary-200 transition"
-            :disabled="acting === img.id"
-            @click="toggleVisibility(img)"
-          >
-            {{ img.is_public ? '设为私有' : '设为公开' }}
-          </button>
-          <button
-            class="text-[11px] px-2.5 py-1 rounded-lg border border-gray-200 text-faint hover:border-primary-200 transition"
-            @click="openTagEditor(img)"
-          >
-            标签
-          </button>
-          <button
-            class="text-[11px] px-2.5 py-1 rounded-lg border border-gray-200 text-red-500 hover:border-red-300 transition"
-            :disabled="acting === img.id"
-            @click="remove(img)"
-          >
-            删除
-          </button>
-        </div>
-      </div>
+      <ImageCard
+        v-for="img in images"
+        :key="img.id"
+        :image="img"
+        :acting="acting === img.id"
+        @preview="selected = $event"
+        @approve="approve"
+        @reject="reject"
+        @toggle-visibility="toggleVisibility"
+        @edit-tags="openTagEditor"
+        @remove="remove"
+      />
     </div>
 
     <!-- 分页 -->
     <div v-if="totalPages > 1" class="mt-6 flex items-center justify-center gap-2">
-      <button class="text-sm px-4 py-2 rounded-full bg-primary/5 border border-primary/10 hover:bg-primary/15 transition" :disabled="page <= 1" @click="goPage(page - 1)">
-        上一页
-      </button>
+      <button class="text-sm px-4 py-2 rounded-full bg-primary/5 border border-primary/10 hover:bg-primary/15 transition" :disabled="page <= 1" @click="goPage(page - 1)">上一页</button>
       <span class="text-sm text-sub">{{ page }} / {{ totalPages }}</span>
-      <button class="text-sm px-4 py-2 rounded-full bg-primary/5 border border-primary/10 hover:bg-primary/15 transition" :disabled="page >= totalPages" @click="goPage(page + 1)">
-        下一页
-      </button>
+      <button class="text-sm px-4 py-2 rounded-full bg-primary/5 border border-primary/10 hover:bg-primary/15 transition" :disabled="page >= totalPages" @click="goPage(page + 1)">下一页</button>
     </div>
 
     <!-- 标签编辑弹窗 -->
-    <div v-if="editingTags" class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" @click.self="editingTags = null">
-      <div class="glass-card p-6 w-full max-w-md">
-        <h2 class="text-lg font-bold text-ink">编辑标签</h2>
-        <p class="mt-1 text-xs text-faint">{{ editingTags.description || editingTags.title }}</p>
-        <div class="mt-4">
-          <label class="label">标签（逗号分隔）</label>
-          <input v-model="tagInput" class="input" placeholder="例如：日常, 校园, 治愈" />
-        </div>
-        <div class="mt-6 flex gap-3">
-          <button class="btn-ghost flex-1" @click="editingTags = null">取消</button>
-          <button class="btn-primary flex-1" :disabled="acting === editingTags.id" @click="saveTags">
-            {{ acting === editingTags.id ? '保存中…' : '保存' }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <ImageTagDialog
+      v-model:tag-input="tagInput"
+      :image="editingTags"
+      :saving="acting === editingTags?.id"
+      @close="editingTags = null"
+      @save="saveTags"
+    />
 
     <!-- 图片详情 -->
     <ImageLightbox

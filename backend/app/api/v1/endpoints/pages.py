@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_permission_dep
-from app.api.response import ok
+from app.api.response import error_to_http, ok, parse_uuid
 from app.core.database import get_db
 from app.models.user import User
 from app.services import page as page_service
@@ -41,20 +41,6 @@ class PagePatchRequest(BaseModel):
     change_summary: str | None = None
 
 
-def _parse_uuid(s: str) -> uuid.UUID:
-    try:
-        return uuid.UUID(s)
-    except ValueError:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_ID", "message": "无效的 ID"})
-
-
-def _handle_error(exc: PageError) -> HTTPException:
-    return HTTPException(
-        status_code=exc.status_code,
-        detail={"code": exc.code, "message": exc.message},
-    )
-
-
 # ---------- 公开 ----------
 
 @router.get("/{slug}")
@@ -63,7 +49,7 @@ async def get_page(slug: str, db: AsyncSession = Depends(get_db)):
     try:
         result = await page_service.get_published_page(db, slug)
     except PageError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -77,7 +63,7 @@ async def list_pages(
     try:
         result = await page_service.list_pages(db)
     except PageError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -101,7 +87,7 @@ async def create_page(
             user=user,
         )
     except PageError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -112,9 +98,9 @@ async def get_page_detail(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        result = await page_service.get_page(db, _parse_uuid(page_id))
+        result = await page_service.get_page(db, parse_uuid(page_id))
     except PageError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -131,10 +117,10 @@ async def update_page(
         kwargs["schema_json"] = kwargs.pop("page_schema")
     try:
         result = await page_service.update_page(
-            db, _parse_uuid(page_id), user=user, change_summary=change_summary, **kwargs
+            db, parse_uuid(page_id), user=user, change_summary=change_summary, **kwargs
         )
     except PageError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -145,9 +131,9 @@ async def publish_page(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        result = await page_service.publish_page(db, _parse_uuid(page_id), user)
+        result = await page_service.publish_page(db, parse_uuid(page_id), user)
     except PageError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -158,9 +144,9 @@ async def unpublish_page(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        result = await page_service.unpublish_page(db, _parse_uuid(page_id), user)
+        result = await page_service.unpublish_page(db, parse_uuid(page_id), user)
     except PageError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -171,9 +157,9 @@ async def delete_page(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        await page_service.delete_page(db, _parse_uuid(page_id))
+        await page_service.delete_page(db, parse_uuid(page_id))
     except PageError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok({"message": "已删除"})
 
 
@@ -184,9 +170,9 @@ async def list_versions(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        result = await page_service.list_versions(db, _parse_uuid(page_id))
+        result = await page_service.list_versions(db, parse_uuid(page_id))
     except PageError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)
 
 
@@ -199,8 +185,8 @@ async def rollback_page(
 ):
     try:
         result = await page_service.rollback_page(
-            db, _parse_uuid(page_id), _parse_uuid(version_id), user
+            db, parse_uuid(page_id), parse_uuid(version_id), user
         )
     except PageError as exc:
-        raise _handle_error(exc)
+        raise error_to_http(exc)
     return ok(result)
