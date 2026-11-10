@@ -165,7 +165,7 @@ border: 1px solid rgba(255, 255, 255, 0.6);
 
 ### 已就绪的关键事实
 
-- 数据库：PostgreSQL 已建表（15 张业务表 + `alembic_version`），Alembic 迁移 `131029fbb8f9` 已到 head。
+- 数据库：PostgreSQL 已建表（15 张业务表 + `alembic_version`），Alembic 迁移 `0addd5ed14cc` 已到 head。
 - 缓存：Redis 已连通（`/api/v1/ready` 返回 `redis: true`）。
 - 对象存储：腾讯云 COS 单桶（ap-shanghai，`public/`/`private/` 前缀隔离），CORS + public 读策略已配置，预签名上传/下载全链路实测通过。
 - 认证：注册（邮箱/手机 OTP）→ 待审批 → 管理员审批 → 登录/刷新令牌轮换，完整闭环已打通。
@@ -198,6 +198,10 @@ border: 1px solid rgba(255, 255, 255, 0.6);
 - **上传图片入口**：移除顶栏「上传图片」按钮，Gallery 页面内保留上传入口。
 - **顶栏导航优化**：页面切换按钮改为更紧凑的圆角矩形（`rounded-lg`、13px 字号、`px-3 py-1.5`），选中态加深底色（`bg-primary/40` + `text-primary-900`），按钮间距增大。
 - **`docs/API.md` 扩充为完整交接文档**：合并原 WHATAPI 内容，整理全部 74 个 API 接口（认证/图片/课表/活动/公告/页面/管理后台），含认证说明、权限矩阵、前后端函数参考、类型定义。
+- **修复全部假功能占位（6 处）**：`DELETE /images/{id}` 真实删除（权限校验+派生图清理）、`POST /images/{id}/report` 真实举报（Report 表+防重复）、`POST /auth/password/reset` 真实更新密码+撤销全部会话、`PUT /profile/me` 真实编辑昵称/简介、`PATCH /admin/users/{id}/role` 真实修改角色（防自改+super_admin 授权限制）、`PATCH /admin/users/{id}/status` 真实启用/禁用（防自改+禁用强制下线）。
+- **修复 `await db.delete()` 运行时炸弹（11 处）**：SQLAlchemy 的 `db.delete()` 是同步方法，误加 `await` 会在运行时抛 TypeError；影响 6 个服务文件的全部删除操作（删活动/公告/页面/课表/私有图/图片），之前调用即 500。已全部移除 `await`。
+- **修复 N+1 查询**：`admin_events.py` 活动列表对每个活动逐个查报名统计；改为 `GROUP BY` 批量查询（`_batch_counts`），21 次查询 → 2 次。
+- **新增 `bio`/`avatar_url` 用户字段**：Alembic 迁移 `0addd5ed14cc`，`GET /profile/me` 返回 bio/avatar_url，`PUT /profile/me` 支持字段级更新；前端 Profile 页新增编辑资料弹窗。
 
 ## 分层约定
 
