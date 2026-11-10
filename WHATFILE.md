@@ -13,7 +13,6 @@
 | `AGENTS.md` | 项目架构与实施规范（完整技术约定、数据模型、API 清单、部署方案） |
 | `DESIGN-BRIEF.md` | 页面设计说明书（各页面布局、用户角色、导航规则、色彩语义、移动端要求） |
 | `WHATFILE.md` | 本文件 — 项目全部文件用途索引 |
-| `WHATAPI.md` | 全部 74 个 API 接口文档（交接用），含认证说明、权限矩阵、前端封装对照 |
 | `.env.example` | 环境变量模板（DATABASE_URL、REDIS_URL、COS_*、SECRET_KEY 等占位值，不含真实密钥） |
 | `.gitignore` | 项目根 Git 忽略规则（.env、__pycache__、node_modules、venv 等） |
 | `docker-compose.yml` | 本地开发用 PostgreSQL 16 + Redis 7 容器编排（生产不使用 Docker） |
@@ -375,6 +374,6 @@
 
 | 文件 | 用途 |
 |---|---|
-| `API.md` | API 文档（统一响应结构、接口清单索引） |
+| `API.md` | 全部 74 个 API 接口文档（交接用）：接口清单、认证说明、权限矩阵、前端/后端函数参考、类型定义 |
 | `DEPLOYMENT.md` | 部署说明（EdgeOne Pages + 宝塔 2C2G + 本机 PostgreSQL/Redis、关键步骤索引） |
 | `SECURITY.md` | 安全基线（上线前 15 项检查清单、日志脱敏规则、认证方案选择） |
