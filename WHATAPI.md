@@ -234,3 +234,319 @@
 | `src/api/events.ts` | 活动 API（10 个接口） |
 | `src/api/pages.ts` | 动态页面 API（9 个接口） |
 | `src/api/adminImages.ts` | 图片管理 API（6 个接口） |
+
+---
+
+# 附录：全部函数与变量参考
+
+> 交接时需要了解的所有导出函数、核心服务函数、关键变量和类型定义。
+
+## 前端 `src/api/client.ts` — 通用请求封装
+
+| 函数/变量 | 签名 | 说明 |
+|---|---|---|
+| `api` | `axios.AxiosInstance` | 默认导出的 Axios 实例（baseURL、超时 15s、Content-Type: JSON） |
+| `request<T>(config)` | `async function(request: AxiosRequestConfig): Promise<T>` | 统一请求封装：注入 Bearer Token、自动解包 `{success, data, error}`、HTTP 异常提取后端错误消息 |
+| `ensureAccessToken()` | `async function(): Promise<string \| null>` | 确保内存有有效 access token；页面刷新后用 refresh token 静默换取新 token，避免首个 401 |
+| `setUnauthorizedHandler(fn)` | `function(fn: (() => void) \| null): void` | 注册 401 登出回调（由 auth store 注册，避免循环依赖） |
+
+**内部流程**：请求拦截器注入 `Authorization: Bearer <token>` → 响应拦截器检测 401 → 自动调 `/auth/refresh` 换新 token → 重试一次 → 失败则 `clearTokens()` + 触发 `onUnauthorized`。
+
+## 前端 `src/api/token.ts` — Token 管理
+
+| 函数 | 签名 | 说明 |
+|---|---|---|
+| `getAccessToken()` | `(): string \| null` | 获取内存中的 access token |
+| `setTokens(access, refresh)` | `(access: string, refresh: string): void` | 同时保存 access（内存）和 refresh（sessionStorage） |
+| `getRefreshToken()` | `(): string \| null` | 获取 refresh token |
+| `clearTokens()` | `(): void` | 清除全部 token（登出/刷新失败） |
+
+## 前端 `src/api/schedule.ts` — 课表 API
+
+| 函数 | 签名 | 对应接口 |
+|---|---|---|
+| `getMySchedules()` | `(): Promise<{items: ScheduleRecord[]}>` | `GET /schedule/mine` |
+| `createScheduleUploadIntent(filename, sizeBytes)` | `(filename: string, sizeBytes: number): Promise<ScheduleUploadIntent>` | `POST /schedule/upload-intent` |
+| `completeScheduleUpload(intent, originalName)` | `(intent: ScheduleUploadIntent, originalName: string): Promise<ScheduleRecord>` | `POST /schedule/upload-complete` |
+| `getSharedSchedule(username)` | `(username: string): Promise<ScheduleRecord>` | `GET /schedule/shared/{username}` |
+| `compareSchedules(slotsA, slotsB)` | `(slotsA: ScheduleSlot[], slotsB: ScheduleSlot[]): Promise<ScheduleCompareResult>` | `POST /schedule/compare` |
+| `setScheduleVisibility(scheduleId, isPublic)` | `(scheduleId: string, isPublic: boolean): Promise<ScheduleRecord>` | `PATCH /schedule/{id}/visibility` |
+| `deleteSchedule(scheduleId)` | `(scheduleId: string): Promise<{message: string}>` | `DELETE /schedule/{id}` |
+
+## 前端 `src/api/site.ts` — 站点/公告/设置 API
+
+| 函数 | 签名 | 对应接口 |
+|---|---|---|
+| `getPublicConfig()` | `(): Promise<PublicConfig>` | `GET /site/public-config` |
+| `getFooter()` | `(): Promise<FooterConfig>` | `GET /site/footer` |
+| `getLegal()` | `(): Promise<LegalConfig>` | `GET /site/legal` |
+| `getClubIntro()` | `(): Promise<ClubIntro>` | `GET /club/intro` |
+| `getPublishedAnnouncements()` | `(): Promise<{items: AnnouncementRecord[]}>` | `GET /announcements/published` |
+| `getAllAnnouncements()` | `(): Promise<{items: AnnouncementRecord[]}>` | `GET /announcements/admin` |
+| `createAnnouncement(data)` | `(data: {title, content, is_pinned?, publish_now?, expires_at?}): Promise<AnnouncementRecord>` | `POST /announcements/admin` |
+| `updateAnnouncement(id, data)` | `(id: string, data: {...}): Promise<AnnouncementRecord>` | `PATCH /announcements/admin/{id}` |
+| `deleteAnnouncement(id)` | `(id: string): Promise<{message}>` | `DELETE /announcements/admin/{id}` |
+| `getAdminSettings()` | `(): Promise<{items: SiteSettingRecord[]}>` | `GET /admin/settings/` |
+| `upsertSetting(data)` | `(data: {key, value, category?, is_public?}): Promise<SiteSettingRecord>` | `PUT /admin/settings/` |
+| `updateClubIntro(data)` | `(data: ClubIntro): Promise<SiteSettingRecord>` | `PUT /club/intro` |
+
+## 前端 `src/api/events.ts` — 活动 API
+
+| 函数 | 签名 | 对应接口 |
+|---|---|---|
+| `listEvents()` | `(): Promise<{items: EventRecord[]}>` | `GET /events/` |
+| `getEvent(eventId)` | `(eventId: string): Promise<EventRecord>` | `GET /events/{id}` |
+| `registerEvent(eventId, idempotencyKey?)` | `(eventId: string, key?: string): Promise<EventRegistration>` | `POST /events/{id}/register` |
+| `cancelEventRegistration(eventId)` | `(eventId: string): Promise<{message}>` | `DELETE /events/{id}/register` |
+| `eventCheckin(eventId)` | `(eventId: string): Promise<EventRegistration>` | `POST /events/{id}/checkin` |
+| `adminListEvents()` | `(): Promise<{items: EventRecord[]}>` | `GET /admin/events/` |
+| `adminCreateEvent(data)` | `(data: {title, starts_at, ends_at, ...}): Promise<EventRecord>` | `POST /admin/events/` |
+| `adminGetEventDetail(eventId)` | `(eventId: string): Promise<{event, items, registered_count, waitlist_count}>` | `GET /admin/events/{id}` |
+| `adminUpdateEvent(eventId, data)` | `(eventId: string, data: {...}): Promise<EventRecord>` | `PATCH /admin/events/{id}` |
+| `adminSetEventStatus(eventId, status)` | `(eventId: string, status: string): Promise<EventRecord>` | `PATCH /admin/events/{id}/status` |
+| `adminDeleteEvent(eventId)` | `(eventId: string): Promise<{message}>` | `DELETE /admin/events/{id}` |
+| `adminListRegistrations(eventId)` | `(eventId: string): Promise<{event, items, ...}>` | `GET /admin/events/{id}/registrations` |
+| `adminCheckin(eventId, registrationId)` | `(eventId: string, regId: string): Promise<EventRegistration>` | `POST /admin/events/{id}/registrations/{rid}/checkin` |
+
+## 前端 `src/api/pages.ts` — 动态页面 API
+
+| 函数 | 签名 | 对应接口 |
+|---|---|---|
+| `getPublishedPage(slug)` | `(slug: string): Promise<PageRecord>` | `GET /pages/{slug}` |
+| `adminListPages()` | `(): Promise<{items: PageRecord[]}>` | `GET /pages/admin/list` |
+| `adminCreatePage(data)` | `(data: {slug, title, page_schema, ...}): Promise<PageRecord>` | `POST /pages/admin` |
+| `adminGetPage(pageId)` | `(pageId: string): Promise<PageRecord>` | `GET /pages/admin/{id}` |
+| `adminUpdatePage(pageId, data)` | `(pageId: string, data: {...}): Promise<PageRecord>` | `PUT /pages/admin/{id}` |
+| `adminPublishPage(pageId)` | `(pageId: string): Promise<PageRecord>` | `POST /pages/admin/{id}/publish` |
+| `adminUnpublishPage(pageId)` | `(pageId: string): Promise<PageRecord>` | `POST /pages/admin/{id}/unpublish` |
+| `adminDeletePage(pageId)` | `(pageId: string): Promise<{message}>` | `DELETE /pages/admin/{id}` |
+| `adminListVersions(pageId)` | `(pageId: string): Promise<{items: PageVersion[]}>` | `GET /pages/admin/{id}/versions` |
+| `adminRollbackPage(pageId, versionId)` | `(pageId: string, vid: string): Promise<PageRecord>` | `POST /pages/admin/{id}/rollback/{vid}` |
+
+## 前端 `src/api/adminImages.ts` — 图片管理 API
+
+| 函数 | 签名 | 对应接口 |
+|---|---|---|
+| `adminGetImageStats()` | `(): Promise<AdminImageStats>` | `GET /admin/images/stats` |
+| `adminListImages(params)` | `(params: {page?, page_size?, status?, is_public?}): Promise<{items: GalleryImage[], pagination}>` | `GET /admin/images/` |
+| `adminSetImageModeration(id, status)` | `(id: string, status: string): Promise<GalleryImage>` | `PATCH /admin/images/{id}/moderation` |
+| `adminSetImageVisibility(id, isPublic)` | `(id: string, isPublic: boolean): Promise<GalleryImage>` | `PATCH /admin/images/{id}/visibility` |
+| `adminSetImageTags(id, tags)` | `(id: string, tags: string[]): Promise<GalleryImage>` | `PUT /admin/images/{id}/tags` |
+| `adminDeleteImage(id)` | `(id: string): Promise<{message}>` | `DELETE /admin/images/{id}` |
+
+---
+
+## 后端核心服务函数
+
+### `services/auth.py` — 认证服务
+
+| 函数 | 说明 |
+|---|---|
+| `create_access_token(user_id, role) -> str` | 生成短时效 JWT Access Token |
+| `decode_access_token(token) -> dict` | 解码并验证 JWT |
+| `register_user(db, ...) -> User` | 注册用户（创建 pending 状态，含摄影师申请） |
+| `login(db, account, password) -> dict` | 登录（校验密码 → 生成 token 对 → 记录会话） |
+| `refresh_tokens(db, refresh_token) -> dict` | 刷新令牌（轮换 + 旧令牌复用检测 → 撤销会话族） |
+| `revoke_session(db, refresh_token)` | 撤销单个会话（登出） |
+| `revoke_all_sessions(db, user_id)` | 撤销全部会话（登出所有设备） |
+| `approve_user(db, user_id) -> User` | 审批通过（激活账号） |
+| `reject_user(db, user_id) -> User` | 拒绝注册 |
+
+### `services/image.py` — 公开图片服务
+
+| 函数 | 说明 |
+|---|---|
+| `sanitize_filename(filename) -> str` | 格式化文件名（清理危险字符 + base64 编码） |
+| `create_upload_intent(...) -> dict` | 签发上传凭证（随机 Object Key + 预签名 URL） |
+| `complete_upload(db, ...) -> Image` | 上传完成（HEAD 复核 + 落库 StoredObject/Image） |
+| `list_public_images(db, page, page_size) -> dict` | 公开图片列表（分页，approved + is_public） |
+| `_image_to_dict(db, image) -> dict` | Image → API 响应 dict（含 url/display_url/thumb_url） |
+
+### `services/profile_image.py` — 私有相册服务
+
+| 函数 | 说明 |
+|---|---|
+| `create_profile_upload_intent(...) -> dict` | 私有图片上传凭证 |
+| `complete_profile_upload(db, ...) -> ProfileImage` | 私有图上传完成（含缩略图 worker 入队） |
+| `list_my_profile_images(db, user) -> dict` | 私有相册列表（含签名缩略图 URL） |
+| `get_profile_image_signed_url(db, *, user, image_id) -> dict` | 签发短时效下载签名 URL |
+| `delete_profile_image(db, *, user, image_id)` | 删除私有图片 |
+
+### `services/image_processing.py` — 图片处理
+
+| 函数 | 说明 |
+|---|---|
+| `derive_display_key(object_key) -> str` | 推导展示图 Object Key（内嵌尺寸参数） |
+| `derive_thumb_key(object_key) -> str` | 推导缩略图 Object Key |
+| `derive_profile_thumb_key(object_key) -> str` | 推导私有图缩略图 Key |
+| `process_image(db, image_id)` | 后台处理：下载 → 解码校验 → 生成 WebP 派生图 → 上传 |
+| `process_profile_image(db, image_id)` | 私有图处理：生成缩略图，更新尺寸 |
+
+### `services/schedule.py` — 课表解析与对比
+
+| 函数/类 | 说明 |
+|---|---|
+| `CourseSlot`（dataclass） | 统一课程数据结构（name/location/weekday/lesson_start/lesson_end/weeks/campus） |
+| `parse_weeks(text) -> list[int]` | 解析周次（`1-16周` 连续 / `1,3,5周` 指定） |
+| `parse_zjut_cell(cell, weekday) -> list[CourseSlot]` | 解析 ZJUT 课表单元格 |
+| `compare(slots_a, slots_b) -> dict` | 对比两人课表 → `{same_classroom, both_free, overlaps}` |
+| `parse_schedule(data, filename) -> dict` | 按文件名识别格式解析（ICS/TXT，PDF 占位报错） |
+| `parse_ics(data) -> list[CourseSlot]` | ICS 课表解析（VEVENT → CourseSlot） |
+| `parse_txt(data) -> list[CourseSlot]` | ZJUT TXT 课表解析 |
+| `ScheduleParseError` | 解析异常（code + message） |
+
+### `services/schedule_service.py` — 课表业务服务
+
+| 函数 | 说明 |
+|---|---|
+| `create_schedule_upload_intent(...) -> dict` | 课表上传凭证 |
+| `complete_schedule_upload(db, ...) -> Schedule` | 上传完成（下载文件 + 解析 + 落库） |
+| `get_my_schedules(db, user) -> dict` | 我的课表列表 |
+| `get_schedule(db, schedule_id, user) -> dict` | 课表详情（私有仅本人，公开任何人） |
+| `get_public_schedule_by_username(db, username) -> dict` | 按用户名获取公开课表（含公开用户信息） |
+| `set_schedule_visibility(db, schedule_id, is_public, user) -> dict` | 公开/私有开关 |
+| `delete_schedule(db, schedule_id, user)` | 删除课表（含对象存储清理） |
+
+### `services/event.py` — 活动服务
+
+| 函数 | 说明 |
+|---|---|
+| `list_events(db, user) -> dict` | 活动列表（含报名状态/人数/候补数） |
+| `get_event(db, event_id, user) -> dict` | 活动详情 |
+| `register(db, event_id, user, idempotency_key) -> dict` | 报名（容量检查、满员候补、幂等键） |
+| `cancel_registration(db, event_id, user) -> dict` | 取消报名（自动递补候补） |
+| `checkin(db, event_id, user) -> dict` | 签到（仅正式报名者，不可重复） |
+| `create_event(db, ...) -> dict` | 创建活动 |
+| `update_event(db, event_id, **kwargs) -> dict` | 编辑活动 |
+| `set_event_status(db, event_id, status) -> dict` | 发布/下架/取消 |
+| `delete_event(db, event_id)` | 删除活动（含报名记录） |
+| `list_registrations(db, event_id) -> dict` | 报名列表（含用户信息） |
+| `admin_checkin(db, event_id, registration_id) -> dict` | 管理员代签到 |
+
+### `services/announcement.py` — 公告服务
+
+| 函数 | 说明 |
+|---|---|
+| `list_published(db) -> dict` | 已发布公告列表（置顶优先，过滤过期） |
+| `list_all(db) -> dict` | 全部公告列表（管理用） |
+| `create(db, ...) -> dict` | 创建公告 |
+| `update(db, id, ...) -> dict` | 编辑公告（修改内容/置顶/发布状态） |
+| `delete(db, id)` | 删除公告 |
+
+### `services/page.py` — 动态页面服务
+
+| 函数 | 说明 |
+|---|---|
+| `get_published_page(db, slug) -> dict` | 获取已发布页面（含时间窗口检查） |
+| `list_pages(db) -> dict` | 页面列表 |
+| `create_page(db, ...) -> dict` | 创建页面（含首次版本快照） |
+| `update_page(db, page_id, ...) -> dict` | 编辑页面（自动记版本快照） |
+| `publish_page(db, page_id, user) -> dict` | 发布 |
+| `unpublish_page(db, page_id, user) -> dict` | 下线 |
+| `delete_page(db, page_id)` | 删除（含版本记录清理） |
+| `list_versions(db, page_id) -> dict` | 版本历史 |
+| `rollback_page(db, page_id, version_id, user) -> dict` | 回滚到指定版本 |
+
+### `services/site_setting.py` — 网站设置服务
+
+| 函数 | 说明 |
+|---|---|
+| `get_setting(db, key) -> dict \| None` | 读取任意设置 |
+| `get_public_setting(db, key) -> dict \| None` | 读取公开设置（is_public=True） |
+| `upsert_setting(db, ...) -> dict` | 新增/更新设置 |
+| `list_settings(db) -> list[dict]` | 列出全部设置 |
+| `get_public_config(db) -> dict` | 公开配置聚合（含默认值） |
+| `get_footer_config(db) -> dict` | 页脚配置聚合 |
+| `get_legal_config(db) -> dict` | 法律信息聚合 |
+| `get_club_intro(db) -> dict` | 社团介绍聚合 |
+
+### `services/admin_image.py` — 图片管理服务
+
+| 函数 | 说明 |
+|---|---|
+| `list_all_images(db, ...) -> dict` | 图片列表（筛选/分页） |
+| `set_moderation(db, image_id, status) -> dict` | 审核（approved 自动设公开，rejected 设私有） |
+| `set_visibility(db, image_id, is_public) -> dict` | 公开/私有开关 |
+| `update_tags(db, image_id, tags) -> dict` | 编辑标签 |
+| `delete_image(db, image_id)` | 删除图片（含派生图清理） |
+| `get_stats(db) -> dict` | 图片统计 |
+
+### `services/otp.py` — OTP 验证码服务
+
+| 函数 | 说明 |
+|---|---|
+| `send_otp(db, target, purpose, channel) -> dict` | 发送验证码（哈希存储、频率限制） |
+| `verify_otp(db, target, purpose, code) -> bool` | 校验验证码（单次使用、尝试次数限制） |
+
+---
+
+## 核心基础设施
+
+### `api/deps.py` — 依赖注入
+
+| 函数 | 说明 |
+|---|---|
+| `get_current_user(request, credentials, db) -> User` | 从 Bearer Token 解析用户（查库校验 status/is_active） |
+| `require_role(*roles)` | 角色校验依赖工厂 |
+| `require_permission_dep(permission)` | 权限校验依赖工厂（RBAC） |
+
+### `api/response.py` — 统一响应
+
+| 函数 | 说明 |
+|---|---|
+| `ok(data, request) -> dict` | 成功响应 `{success: true, data, error: null, request_id}` |
+| `err(code, message, request) -> dict` | 失败响应 `{success: false, data: null, error: {code, message}, request_id}` |
+
+### `core/security.py` — 安全工具
+
+| 函数 | 说明 |
+|---|---|
+| `hash_password(password) -> str` | 密码哈希（Argon2id / bcrypt） |
+| `verify_password(password, hashed) -> bool` | 密码校验 |
+| `generate_token(nbytes=32) -> str` | 生成 URL 安全随机令牌（Refresh Token） |
+| `hash_token(token) -> str` | 令牌哈希（只存哈希防泄露） |
+| `hash_code(code) -> str` | 验证码哈希（HMAC-SHA256） |
+| `constant_time_equal(a, b) -> bool` | 恒定时间比较（防时序攻击） |
+
+### `core/permissions.py` — RBAC 权限
+
+| 函数/变量 | 说明 |
+|---|---|
+| `Role`（StrEnum） | GUEST / MEMBER / PHOTOGRAPHER / MODERATOR / ADMIN / SUPER_ADMIN |
+| `PERMISSIONS`（dict） | 权限点 → 角色集合映射（14 个权限点） |
+| `role_level(role) -> int` | 角色等级（0-5） |
+| `has_permission(role, permission) -> bool` | 判断权限（含角色继承） |
+| `require_permission(role, permission)` | 校验权限（不通过抛 PermissionError） |
+
+---
+
+## TypeScript 类型定义（`src/types/index.ts`）
+
+| 类型 | 说明 |
+|---|---|
+| `ApiResponse<T>` | 通用 API 响应 `{success, data, error, request_id}` |
+| `Page<T>` | 分页响应 `{items, pagination}` |
+| `Role` | 角色联合类型 |
+| `User` | 前端用户对象（id/username/displayName/role/avatar/bio） |
+| `MeResponse` | `/auth/me` 响应（snake_case） |
+| `AdminUser` | 管理端用户 |
+| `GalleryImage` | 图片（url/display_url/thumb_url/描述/标签/状态） |
+| `UploadIntent` | 上传凭证（upload_url/object_key/expires_in） |
+| `ProfileImage` | 私有相册图片 |
+| `CourseSlot` | 前端课表课程（camelCase） |
+| `ScheduleSlot` | 后端课表课程（snake_case） |
+| `ScheduleRecord` | 课表记录 |
+| `ScheduleUploadIntent` | 课表上传凭证 |
+| `ScheduleCompareResult` | 课表对比结果 |
+| `PublicConfig` | 站点公开配置 |
+| `FooterConfig` | 页脚配置 |
+| `LegalConfig` | 法律信息 |
+| `ClubIntro` | 社团介绍 |
+| `AnnouncementRecord` | 公告 |
+| `SiteSettingRecord` | 网站设置 |
+| `EventRecord` | 活动（含报名统计/我的状态） |
+| `EventRegistration` | 活动报名记录 |
+| `PageRecord` | 动态页面 |
+| `PageVersion` | 页面版本快照 |
+| `PageBlock` / `PageSchema` | 动态页面 Schema 组件 |
+| `AdminImageStats` | 图片管理统计 |
