@@ -17,8 +17,8 @@ function toUser(raw: MeResponse | LoginResult['user']): User {
       username: raw.username,
       displayName: (raw as MeResponse).display_name ?? (raw as LoginResult['user']).display_name,
       role: (raw.role as Role) ?? 'member',
-      avatar: '',
-      bio: '',
+      avatar: (raw as MeResponse).avatar_url ?? '',
+      bio: (raw as MeResponse).bio ?? '',
     }
   }
   return raw as unknown as User

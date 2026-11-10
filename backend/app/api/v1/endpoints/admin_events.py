@@ -66,19 +66,7 @@ def _handle_error(exc: EventError) -> HTTPException:
 
 @router.get("/")
 async def list_events(db: AsyncSession = Depends(get_db)):
-    from sqlalchemy import select
-    from app.models.event import Event
-
-    rows = (await db.scalars(select(Event).order_by(Event.starts_at.desc()))).all()
-    items = []
-    for e in rows:
-        reg_info = await event_service.list_registrations(db, e.id)
-        items.append({
-            **event_service._event_to_dict(e),
-            "registered_count": reg_info["registered_count"],
-            "waitlist_count": reg_info["waitlist_count"],
-        })
-    return ok({"items": items})
+    return ok(await event_service.admin_list_events(db))
 
 
 @router.post("/")

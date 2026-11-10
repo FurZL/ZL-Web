@@ -220,8 +220,8 @@ async def delete_page(db: AsyncSession, page_id: uuid.UUID) -> None:
         )
     ).all()
     for v in versions:
-        await db.delete(v)
-    await db.delete(p)
+        db.delete(v)
+    db.delete(p)
     await db.commit()
 
 

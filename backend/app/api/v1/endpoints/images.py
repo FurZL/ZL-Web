@@ -96,15 +96,87 @@ async def upload_complete(
 
 
 @router.delete("/{image_id}")
-async def delete_image(image_id: str, db: AsyncSession = Depends(get_db)):
-    # 占位：软删除 + 对象存储清理任务
-    return ok({"message": "delete pending"})
+async def delete_image(
+    image_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.core.permissions import has_permission
+
+    try:
+        uid = uuid.UUID(image_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_ID", "message": "无效的图片 ID"})
+    from app.models.image import Image
+
+    image = await db.get(Image, uid)
+    if image is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "图片不存在"})
+
+    # 仅上传者本人或有任意删除权限的角色可删除
+    if image.uploader_id != user.id and not has_permission(user.role, "gallery.image.delete.any"):
+        raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": "无权删除该图片"})
+
+    from app.services.admin_image import delete_image as _delete
+    from app.services.image import ImageError
+
+    try:
+        await _delete(db, uid)
+    except ImageError as exc:
+        raise _image_error(exc)
+    return ok({"message": "已删除"})
 
 
 @router.post("/{image_id}/report")
-async def report_image(image_id: str, db: AsyncSession = Depends(get_db)):
-    # 占位：举报
-    return ok({"message": "report pending"})
+async def report_image(
+    image_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.report import Report
+
+    try:
+        uid = uuid.UUID(image_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_ID", "message": "无效的图片 ID"})
+    from app.models.image import Image
+
+    image = await db.get(Image, uid)
+    if image is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "图片不存在"})
+
+    # 不能举报自己的图片
+    if image.uploader_id == user.id:
+        raise HTTPException(status_code=400, detail={"code": "SELF_REPORT", "message": "不能举报自己的图片"})
+
+    # 同一用户对同一图片只能有一条未处理的举报
+    from sqlalchemy import select
+
+    existing = (
+        await db.scalars(
+            select(Report)
+            .where(
+                Report.reporter_id == user.id,
+                Report.target_type == "image",
+                Report.target_id == str(uid),
+                Report.status == "open",
+            )
+            .limit(1)
+        )
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail={"code": "ALREADY_REPORTED", "message": "已提交过举报，请等待处理"})
+
+    report = Report(
+        reporter_id=user.id,
+        target_type="image",
+        target_id=str(uid),
+        reason="inappropriate",
+        status="open",
+    )
+    db.add(report)
+    await db.commit()
+    return ok({"message": "举报已提交，管理员会尽快处理"})
 
 
 @router.get("/{image_id}/download")

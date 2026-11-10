@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -39,15 +40,47 @@ async def get_me(user: User = Depends(get_current_user)):
         "username": user.username,
         "display_name": user.display_name,
         "email": user.email,
+        "bio": user.bio or "",
+        "avatar_url": user.avatar_url,
         "role": user.role,
         "status": user.status,
     })
 
 
+class ProfileUpdateRequest(BaseModel):
+    display_name: str | None = None
+    bio: str | None = None
+    avatar_url: str | None = None
+
+
 @router.put("/me")
-async def update_me(user: User = Depends(get_current_user)):
-    # 占位：编辑昵称/简介
-    return ok({"message": "update pending"})
+async def update_me(
+    body: ProfileUpdateRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if body.display_name is not None:
+        name = body.display_name.strip()
+        if not name or len(name) > 64:
+            raise HTTPException(status_code=400, detail={"code": "INVALID_NAME", "message": "昵称不能为空且不超过 64 字"})
+        user.display_name = name
+    if body.bio is not None:
+        user.bio = body.bio[:500] or None
+    if body.avatar_url is not None:
+        user.avatar_url = body.avatar_url[:500] or None
+
+    await db.commit()
+    await db.refresh(user)
+    return ok({
+        "id": str(user.id),
+        "username": user.username,
+        "display_name": user.display_name,
+        "email": user.email,
+        "bio": user.bio or "",
+        "avatar_url": user.avatar_url,
+        "role": user.role,
+        "status": user.status,
+    })
 
 
 @router.get("/me/images")

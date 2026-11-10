@@ -229,7 +229,7 @@
 |---|---|
 | `__init__.py` | Python 包标记（空文件） |
 | `base.py` | 通用字段混入（TimestampMixin：created_at / updated_at） |
-| `user.py` | User（用户名/邮箱/手机/密码/角色/状态/摄影师申请）、UserSession（刷新令牌会话）、VerificationChallenge（验证码挑战） |
+| `user.py` | User（用户名/邮箱/手机/密码/bio/avatar/角色/状态/摄影师申请）、UserSession（刷新令牌会话）、VerificationChallenge（验证码挑战） |
 | `image.py` | StoredObject（对象存储元数据）、Image（公开图片：标签/审核/版权）、ProfileImage（私有相册图片） |
 | `schedule.py` | Schedule（课表：stored_object_id、original_name、format、parsed_json、is_public、expires_at） |
 | `content.py` | DynamicPage（动态页面：slug/schema_json/发布状态）、DynamicPageVersion（版本快照）、Announcement（公告） |
@@ -266,7 +266,7 @@
 | `rate_limit.py` | 限流服务（Redis 分布式计数器、原子递增+TTL、分层限流规则） |
 | `site_setting.py` | 网站设置服务（SiteSetting 读写、公开配置/页脚/法律/社团介绍聚合，敏感密钥不入此表） |
 | `announcement.py` | 公告服务（公开列表：已发布+未过期+置顶在前；管理 CRUD：创建/更新/置顶/发布/删除） |
-| `event.py` | 活动服务（活动 CRUD、报名/候补/取消/签到，容量控制、幂等键、候补自动递补） |
+| `event.py` | 活动服务（活动 CRUD、报名/候补/取消/签到，容量控制、幂等键、候补自动递补、批量统计防 N+1） |
 | `page.py` | 动态页面服务（页面 CRUD、版本快照、发布/下线、版本回滚） |
 | `admin_image.py` | 图片管理服务（列表/审核/公开/标签/删除/统计，含派生图清理） |
 
@@ -317,7 +317,8 @@
 | `versions/81c6d451559a_init_tables.py` | 初始建表迁移（15 张业务表 + alembic_version） |
 | `versions/64b8838cd73c_add_profile_image_fields.py` | 迁移：添加私有相册图片字段 |
 | `versions/9394e2a89de2_add_photographer_application_fields.py` | 迁移：添加摄影师申请字段（applied_role/application_reason/application_portfolio） |
-| `versions/131029fbb8f9_add_schedule_name_and_format.py` | 迁移：添加课表 original_name / format 字段（当前 head） |
+| `versions/131029fbb8f9_add_schedule_name_and_format.py` | 迁移：添加课表 original_name / format 字段 |
+| `versions/0addd5ed14cc_add_user_bio_avatar.py` | 迁移：添加用户 bio / avatar_url 字段（当前 head） |
 
 ### scripts/ — 运维/测试脚本
 

@@ -86,8 +86,8 @@
 | POST | `/auth/logout` | Bearer | 登出（撤销当前 Refresh Token） |
 | POST | `/auth/logout-all` | Bearer | 登出所有设备（撤销全部会话） |
 | POST | `/auth/password/forgot` | 无 | 找回密码（发送验证码） |
-| POST | `/auth/password/reset` | 无 | 重置密码（验证码 + 新密码） |
-| GET | `/auth/me` | Bearer | 获取当前用户信息 |
+| POST | `/auth/password/reset` | 无 | 重置密码（验证码 + 新密码；真实更新密码 + 撤销全部会话） |
+| GET | `/auth/me` | Bearer | 获取当前用户信息（含 bio/avatar_url） |
 
 ---
 
@@ -100,8 +100,8 @@
 | GET | `/admin/users/{user_id}` | 管理员 | 用户详情 |
 | POST | `/admin/users/{user_id}/approve` | 管理员 | 审批通过（激活账号） |
 | POST | `/admin/users/{user_id}/reject` | 管理员 | 拒绝注册申请 |
-| PATCH | `/admin/users/{user_id}/role` | 管理员 | 修改用户角色 |
-| PATCH | `/admin/users/{user_id}/status` | 管理员 | 修改用户状态（启用/禁用） |
+| PATCH | `/admin/users/{user_id}/role` | 管理员 | 修改用户角色（禁止改自己；admin/super_admin 仅 super_admin 可授予） |
+| PATCH | `/admin/users/{user_id}/status` | 管理员 | 启用/禁用用户（禁止改自己；禁用时自动撤销全部会话；不能禁用 super_admin） |
 
 ---
 
@@ -114,8 +114,8 @@
 | POST | `/images/upload-intent` | 摄影师+ | 申请上传凭证（返回预签名上传 URL） |
 | POST | `/images/upload-complete` | 摄影师+ | 上传完成（后端 HEAD 复核 + 落库） |
 | GET | `/images/{image_id}/download` | Bearer | 签发原图下载签名 URL |
-| DELETE | `/images/{image_id}` | 管理员 | 删除图片 |
-| POST | `/images/{image_id}/report` | Bearer | 举报图片 |
+| DELETE | `/images/{image_id}` | Bearer | 删除图片（仅上传者本人或有 gallery.image.delete.any 权限；含派生图清理） |
+| POST | `/images/{image_id}/report` | Bearer | 举报图片（不能举报自己的图片；同一图片仅一条未处理举报） |
 
 **上传流程**：`upload-intent` → 前端直传 COS → `upload-complete` → 后台 worker 生成缩略图（800px）/展示图（2000px）WebP。
 
@@ -125,8 +125,8 @@
 
 | 方法 | 路径 | 认证 | 说明 |
 |---|---|---|---|
-| GET | `/profile/me` | Bearer | 获取个人信息 |
-| PUT | `/profile/me` | Bearer | 修改个人信息 |
+| GET | `/profile/me` | Bearer | 获取个人信息（含 bio/avatar_url） |
+| PUT | `/profile/me` | Bearer | 修改个人信息（display_name / bio / avatar_url，字段级更新） |
 | GET | `/profile/me/images` | Bearer | 私有相册列表（仅本人可见） |
 | POST | `/profile/me/images/upload-intent` | Bearer | 私有图片上传凭证 |
 | POST | `/profile/me/images/upload-complete` | Bearer | 私有图片上传完成 |
@@ -460,6 +460,8 @@
 | 函数 | 说明 |
 |---|---|
 | `list_events(db, user) -> dict` | 活动列表（含报名状态/人数/候补数） |
+| `admin_list_events(db) -> dict` | 管理端活动列表（批量统计，无 N+1） |
+| `_batch_counts(db, event_ids) -> dict` | 批量查询活动报名/候补统计（1 次 GROUP BY 查询） |
 | `get_event(db, event_id, user) -> dict` | 活动详情 |
 | `register(db, event_id, user, idempotency_key) -> dict` | 报名（容量检查、满员候补、幂等键） |
 | `cancel_registration(db, event_id, user) -> dict` | 取消报名（自动递补候补） |
@@ -576,7 +578,7 @@
 | `Page<T>` | 分页响应 `{items, pagination}` |
 | `Role` | 角色联合类型 |
 | `User` | 前端用户对象（id/username/displayName/role/avatar/bio） |
-| `MeResponse` | `/auth/me` 响应（snake_case） |
+| `MeResponse` | `/auth/me` 响应（snake_case，含 bio/avatar_url） |
 | `AdminUser` | 管理端用户 |
 | `GalleryImage` | 图片（url/display_url/thumb_url/描述/标签/状态） |
 | `UploadIntent` | 上传凭证（upload_url/object_key/expires_in） |

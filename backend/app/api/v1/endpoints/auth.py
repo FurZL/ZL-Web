@@ -144,8 +144,26 @@ async def reset_password(body: PasswordResetRequest, db: AsyncSession = Depends(
         await verify_otp(db, target=body.target, purpose="reset", code=body.code)
     except OtpError as exc:
         raise _otp_error(exc)
-    # TODO: 更新密码（此阶段可先占位）
-    return ok({"message": "密码已重置"})
+
+    # 找到目标用户并更新密码
+    from sqlalchemy import select
+    from app.core.security import hash_password
+
+    account = body.target.strip()
+    query = select(User).where(
+        (User.username == account) | (User.email == account) | (User.phone_e164 == account)
+    )
+    user = (await db.scalars(query.limit(1))).first()
+    if user is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "用户不存在"})
+
+    user.hashed_password = hash_password(body.new_password)
+    await db.commit()
+
+    # 撤销全部会话（强制所有设备重新登录）
+    await auth_service.revoke_all_sessions(db, user.id)
+
+    return ok({"message": "密码已重置，请使用新密码登录"})
 
 
 @router.get("/me", response_model=UserOut)

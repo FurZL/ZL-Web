@@ -5,10 +5,11 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import require_permission_dep
+from app.api.deps import get_current_user, require_permission_dep
 from app.api.response import ok
 from app.core.database import get_db
 from app.models.user import User
@@ -21,6 +22,9 @@ router = APIRouter(
     tags=["admin"],
     dependencies=[Depends(require_permission_dep("user.approve"))],
 )
+
+ALLOWED_ROLES = {"member", "photographer", "moderator", "admin"}
+ALLOWED_STATUSES = {"active", "disabled"}
 
 
 def _parse_uuid(user_id: str) -> uuid.UUID:
@@ -72,12 +76,66 @@ async def reject_user(user_id: str, db: AsyncSession = Depends(get_db)):
     return ok(UserOut.model_validate(user).model_dump(mode="json"))
 
 
+class RolePatchRequest(BaseModel):
+    role: str = Field(pattern="^(member|photographer|moderator|admin|super_admin)$")
+
+
+class StatusPatchRequest(BaseModel):
+    status: str = Field(pattern="^(active|disabled)$")
+
+
 @router.patch("/{user_id}/role")
-async def set_role(user_id: str, db: AsyncSession = Depends(get_db)):
-    # role 变更通过受控权限调用；逻辑可后续补充
-    return ok({"message": "pending"})
+async def set_role(
+    user_id: str,
+    body: RolePatchRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    target = await db.get(User, _parse_uuid(user_id))
+    if target is None:
+        raise HTTPException(status_code=404, detail={"code": "USER_NOT_FOUND", "message": "用户不存在"})
+
+    # 不能修改自己（防止误操作锁定自己）
+    if target.id == current_user.id:
+        raise HTTPException(status_code=400, detail={"code": "SELF_CHANGE", "message": "不能修改自己的角色"})
+
+    # 只有 super_admin 能授予 admin/super_admin
+    if body.role in ("admin", "super_admin") and current_user.role != "super_admin":
+        raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": "只有超级管理员可以授予管理员角色"})
+
+    target.role = body.role
+    await db.commit()
+    await db.refresh(target)
+    return ok(UserOut.model_validate(target).model_dump(mode="json"))
 
 
 @router.patch("/{user_id}/status")
-async def set_status(user_id: str, db: AsyncSession = Depends(get_db)):
-    return ok({"message": "pending"})
+async def set_status(
+    user_id: str,
+    body: StatusPatchRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    target = await db.get(User, _parse_uuid(user_id))
+    if target is None:
+        raise HTTPException(status_code=404, detail={"code": "USER_NOT_FOUND", "message": "用户不存在"})
+
+    # 不能禁用自己
+    if target.id == current_user.id:
+        raise HTTPException(status_code=400, detail={"code": "SELF_CHANGE", "message": "不能修改自己的状态"})
+
+    # 不能禁用 super_admin
+    if target.role == "super_admin" and body.status == "disabled":
+        raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": "不能禁用超级管理员"})
+
+    target.status = body.status
+    target.is_active = body.status == "active"
+
+    # 禁用时撤销全部会话（强制下线）
+    if body.status == "disabled":
+        await auth_service.revoke_all_sessions(db, target.id)
+    else:
+        await db.commit()
+
+    await db.refresh(target)
+    return ok(UserOut.model_validate(target).model_dump(mode="json"))

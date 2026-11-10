@@ -89,6 +89,49 @@ async def _count_waitlisted(db: AsyncSession, event_id: uuid.UUID) -> int:
     return result or 0
 
 
+async def _batch_counts(db: AsyncSession, event_ids: list[uuid.UUID]) -> dict:
+    """一次性查询所有活动的报名/候补统计，避免 N+1。
+
+    返回 {event_id: {"registered": int, "waitlist": int}}
+    """
+    if not event_ids:
+        return {}
+    rows = await db.execute(
+        select(
+            EventRegistration.event_id,
+            EventRegistration.status,
+            func.count().label("cnt"),
+        )
+        .where(
+            EventRegistration.event_id.in_(event_ids),
+            EventRegistration.status.in_(["registered", "checked_in", "waitlisted"]),
+        )
+        .group_by(EventRegistration.event_id, EventRegistration.status)
+    )
+    counts: dict = {eid: {"registered": 0, "waitlist": 0} for eid in event_ids}
+    for event_id, status, cnt in rows:
+        key = "registered" if status in ("registered", "checked_in") else "waitlist"
+        counts[event_id][key] = int(cnt)
+    return counts
+
+
+async def admin_list_events(db: AsyncSession) -> dict:
+    """管理端活动列表：一次查询 + 批量统计，无 N+1。"""
+    rows = (
+        await db.scalars(select(Event).order_by(Event.starts_at.desc()))
+    ).all()
+    counts = await _batch_counts(db, [e.id for e in rows])
+    items = []
+    for e in rows:
+        c = counts.get(e.id, {"registered": 0, "waitlist": 0})
+        items.append({
+            **_event_to_dict(e),
+            "registered_count": c["registered"],
+            "waitlist_count": c["waitlist"],
+        })
+    return {"items": items}
+
+
 async def _promote_waitlist(db: AsyncSession, event_id: uuid.UUID, capacity: int | None):
     """名额有空缺时，把候补名单最早的人递补为正式报名。"""
     if capacity is None:
@@ -379,8 +422,8 @@ async def delete_event(db: AsyncSession, event_id: uuid.UUID) -> None:
         )
     ).all()
     for r in regs:
-        await db.delete(r)
-    await db.delete(e)
+        db.delete(r)
+    db.delete(e)
     await db.commit()
 
 

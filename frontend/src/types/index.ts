@@ -33,6 +33,8 @@ export interface MeResponse {
   username: string
   display_name: string
   email: string
+  bio: string
+  avatar_url: string | null
   role: string
   status: string
   applied_role: string | null

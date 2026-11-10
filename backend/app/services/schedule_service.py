@@ -138,8 +138,8 @@ async def delete_schedule(db: AsyncSession, schedule_id: uuid.UUID, user: User) 
             await storage.delete_object(stored.bucket, stored.object_key)
         except Exception:
             pass
-        await db.delete(stored)
-    await db.delete(s)
+        db.delete(stored)
+    db.delete(s)
     await db.commit()
 
 

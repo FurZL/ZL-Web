@@ -108,9 +108,9 @@ async def delete_image(db: AsyncSession, image_id: uuid.UUID) -> None:
                     pass
         except Exception:
             pass
-        await db.delete(stored)
+        db.delete(stored)
 
-    await db.delete(image)
+    db.delete(image)
     await db.commit()
 
 

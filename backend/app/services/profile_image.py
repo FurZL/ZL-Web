@@ -161,6 +161,6 @@ async def delete_profile_image(
                 await storage.delete_object(stored.bucket, thumb_key)
         except Exception:
             pass
-        await db.delete(stored)
-    await db.delete(image)
+        db.delete(stored)
+    db.delete(image)
     await db.commit()

@@ -32,6 +32,8 @@ class User(TimestampMixin, Base):
         DateTime(timezone=True), nullable=True
     )
     hashed_password: Mapped[str] = mapped_column(String(255))
+    bio: Mapped[str | None] = mapped_column(Text, nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     role: Mapped[str] = mapped_column(String(32), default="member", index=True)
     status: Mapped[str] = mapped_column(
         String(32), default="pending", index=True
