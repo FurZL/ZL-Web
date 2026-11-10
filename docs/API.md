@@ -5,11 +5,19 @@
 
 ## 通用约定
 
-- 所有列表接口支持分页，限制最大 page size。
-- 写操作使用权限校验；报名等关键操作用幂等键。
-- API 文档仅在开发环境或管理员授权后公开；生产禁用。
+- 统一前缀：`/api/v1`
+- 统一响应结构：
 
-错误响应示例：
+```json
+{
+  "success": true,
+  "data": {},
+  "error": null,
+  "request_id": "server-generated-id"
+}
+```
+
+- 错误响应：
 
 ```json
 {
@@ -19,6 +27,29 @@
   "request_id": "server-generated-id"
 }
 ```
+
+- 所有列表接口支持分页，限制最大 page size。
+- 写操作使用权限校验；报名等关键操作用幂等键。
+- API 文档仅在开发环境或管理员授权后公开；生产禁用。
+
+## 接口清单（模块 → 文件对照）
+
+| 模块 | 前缀 | 后端文件 |
+|---|---|---|
+| 健康检查 | `/health` `/ready` | `endpoints/health.py` |
+| 认证 | `/auth` | `endpoints/auth.py` |
+| 图片 | `/images` | `endpoints/images.py` |
+| 图片管理 | `/admin/images` | `endpoints/admin_images.py` |
+| 个人空间 | `/profile` | `endpoints/profile.py` |
+| 课表 | `/schedule` | `endpoints/schedule.py` |
+| 公告 | `/announcements` | `endpoints/announcements.py` |
+| 社团介绍 | `/club` | `endpoints/club.py` |
+| 活动 | `/events` | `endpoints/events.py` |
+| 活动管理 | `/admin/events` | `endpoints/admin_events.py` |
+| 动态页面 | `/pages` | `endpoints/pages.py` |
+| 站点配置 | `/site` | `endpoints/site.py` |
+| 用户管理 | `/admin/users` | `endpoints/admin_users.py` |
+| 网站设置 | `/admin/settings` | `endpoints/admin_settings.py` |
 
 ---
 
