@@ -14,15 +14,6 @@ class UploadIntentRequest(BaseModel):
     purpose: str = "gallery"  # gallery / profile / schedule
 
 
-class UploadIntentResponse(BaseModel):
-    storage_provider: str
-    bucket: str
-    object_key: str
-    visibility: str
-    upload_url: str
-    expires_in: int
-
-
 class UploadCompleteRequest(BaseModel):
     bucket: str
     object_key: str
@@ -43,19 +34,3 @@ class ProfileUploadCompleteRequest(BaseModel):
     object_key: str
     original_name: str | None = None
     description: str | None = None
-
-
-class ImageOut(BaseModel):
-    id: str
-    url: str | None
-    object_key: str | None
-    original_name: str | None
-    title: str
-    description: str | None
-    tags: list[str]
-    photographer: str
-    moderation_status: str
-    is_public: bool
-    width: int | None
-    height: int | None
-    uploaded_at: str | None

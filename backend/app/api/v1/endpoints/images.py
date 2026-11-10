@@ -22,7 +22,6 @@ from app.providers.factory import get_storage_provider
 from app.schemas.image import (
     UploadCompleteRequest,
     UploadIntentRequest,
-    UploadIntentResponse,
 )
 from app.services import image as image_service
 from app.services.admin_image import delete_image as admin_delete_image

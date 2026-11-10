@@ -258,6 +258,8 @@ border: 1px solid rgba(255, 255, 255, 0.6);
 - **新增 `admin_list_events` 批量统计**：活动管理列表用 `GROUP BY` 一次性查询报名/候补数，消除 N+1。
 - **大文件拆分（6 个文件）**：`Schedule.vue`（471→187 行 + 3 个子组件）、`AdminEvents.vue`（386→253 行 + 2 个）、`AdminImages.vue`（348→262 行 + 2 个）、`AdminPages.vue`（340→256 行 + 2 个）、`Gallery.vue`（295→180 行 + 1 个）、`Profile.vue`（346→200 行 + 2 个）；子组件归入 `components/schedule/`、`components/admin/`、`components/gallery/`、`components/profile/`。
 - **重复样式去重（70+ 处）**：弹窗遮罩 → `.dialog-overlay`（7 处）、加载 spinner → `.spinner`（8 处）、状态徽章配色 → `utils/statusStyles.ts` 共享常量（30+ 处）、标签徽章 → `.tag-badge*`（8 处）、小操作按钮 → `.btn-sm*`/`.btn-xs*`（16 处）；统一视觉规范已补入 README「复用样式类」章节。
+- **修复 `/auth/me` 响应格式不一致**：原来用 `response_model=UserOut` 返回裸对象不走 `ok()` 信封，前端 `request()` 解包会抛「请求失败」，导致刷新页面后登录态恢复失败。已统一为 `ok()` 包装。
+- **清理死代码**：删除 7 个零消费者 Schema（`UploadIntentResponse`/`ImageOut`/`EventOut`/`AnnouncementOut`/`ScheduleJobOut`/`CompareResult`/`ScheduleOut`）、清理 4 处未使用导入、删除死文件 `mock.ts`。
 
 ## 分层约定
 

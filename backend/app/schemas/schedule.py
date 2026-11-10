@@ -23,18 +23,6 @@ class CompareRequest(BaseModel):
     slots_b: list[CourseSlot]
 
 
-class CompareResult(BaseModel):
-    same_classroom: list[CourseSlot]
-    both_free: list[CourseSlot]
-    overlaps: list[CourseSlot]
-
-
-class ScheduleJobOut(BaseModel):
-    job_id: str
-    status: str
-    error: str | None = None
-
-
 class ScheduleUploadIntentRequest(BaseModel):
     filename: str
     size_bytes: int = Field(gt=0)
@@ -48,11 +36,3 @@ class ScheduleUploadCompleteRequest(BaseModel):
 
 class ScheduleVisibilityRequest(BaseModel):
     is_public: bool
-
-
-class ScheduleOut(BaseModel):
-    id: uuid.UUID
-    owner_id: uuid.UUID
-    is_public: bool
-    expires_at: datetime | None
-    parsed_json: dict

@@ -67,7 +67,7 @@
 | `schedule.ts` | 课表 API（上传意图/上传完成/我的课表/公开课表/对比/可见性开关/删除） |
 | `site.ts` | 站点/公告 API（公开配置/页脚/法律/社团介绍/公告 CRUD/管理设置读写） |
 | `events.ts` | 活动 API（列表/详情/报名/取消/签到 + 管理 CRUD/报名列表/管理员签到） |
-| `mock.ts` | Mock 数据（首页公告、精选图片、成员列表、课表样例）— 部分页面仍在用，待逐步替换 |
+| `index.ts` | API 模块统一导出（re-export client / token / schedule / site / events / pages / adminImages） |
 | `pages.ts` | 动态页面 API（公开读取 + 管理 CRUD/发布/下线/版本列表/回滚） |
 | `adminImages.ts` | 图片管理 API（统计/列表/审核/公开/标签/删除） |
 | `index.ts` | API 模块统一导出（re-export client / token / schedule / site / events / pages / adminImages） |

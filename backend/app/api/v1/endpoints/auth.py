@@ -21,7 +21,6 @@ from app.schemas.auth import (
     PasswordResetRequest,
     RefreshRequest,
     RegisterRequest,
-    UserOut,
 )
 from app.services import auth as auth_service
 from app.services.auth import AuthError
@@ -155,6 +154,15 @@ async def reset_password(body: PasswordResetRequest, db: AsyncSession = Depends(
     return ok({"message": "密码已重置，请使用新密码登录"})
 
 
-@router.get("/me", response_model=UserOut)
+@router.get("/me")
 async def me(user: User = Depends(get_current_user)):
-    return user
+    return ok({
+        "id": str(user.id),
+        "username": user.username,
+        "display_name": user.display_name,
+        "email": user.email,
+        "bio": user.bio or "",
+        "avatar_url": user.avatar_url,
+        "role": user.role,
+        "status": user.status,
+    })
