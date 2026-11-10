@@ -1,6 +1,6 @@
 # Furry ZJUT API 文档
 
-> 本文件整理了项目中**全部 74 个 API 接口**，供团队交接和查阅。
+> 本文件整理了项目中**全部 75 个 API 路径（88 个方法端点）**，供团队交接和查阅。
 > 统一前缀：`/api/v1`，统一响应格式：`{"success": bool, "data": ..., "error": {"code", "message"}, "request_id": str}`
 
 ## 通用约定
@@ -132,6 +132,7 @@
 | POST | `/profile/me/images/upload-complete` | Bearer | 私有图片上传完成 |
 | GET | `/profile/me/images/{image_id}/url` | Bearer | 签发短时效签名 URL（私有图下载） |
 | DELETE | `/profile/me/images/{image_id}` | Bearer | 删除私有图片 |
+| GET | `/profile/members` | 无 | 公开成员列表（active 用户昵称/简介/头像，不含隐私） |
 | GET | `/profile/{user_id}` | 无 | 公开用户资料（昵称/角色，不含隐私） |
 
 ---

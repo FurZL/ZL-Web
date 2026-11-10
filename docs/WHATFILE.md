@@ -139,6 +139,19 @@
 | `PageFormDialog.vue` | 动态页面创建/编辑弹窗（slug/标题/JSON Schema 编辑器） |
 | `PageVersionsDialog.vue` | 页面版本历史弹窗（版本列表/回滚） |
 
+#### src/components/gallery/ — 图片展示子组件
+
+| 文件 | 用途 |
+|---|---|
+| `UploadImageDialog.vue` | Gallery 图片上传弹窗（文件选择/预览/描述/标签/预签名直传） |
+
+#### src/components/profile/ — 个人空间子组件
+
+| 文件 | 用途 |
+|---|---|
+| `UploadPrivateDialog.vue` | 私有图片上传弹窗（文件选择/预览/描述/预签名直传） |
+| `EditProfileDialog.vue` | 编辑资料弹窗（昵称/简介） |
+
 #### src/views/ — 页面组件
 
 | 文件 | 用途 |
@@ -213,7 +226,7 @@
 | `health.py` | 健康检查端点（GET /health 纯存活检查 + GET /ready 检查 DB/Redis 连通性） |
 | `auth.py` | 认证端点（POST /auth/register、verify/email、verify/phone、login、refresh、logout、password/forgot、password/reset、GET /me） |
 | `images.py` | 公开图片端点（GET /images 列表、GET /images/{id} 详情、POST upload-intent、upload-complete、DELETE 删除、POST 举报、GET 下载） |
-| `profile.py` | 个人空间端点（GET/PUT /profile/me、GET /me/images、POST upload-intent、upload-complete、GET 签名 URL、DELETE 删除、GET /{user_id} 公开资料） |
+| `profile.py` | 个人空间端点（GET/PUT /profile/me、GET /members、GET /me/images、POST upload-intent、upload-complete、GET 签名 URL、DELETE 删除、GET /{user_id} 公开资料） |
 | `schedule.py` | 课表端点（GET /mine、POST upload-intent、upload-complete、GET /{id}、POST /compare、PATCH /{id}/visibility、GET /shared/{username}、DELETE /{id}） |
 | `pages.py` | 动态页面端点（GET /{slug} 公开读取、/admin CRUD/发布/下线/版本列表/回滚） |
 | `events.py` | 活动端点（列表/详情/报名/取消/签到，含候补、幂等键、容量控制） |
@@ -396,6 +409,6 @@
 
 | 文件 | 用途 |
 |---|---|
-| `API.md` | 全部 74 个 API 接口文档（交接用）：接口清单、认证说明、权限矩阵、前端/后端函数参考、类型定义 |
+| `API.md` | 全部 75 个 API 接口文档（交接用）：接口清单、认证说明、权限矩阵、前端/后端函数参考、类型定义 |
 | `DEPLOYMENT.md` | 部署说明（EdgeOne Pages + 宝塔 2C2G + 本机 PostgreSQL/Redis、关键步骤索引） |
 | `SECURITY.md` | 安全基线（上线前 15 项检查清单、日志脱敏规则、认证方案选择） |

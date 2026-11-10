@@ -217,16 +217,18 @@ border: 1px solid rgba(255, 255, 255, 0.6);
 - **下拉菜单修复**：`backdrop-filter` 层叠上下文问题（`::before` 伪元素 + Teleport body）；菜单圆角统一 `rounded-xl2`；CSS 三角箭头旋转动画；点击外部自动关闭。
 - **上传图片入口**：移除顶栏「上传图片」按钮，Gallery 页面内保留上传入口。
 - **顶栏导航优化**：页面切换按钮改为更紧凑的圆角矩形（`rounded-lg`、13px 字号、`px-3 py-1.5`），选中态加深底色（`bg-primary/40` + `text-primary-900`），按钮间距增大。
-- **`docs/API.md` 扩充为完整交接文档**：合并原 WHATAPI 内容，整理全部 74 个 API 接口（认证/图片/课表/活动/公告/页面/管理后台），含认证说明、权限矩阵、前后端函数参考、类型定义。
+- **`docs/API.md` 扩充为完整交接文档**：合并原 WHATAPI 内容，整理全部 75 个 API 接口（认证/图片/课表/活动/公告/页面/管理后台），含认证说明、权限矩阵、前后端函数参考、类型定义。
 - **修复全部假功能占位（6 处）**：`DELETE /images/{id}` 真实删除（权限校验+派生图清理）、`POST /images/{id}/report` 真实举报（Report 表+防重复）、`POST /auth/password/reset` 真实更新密码+撤销全部会话、`PUT /profile/me` 真实编辑昵称/简介、`PATCH /admin/users/{id}/role` 真实修改角色（防自改+super_admin 授权限制）、`PATCH /admin/users/{id}/status` 真实启用/禁用（防自改+禁用强制下线）。
 - **修复 `await db.delete()` 运行时炸弹（11 处）**：SQLAlchemy 的 `db.delete()` 是同步方法，误加 `await` 会在运行时抛 TypeError；影响 6 个服务文件的全部删除操作（删活动/公告/页面/课表/私有图/图片），之前调用即 500。已全部移除 `await`。
 - **修复 N+1 查询**：`admin_events.py` 活动列表对每个活动逐个查报名统计；改为 `GROUP BY` 批量查询（`_batch_counts`），21 次查询 → 2 次。
 - **新增 `bio`/`avatar_url` 用户字段**：Alembic 迁移 `0addd5ed14cc`，`GET /profile/me` 返回 bio/avatar_url，`PUT /profile/me` 支持字段级更新；前端 Profile 页新增编辑资料弹窗。
 - **移除全部 `alert()`/`confirm()`（21 处）**：改用全局对话框 `useDialog`（`showToast` 轻量提示 + `showConfirm` 确认弹窗），UI 组件 `AppDialog.vue` 挂载于 `App.vue`，风格与全站玻璃拟态统一。
+- **mock 残留清除**：`Gallery.vue` 标签改为从真实图片动态提取；`About.vue` 成员列表走 `GET /profile/members` 公开端点（返回 active 用户昵称/简介，不含隐私）。
 - **提取公共辅助函数**：`api/response.py` 新增 `parse_uuid()` 和 `error_to_http()`，清理 10 个端点文件中的 17 处重复 `_parse_uuid`/`_img_error`/`_handle_error` 定义。
 - **清理函数内导入（19 处）**：`images.py`/`admin_settings.py`/`auth.py` 中的函数体 `import` 全部移至文件顶部。
 - **吞异常改为记日志（6 处）**：`except Exception: pass` 全部改为 `logger.warning(..., exc_info=True)`，删除对象存储文件等"尽力而为"操作不再无声丢失错误。
 - **新增 `admin_list_events` 批量统计**：活动管理列表用 `GROUP BY` 一次性查询报名/候补数，消除 N+1。
+- **大文件拆分（6 个文件）**：`Schedule.vue`（471→187 行 + 3 个子组件）、`AdminEvents.vue`（386→253 行 + 2 个）、`AdminImages.vue`（348→262 行 + 2 个）、`AdminPages.vue`（340→256 行 + 2 个）、`Gallery.vue`（295→180 行 + 1 个）、`Profile.vue`（346→200 行 + 2 个）；子组件归入 `components/schedule/`、`components/admin/`、`components/gallery/`、`components/profile/`。
 
 ## 分层约定
 
