@@ -12,7 +12,6 @@
 | `README.md` | 项目总览：部署边界、目录结构、快速开始、开发进度表 |
 | `AGENTS.md` | 项目架构与实施规范（完整技术约定、数据模型、API 清单、部署方案） |
 | `DESIGN-BRIEF.md` | 页面设计说明书（各页面布局、用户角色、导航规则、色彩语义、移动端要求） |
-| `WHATFILE.md` | 本文件 — 项目全部文件用途索引 |
 | `.env.example` | 环境变量模板（DATABASE_URL、REDIS_URL、COS_*、SECRET_KEY 等占位值，不含真实密钥） |
 | `.gitignore` | 项目根 Git 忽略规则（.env、__pycache__、node_modules、venv 等） |
 | `docker-compose.yml` | 本地开发用 PostgreSQL 16 + Redis 7 容器编排（生产不使用 Docker） |
@@ -54,9 +53,9 @@
 
 | 文件 | 用途 |
 |---|---|
-| `src/main.ts` | Vue 应用入口（创建 app、安装 Pinia / Router、导入全局样式） |
-| `src/App.vue` | 根组件（AppHeader + RouterView + AppFooter 布局结构） |
-| `src/assets/main.css` | 全局样式（Tailwind 导入、CSS 变量、玻璃拟态 glass-card、btn-primary/btn-ghost、input/label 等基础类） |
+| `main.ts` | Vue 应用入口（创建 app、安装 Pinia / Router、导入全局样式） |
+| `App.vue` | 根组件（AppHeader + RouterView + AppFooter + AppDialog 布局结构） |
+| `assets/main.css` | 全局样式（Tailwind 导入、CSS 变量、glass-card、btn-primary/btn-ghost、dialog-overlay、spinner、tag-badge、input/label 等基础类） |
 
 #### src/api/ — API 请求层
 
@@ -76,7 +75,7 @@
 
 | 文件 | 用途 |
 |---|---|
-| `index.ts` | 全部 TypeScript 接口（ApiResponse、User、GalleryImage、ScheduleSlot/ScheduleRecord、PublicConfig/FooterConfig、AnnouncementRecord、EventRecord/EventRegistration、PageRecord/PageVersion 等） |
+| `index.ts` | 全部 TypeScript 接口（ApiResponse、User、GalleryImage、ScheduleSlot/ScheduleRecord、PublicConfig/FooterConfig、AnnouncementRecord、EventRecord/EventRegistration、PageRecord/PageVersion、AdminImageStats、MemberProfile 等） |
 
 #### src/stores/ — Pinia 状态管理
 
@@ -411,5 +410,6 @@
 | 文件 | 用途 |
 |---|---|
 | `API.md` | 全部 75 个 API 接口文档（交接用）：接口清单、认证说明、权限矩阵、前端/后端函数参考、类型定义 |
+| `WHATFILE.md` | 本文件 — 项目全部文件用途索引 |
 | `DEPLOYMENT.md` | 部署说明（EdgeOne Pages + 宝塔 2C2G + 本机 PostgreSQL/Redis、关键步骤索引） |
 | `SECURITY.md` | 安全基线（上线前 15 项检查清单、日志脱敏规则、认证方案选择） |

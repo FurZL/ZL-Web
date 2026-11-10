@@ -19,7 +19,9 @@ furry-zjut/
 ├── frontend/      # Vue 3 SPA
 ├── backend/       # FastAPI 模块化单体
 ├── deploy/        # Nginx / EdgeOne / 脚本 / systemd 配置模板
-├── docs/          # API、安全、部署文档
+├── docs/          # API、文件索引、安全、部署文档
+├── AGENTS.md      # 项目架构与实施规范
+├── DESIGN-BRIEF.md # 页面设计说明书
 ├── .env.example
 ├── docker-compose.yml   # 仅本地开发
 └── README.md
@@ -81,9 +83,9 @@ npm run dev
 ### 前端页面设计（已完成）
 
 - 视觉体系：清爽紫罗兰（主色 `#6B5CE7`）+ 玻璃拟态卡片（详见 `DESIGN-BRIEF.md`）。
-- 核心页面：首页 / 图片展示（瀑布流+详情+上传弹窗）/ 课表工具 / 个人空间（自己/他人视角）/ 登录 / 注册（含摄影师申请）/ 等待审批 / 找回密码 / 社团介绍 / 404。
+- 核心页面：首页 / 图片展示（瀑布流+详情+上传弹窗）/ 活动列表（报名/签到/候补）/ 课表 / 个人空间（自己/他人视角）/ 登录 / 注册（含摄影师申请）/ 等待审批 / 找回密码 / 社团介绍 / 动态页面（`/p/:slug`）/ 404。
 - 管理后台界面：侧边栏布局 + 用户审批 + 仪表盘 + 公告管理 + 网站设置 + 活动管理 + 页面管理 + 图片管理（均已接真实接口）。
-- 公共组件：`ImageLightbox`（图片详情弹窗，Gallery 与私有相册共用）、`UserAvatar`、`ImagePlaceholder`。
+- 公共组件：`ImageLightbox`（图片详情弹窗，Gallery 与私有相册共用）、`UserAvatar`、`ImagePlaceholder`、`AppDialog`（全局 Toast/Confirm 对话框）。
 - 导航栏按角色动态变化；窄屏横滑可见全部入口；logo 为「FUR」。
 - 顶栏下拉菜单：`Teleport to body` + `fixed` 定位，CSS 三角箭头旋转动画，点击外部自动关闭。
 - 首页 Hero：流动渐变背景（12s 往返动画）+ 双按钮（已登录隐藏「加入我们」）。
@@ -138,6 +140,17 @@ class="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:b
 
 > 操作类控件**不使用半透明底色**，始终为实色块，确保用户能清晰区分"选择"和"执行"。
 
+#### 3. 玻璃模糊（容器级背景）
+
+卡片、弹窗、页脚、遮罩等**容器级**元素使用模糊背景，营造深度层次：
+
+```css
+background: rgba(255, 255, 255, 0.7);
+backdrop-filter: blur(24px);
+-webkit-backdrop-filter: blur(24px);
+border: 1px solid rgba(255, 255, 255, 0.6);
+```
+
 #### 4. 全局对话框（Toast / Confirm）
 
 替代原生 `alert()` / `confirm()`，全站统一使用 `useDialog` 组合式函数：
@@ -186,17 +199,6 @@ UI 组件在 `components/AppDialog.vue`，挂载在 `App.vue` 根部，无需每
 > **规则**：弹窗遮罩 → `.dialog-overlay`；加载动画 → `.spinner`；操作按钮 → `.btn-sm*` / `.btn-xs*`；标签 → `.tag-badge*`；状态色 → `statusStyles.ts`。新增 UI 先检查是否已有对应类，避免重复拼写。
 
 
-#### 3. 玻璃模糊（容器级背景）
-
-卡片、弹窗、页脚、遮罩等**容器级**元素使用模糊背景，营造深度层次：
-
-```css
-background: rgba(255, 255, 255, 0.7);
-backdrop-filter: blur(24px);
--webkit-backdrop-filter: blur(24px);
-border: 1px solid rgba(255, 255, 255, 0.6);
-```
-
 #### 注意事项
 
 - `.topbar` 的模糊背景由 `::before` 伪元素承担（`z-index: -1`），避免 `backdrop-filter` 在导航栏本体创建层叠上下文导致下拉菜单被遮挡。
@@ -218,7 +220,7 @@ border: 1px solid rgba(255, 255, 255, 0.6);
 - 对象存储：腾讯云 COS 单桶（ap-shanghai，`public/`/`private/` 前缀隔离），CORS + public 读策略已配置，预签名上传/下载全链路实测通过。
 - 认证：注册（邮箱/手机 OTP）→ 待审批 → 管理员审批 → 登录/刷新令牌轮换，完整闭环已打通。
 - 图片处理：后台 worker 生成缩略图（800px）/展示图（2000px）WebP，含防解压炸弹。
-- API：全部业务端点已注册，OpenAPI 可生成（含管理后台 `/admin/users/*`）。
+- API：全部业务端点已注册（75 个路径 / 88 个方法端点），OpenAPI 可生成（含管理后台 `/admin/*`）。
 - 测试：`pytest` 23 个用例通过（认证/权限/课表解析与对比/图片处理）。
 - 管理后台：用户审批、仪表盘、公告管理、网站设置、活动管理、页面管理、图片管理已接真实接口。
 

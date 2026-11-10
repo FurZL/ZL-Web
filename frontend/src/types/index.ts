@@ -99,14 +99,6 @@ export interface ProfileImage {
   thumb_url: string | null
 }
 
-export interface Announcement {
-  id: string
-  title: string
-  summary: string
-  date: string
-  pinned: boolean
-}
-
 export interface CourseSlot {
   name: string
   location: string

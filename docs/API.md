@@ -591,11 +591,15 @@
 | `ScheduleRecord` | 课表记录 |
 | `ScheduleUploadIntent` | 课表上传凭证 |
 | `ScheduleCompareResult` | 课表对比结果 |
+| `CompareFreeSlot` | 对比结果空闲时段 |
+| `CompareConflict` | 对比结果冲突记录 |
 | `PublicConfig` | 站点公开配置 |
 | `FooterConfig` | 页脚配置 |
+| `FooterLink` | 页脚链接 |
 | `LegalConfig` | 法律信息 |
 | `ClubIntro` | 社团介绍 |
 | `AnnouncementRecord` | 公告 |
+| `MemberProfile` | 公开成员信息 |
 | `SiteSettingRecord` | 网站设置 |
 | `EventRecord` | 活动（含报名统计/我的状态） |
 | `EventRegistration` | 活动报名记录 |
