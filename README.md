@@ -157,6 +157,34 @@ if (await showConfirm('确定删除吗？')) { ... }    // 确认弹窗，返回
 
 UI 组件在 `components/AppDialog.vue`，挂载在 `App.vue` 根部，无需每个页面单独引入。
 
+#### 5. 复用样式类（`main.css` 通用组件类）
+
+全站高频 UI 模式统一定义为 `@layer components` 类，**禁止在 `.vue` 中重复拼写内联 class**：
+
+| 类名 | 用途 | 样式摘要 |
+|---|---|---|
+| `.glass-card` | 玻璃拟态卡片/弹窗容器 | `bg-white/70 backdrop-blur-xl border-white/60 rounded-xl2` |
+| `.dialog-overlay` | 弹窗半透明遮罩 | `fixed inset-0 z-50 bg-black/40`，配合 `flex items-center justify-center p-4` |
+| `.spinner` | 加载中旋转指示 | `border-primary-200 border-t-primary rounded-full animate-spin` |
+| `.btn-primary` / `.btn-ghost` | 主/次操作按钮（实色块） | 见「操作类控件」 |
+| `.btn-sm` / `.btn-sm-danger` / `.btn-sm-primary` / `.btn-sm-success` / `.btn-sm-warning` | 小操作按钮（`text-xs`） | `rounded-lg border` + 语义色 |
+| `.btn-xs` / `.btn-xs-danger` / `.btn-xs-success` / `.btn-xs-warning` | 超小操作按钮（`text-[11px]`） | 同上，更紧凑 |
+| `.tag-badge` / `.tag-badge-sm` / `.tag-badge-lg` | 标签徽章（3 种尺寸） | `text-primary-700 bg-primary-50 rounded-full` |
+| `.status-badge` | 状态徽章外框 | `text-xs font-medium rounded-full px-2.5 py-0.5`，配色由 `statusStyles.ts` 决定 |
+| `.input` / `.label` | 表单输入/标签 | 统一焦点态与间距 |
+
+**状态徽章配色**统一定义在 `utils/statusStyles.ts`，各组件直接 `import`：
+
+| 常量 | 用途 | 示例 |
+|---|---|---|
+| `MODERATION_STATUS` | 图片审核状态 | pending / approved / rejected |
+| `EVENT_STATUS` | 活动状态 | draft / published / cancelled |
+| `PAGE_STATUS` | 页面状态 | draft / published / archived |
+| `REG_STATUS` | 报名状态 | registered / waitlisted / cancelled / checked_in |
+| `ANNOUNCEMENT_STATUS` | 公告状态 | draft / published / expired |
+
+> **规则**：弹窗遮罩 → `.dialog-overlay`；加载动画 → `.spinner`；操作按钮 → `.btn-sm*` / `.btn-xs*`；标签 → `.tag-badge*`；状态色 → `statusStyles.ts`。新增 UI 先检查是否已有对应类，避免重复拼写。
+
 
 #### 3. 玻璃模糊（容器级背景）
 
@@ -229,6 +257,7 @@ border: 1px solid rgba(255, 255, 255, 0.6);
 - **吞异常改为记日志（6 处）**：`except Exception: pass` 全部改为 `logger.warning(..., exc_info=True)`，删除对象存储文件等"尽力而为"操作不再无声丢失错误。
 - **新增 `admin_list_events` 批量统计**：活动管理列表用 `GROUP BY` 一次性查询报名/候补数，消除 N+1。
 - **大文件拆分（6 个文件）**：`Schedule.vue`（471→187 行 + 3 个子组件）、`AdminEvents.vue`（386→253 行 + 2 个）、`AdminImages.vue`（348→262 行 + 2 个）、`AdminPages.vue`（340→256 行 + 2 个）、`Gallery.vue`（295→180 行 + 1 个）、`Profile.vue`（346→200 行 + 2 个）；子组件归入 `components/schedule/`、`components/admin/`、`components/gallery/`、`components/profile/`。
+- **重复样式去重（70+ 处）**：弹窗遮罩 → `.dialog-overlay`（7 处）、加载 spinner → `.spinner`（8 处）、状态徽章配色 → `utils/statusStyles.ts` 共享常量（30+ 处）、标签徽章 → `.tag-badge*`（8 处）、小操作按钮 → `.btn-sm*`/`.btn-xs*`（16 处）；统一视觉规范已补入 README「复用样式类」章节。
 
 ## 分层约定
 

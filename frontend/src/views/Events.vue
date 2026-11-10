@@ -136,7 +136,7 @@ const tabs = [
     <div v-if="error" class="mt-4 text-sm text-red-600 bg-red-50 rounded-lg px-4 py-2">{{ error }}</div>
 
     <div v-if="loading" class="mt-10 glass-card p-12 text-center">
-      <div class="w-8 h-8 border-4 border-primary-200 border-t-primary rounded-full animate-spin mx-auto"></div>
+      <div class="spinner"></div>
       <p class="mt-3 text-sm text-sub">加载中…</p>
     </div>
 

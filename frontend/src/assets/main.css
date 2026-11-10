@@ -52,6 +52,61 @@
     @apply block text-sm font-medium text-sub mb-1.5;
   }
 
+  /* 弹窗遮罩 */
+  .dialog-overlay {
+    @apply fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4;
+  }
+
+  /* 加载 spinner */
+  .spinner {
+    @apply w-8 h-8 border-4 border-primary-200 border-t-primary rounded-full animate-spin mx-auto;
+  }
+
+  /* 小操作按钮 */
+  .btn-sm {
+    @apply text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-faint hover:border-primary-200 transition;
+  }
+  .btn-sm-danger {
+    @apply text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-red-500 hover:border-red-300 transition;
+  }
+  .btn-sm-primary {
+    @apply text-xs px-3 py-1.5 rounded-lg border border-primary-200 text-primary-700 hover:bg-primary-50 transition;
+  }
+  .btn-sm-success {
+    @apply text-xs px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition;
+  }
+  .btn-sm-warning {
+    @apply text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition;
+  }
+  .btn-xs {
+    @apply text-[11px] px-2.5 py-1 rounded-lg border border-gray-200 text-faint hover:border-primary-200 transition;
+  }
+  .btn-xs-danger {
+    @apply text-[11px] px-2.5 py-1 rounded-lg border border-gray-200 text-red-500 hover:border-red-300 transition;
+  }
+  .btn-xs-success {
+    @apply text-[11px] px-2.5 py-1 rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition;
+  }
+  .btn-xs-warning {
+    @apply text-[11px] px-2.5 py-1 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition;
+  }
+
+  /* 标签 badge */
+  .tag-badge {
+    @apply text-xs text-primary-700 bg-primary-50 rounded-full px-2 py-0.5;
+  }
+  .tag-badge-sm {
+    @apply text-[10px] text-primary-700 bg-primary-50 rounded-full px-1.5 py-0.5;
+  }
+  .tag-badge-lg {
+    @apply text-xs text-primary-700 bg-primary-50 rounded-full px-3 py-1;
+  }
+
+  /* 状态 badge（配色由 statusStyles.ts 控制） */
+  .status-badge {
+    @apply text-xs font-medium rounded-full px-2.5 py-0.5;
+  }
+
   /* 玻璃导航栏 — 用伪元素做模糊，避免 backdrop-filter 创建层叠上下文 */
   .topbar {
     @apply sticky top-0 z-40 border-b border-white/60;

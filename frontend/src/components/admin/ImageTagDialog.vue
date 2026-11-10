@@ -12,7 +12,7 @@ const tagInput = defineModel<string>('tagInput', { required: true })
 
 <template>
   <Teleport to="body">
-    <div v-if="image" class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" @click.self="emit('close')">
+    <div v-if="image" class="dialog-overlay" @click.self="emit('close')">
       <div class="glass-card p-6 w-full max-w-md">
         <h2 class="text-lg font-bold text-ink">编辑标签</h2>
         <p class="mt-1 text-xs text-faint">{{ image.description || image.title }}</p>

@@ -13,6 +13,7 @@ import {
 import PageFormDialog from '@/components/admin/PageFormDialog.vue'
 import PageVersionsDialog from '@/components/admin/PageVersionsDialog.vue'
 import type { PageRecord, PageVersion } from '@/types'
+import { PAGE_STATUS } from '@/utils/statusStyles'
 import { useDialog } from '@/composables/useDialog'
 
 const { showConfirm } = useDialog()
@@ -40,11 +41,7 @@ const versions = ref<PageVersion[]>([])
 const versionsLoading = ref(false)
 const actingId = ref<string | null>(null)
 
-const statusMap: Record<string, { text: string; cls: string }> = {
-  draft: { text: '草稿', cls: 'bg-gray-100 text-gray-600' },
-  published: { text: '已发布', cls: 'bg-emerald-100 text-emerald-700' },
-  archived: { text: '已归档', cls: 'bg-amber-100 text-amber-700' },
-}
+const statusMap = PAGE_STATUS
 
 async function load() {
   loading.value = true
@@ -211,7 +208,7 @@ function fmtDate(iso: string | null) {
     <div v-if="error && !showForm && !showVersions" class="mt-4 text-sm text-red-600 bg-red-50 rounded-lg px-4 py-2">{{ error }}</div>
 
     <div v-if="loading" class="mt-8 glass-card p-12 text-center">
-      <div class="w-8 h-8 border-4 border-primary-200 border-t-primary rounded-full animate-spin mx-auto"></div>
+      <div class="spinner"></div>
       <p class="mt-3 text-sm text-sub">加载中…</p>
     </div>
 
@@ -237,11 +234,11 @@ function fmtDate(iso: string | null) {
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0 flex-wrap">
-          <a :href="`/p/${p.slug}`" target="_blank" class="text-xs px-3 py-1.5 rounded-lg border border-primary-200 text-primary-700 hover:bg-primary-50 transition">
+          <a :href="`/p/${p.slug}`" target="_blank" class="btn-sm-primary">
             预览
           </a>
-          <button class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-faint hover:border-primary-200 transition" @click="openEdit(p)">编辑</button>
-          <button class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-faint hover:border-primary-200 transition" @click="openVersions(p)">版本</button>
+          <button class="btn-sm" @click="openEdit(p)">编辑</button>
+          <button class="btn-sm" @click="openVersions(p)">版本</button>
           <button
             class="text-xs px-3 py-1.5 rounded-lg border transition"
             :class="p.status === 'published' ? 'border-amber-200 text-amber-600 hover:bg-amber-50' : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'"
@@ -250,7 +247,7 @@ function fmtDate(iso: string | null) {
           >
             {{ p.status === 'published' ? '下线' : '发布' }}
           </button>
-          <button class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-red-500 hover:border-red-300 transition" @click="remove(p)">删除</button>
+          <button class="btn-sm-danger" @click="remove(p)">删除</button>
         </div>
       </div>
     </div>

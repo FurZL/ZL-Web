@@ -12,6 +12,7 @@ import {
 import EventFormDialog from '@/components/admin/EventFormDialog.vue'
 import EventRegistrationsDialog from '@/components/admin/EventRegistrationsDialog.vue'
 import type { EventRecord, EventRegistration } from '@/types'
+import { EVENT_STATUS } from '@/utils/statusStyles'
 import { useDialog } from '@/composables/useDialog'
 
 const { showConfirm } = useDialog()
@@ -179,11 +180,7 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-const eventStatus: Record<string, { text: string; cls: string }> = {
-  draft: { text: '草稿', cls: 'bg-gray-100 text-gray-600' },
-  published: { text: '已发布', cls: 'bg-emerald-100 text-emerald-700' },
-  cancelled: { text: '已取消', cls: 'bg-red-100 text-red-600' },
-}
+const eventStatus = EVENT_STATUS
 
 const sortedEvents = computed(() =>
   [...events.value].sort((a, b) => (b.starts_at ?? '').localeCompare(a.starts_at ?? '')),
@@ -205,7 +202,7 @@ const sortedEvents = computed(() =>
     </div>
 
     <div v-if="loading" class="mt-8 glass-card p-12 text-center">
-      <div class="w-8 h-8 border-4 border-primary-200 border-t-primary rounded-full animate-spin mx-auto"></div>
+      <div class="spinner"></div>
       <p class="mt-3 text-sm text-sub">加载中…</p>
     </div>
 
@@ -232,8 +229,8 @@ const sortedEvents = computed(() =>
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0 flex-wrap">
-          <button class="text-xs px-3 py-1.5 rounded-lg border border-primary-200 text-primary-700 hover:bg-primary-50 transition" @click="openDetail(e)">报名/签到</button>
-          <button class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-faint hover:border-primary-200 transition" @click="openEdit(e)">编辑</button>
+          <button class="btn-sm-primary" @click="openDetail(e)">报名/签到</button>
+          <button class="btn-sm" @click="openEdit(e)">编辑</button>
           <button
             class="text-xs px-3 py-1.5 rounded-lg border transition"
             :class="e.status === 'published' ? 'border-amber-200 text-amber-600 hover:bg-amber-50' : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'"
@@ -243,12 +240,12 @@ const sortedEvents = computed(() =>
           </button>
           <button
             v-if="e.status !== 'cancelled'"
-            class="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition"
+            class="btn-sm-warning"
             @click="cancelEvent(e)"
           >
             取消
           </button>
-          <button class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-red-500 hover:border-red-300 transition" @click="removeEvent(e)">删除</button>
+          <button class="btn-sm-danger" @click="removeEvent(e)">删除</button>
         </div>
       </div>
     </div>

@@ -105,7 +105,7 @@ function countdownText(target: Date): string {
   <div class="max-w-4xl mx-auto px-4 py-10">
     <!-- 加载 -->
     <div v-if="loading" class="glass-card p-12 text-center">
-      <div class="w-8 h-8 border-4 border-primary-200 border-t-primary rounded-full animate-spin mx-auto"></div>
+      <div class="spinner"></div>
       <p class="mt-3 text-sm text-sub">加载中…</p>
     </div>
 

@@ -23,7 +23,7 @@ const form = defineModel<{
 
 <template>
   <Teleport to="body">
-    <div v-if="show" class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" @click.self="emit('close')">
+    <div v-if="show" class="dialog-overlay" @click.self="emit('close')">
       <div class="glass-card p-6 w-full max-w-lg max-h-[85vh] overflow-auto">
         <h2 class="text-lg font-bold text-ink">{{ editing ? '编辑活动' : '新建活动' }}</h2>
         <div v-if="error" class="mt-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{{ error }}</div>

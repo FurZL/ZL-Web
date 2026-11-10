@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { EventRecord, EventRegistration } from '@/types'
+import { REG_STATUS } from '@/utils/statusStyles'
+
+const regStatus = REG_STATUS
 
 const props = defineProps<{
   show: boolean
@@ -11,13 +14,6 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ close: []; checkin: [reg: EventRegistration] }>()
-
-const regStatus: Record<string, { text: string; cls: string }> = {
-  registered: { text: '已报名', cls: 'bg-emerald-100 text-emerald-700' },
-  waitlisted: { text: '候补', cls: 'bg-amber-100 text-amber-700' },
-  cancelled: { text: '已取消', cls: 'bg-gray-100 text-gray-500' },
-  checked_in: { text: '已签到', cls: 'bg-primary-100 text-primary-700' },
-}
 
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
@@ -34,7 +30,7 @@ const registeredList = computed(() => props.registrations.filter((r) => r.status
 
 <template>
   <Teleport to="body">
-    <div v-if="show" class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" @click.self="emit('close')">
+    <div v-if="show" class="dialog-overlay" @click.self="emit('close')">
       <div class="glass-card p-6 w-full max-w-xl max-h-[85vh] overflow-auto">
         <div class="flex items-center justify-between">
           <h2 class="text-lg font-bold text-ink">{{ event?.title }} — 报名管理</h2>
@@ -42,7 +38,7 @@ const registeredList = computed(() => props.registrations.filter((r) => r.status
         </div>
 
         <div v-if="loading" class="mt-6 text-center py-8">
-          <div class="w-8 h-8 border-4 border-primary-200 border-t-primary rounded-full animate-spin mx-auto"></div>
+          <div class="spinner"></div>
           <p class="mt-3 text-sm text-sub">加载中…</p>
         </div>
 
@@ -80,7 +76,7 @@ const registeredList = computed(() => props.registrations.filter((r) => r.status
               </span>
               <button
                 v-if="r.status === 'registered'"
-                class="text-xs px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition"
+                class="btn-sm-success"
                 :disabled="actingId === r.id"
                 @click="emit('checkin', r)"
               >

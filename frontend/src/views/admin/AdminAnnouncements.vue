@@ -7,6 +7,7 @@ import {
   updateAnnouncement,
 } from '@/api/site'
 import type { AnnouncementRecord } from '@/types'
+import { ANNOUNCEMENT_STATUS } from '@/utils/statusStyles'
 import { useDialog } from '@/composables/useDialog'
 
 const { showConfirm } = useDialog()
@@ -123,11 +124,7 @@ async function remove(a: AnnouncementRecord) {
   }
 }
 
-const statusLabel: Record<string, { text: string; cls: string }> = {
-  draft: { text: '草稿', cls: 'bg-gray-100 text-gray-600' },
-  published: { text: '已发布', cls: 'bg-emerald-100 text-emerald-700' },
-  expired: { text: '已过期', cls: 'bg-amber-100 text-amber-700' },
-}
+const statusLabel = ANNOUNCEMENT_STATUS
 
 function fmtDate(iso: string | null) {
   return iso ? iso.slice(0, 10) : '—'
@@ -155,7 +152,7 @@ const sortedAnnouncements = computed(() =>
 
     <!-- 公告列表 -->
     <div v-if="loading" class="mt-8 glass-card p-12 text-center">
-      <div class="w-8 h-8 border-4 border-primary-200 border-t-primary rounded-full animate-spin mx-auto"></div>
+      <div class="spinner"></div>
       <p class="mt-3 text-sm text-sub">加载中…</p>
     </div>
 
@@ -205,10 +202,10 @@ const sortedAnnouncements = computed(() =>
           >
             {{ a.status === 'published' ? '撤回' : '发布' }}
           </button>
-          <button class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-faint hover:border-primary-200 transition" @click="openEdit(a)">
+          <button class="btn-sm" @click="openEdit(a)">
             编辑
           </button>
-          <button class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-red-500 hover:border-red-300 transition" @click="remove(a)">
+          <button class="btn-sm-danger" @click="remove(a)">
             删除
           </button>
         </div>
@@ -216,7 +213,7 @@ const sortedAnnouncements = computed(() =>
     </div>
 
     <!-- 新建/编辑弹窗 -->
-    <div v-if="showForm" class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" @click.self="closeForm">
+    <div v-if="showForm" class="dialog-overlay" @click.self="closeForm">
       <div class="glass-card p-6 w-full max-w-lg max-h-[80vh] overflow-auto">
         <h2 class="text-lg font-bold text-ink">{{ editingId ? '编辑公告' : '新建公告' }}</h2>
         <div v-if="error && showForm" class="mt-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{{ error }}</div>

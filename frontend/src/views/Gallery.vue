@@ -130,7 +130,7 @@ onMounted(loadImages)
             <span class="text-sm text-ink truncate flex-1">{{ img.description || img.title }}</span>
           </div>
           <div v-if="img.tags && img.tags.length" class="mt-1.5 flex flex-wrap gap-1.5">
-            <span v-for="t in img.tags.slice(0, 3)" :key="t" class="text-xs text-primary-700 bg-primary-50 rounded-full px-2 py-0.5">{{ t }}</span>
+            <span v-for="t in img.tags.slice(0, 3)" :key="t" class="tag-badge">{{ t }}</span>
           </div>
         </div>
       </div>
@@ -153,7 +153,7 @@ onMounted(loadImages)
           </div>
         </div>
         <div class="mt-4 flex flex-wrap gap-2">
-          <span v-for="t in selected?.tags ?? []" :key="t" class="text-xs text-primary-700 bg-primary-50 rounded-full px-3 py-1">{{ t }}</span>
+          <span v-for="t in selected?.tags ?? []" :key="t" class="tag-badge-lg">{{ t }}</span>
         </div>
       </template>
       <template #actions>

@@ -12,6 +12,7 @@ import {
   adminSetImageVisibility,
 } from '@/api/adminImages'
 import type { AdminImageStats, GalleryImage } from '@/types'
+import { MODERATION_STATUS } from '@/utils/statusStyles'
 import { useDialog } from '@/composables/useDialog'
 
 const { showConfirm } = useDialog()
@@ -152,11 +153,7 @@ function fmtDate(iso: string | null) {
   return iso ? new Date(iso).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
 }
 
-const statusMap: Record<string, { text: string; cls: string }> = {
-  pending: { text: '待审核', cls: 'bg-amber-100 text-amber-700' },
-  approved: { text: '已通过', cls: 'bg-emerald-100 text-emerald-700' },
-  rejected: { text: '已拒绝', cls: 'bg-red-100 text-red-600' },
-}
+const statusMap = MODERATION_STATUS
 </script>
 
 <template>
@@ -218,7 +215,7 @@ const statusMap: Record<string, { text: string; cls: string }> = {
 
     <!-- 图片网格 -->
     <div v-if="loading" class="mt-8 glass-card p-12 text-center">
-      <div class="w-8 h-8 border-4 border-primary-200 border-t-primary rounded-full animate-spin mx-auto"></div>
+      <div class="spinner"></div>
       <p class="mt-3 text-sm text-sub">加载中…</p>
     </div>
 
@@ -284,7 +281,7 @@ const statusMap: Record<string, { text: string; cls: string }> = {
           </div>
         </div>
         <div class="mt-3 flex flex-wrap gap-1.5">
-          <span v-for="t in selected?.tags ?? []" :key="t" class="text-xs text-primary-700 bg-primary-50 rounded-full px-2 py-0.5">{{ t }}</span>
+          <span v-for="t in selected?.tags ?? []" :key="t" class="tag-badge">{{ t }}</span>
         </div>
       </template>
     </ImageLightbox>

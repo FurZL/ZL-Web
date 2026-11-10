@@ -101,7 +101,8 @@
 
 | 文件 | 用途 |
 |---|---|
-| `index.ts` | 工具函数统一导出入口（当前为空，预留工具函数挂载点） |
+| `index.ts` | 工具函数统一导出入口（预留） |
+| `statusStyles.ts` | 全站状态徽章配色共享常量（MODERATION/EVENT/PAGE/REG/ANNOUNCEMENT_STATUS），替代各组件重复 statusMap 定义 |
 
 #### src/layouts/ — 布局组件
 
