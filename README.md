@@ -44,6 +44,7 @@ python -m venv venv
 pip install -e ".[dev]"
 cp ../.env.example .env            # 按需修改 DATABASE_URL / REDIS_URL / COS_*
 alembic upgrade head
+python scripts/create_admin.py admin admin123456 --reset-password
 python run.py                       # Windows 下必须用 run.py（避免 psycopg 事件循环问题）
 # 热重载：python run.py --reload
 # 生产 Linux 可直接用：uvicorn app.main:app --host 127.0.0.1 --port 8000
@@ -209,7 +210,7 @@ UI 组件在 `components/AppDialog.vue`，挂载在 `App.vue` 根部，无需每
 
 ### 本地联调速查
 
-- 测试账号：管理员 `admin` / `admin123456`（由 `backend/scripts/create_admin.py` 创建）。
+- 本地初始化管理员：`python scripts/create_admin.py admin admin123456 --reset-password`。账号已存在时，只有显式追加 `--reset-password` 才会重置密码；生产环境请改用随机强密码。
 - OTP 开发模式：`.env` 中 `OTP_DEV_MODE=true` 时，验证码直接返回在响应的 `dev_code` 字段（不发真实邮件/短信）。
 - COS 桶配置脚本：`backend/scripts/setup_cos_cors.py`（CORS）、`setup_cos_public_read.py`（public/ 前缀公有读），换桶后需重跑。
 - 本地开发端口：前端 Vite `5173`（strictPort），后端 uvicorn `8000`；注意 5273 等端口可能被 MiMo 主进程占用。
