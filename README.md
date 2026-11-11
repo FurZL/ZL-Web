@@ -66,7 +66,7 @@ npm run dev
 
 ## 开发进度
 
-按架构文档「十七、开发实施顺序」分阶段推进。当前状态：**阶段 1–7 全部完成（认证、图片、个人空间、课表、运营内容、活动系统、动态页面全链路已打通）**。
+按架构文档「十七、开发实施顺序」分阶段推进。当前状态：**阶段 1–7 全部完成（认证、图片、个人空间、课表、运营内容、活动系统、动态页面全链路已打通）**。管理员初始化脚本已支持幂等执行、账号激活和显式密码重置。
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
@@ -225,11 +225,13 @@ UI 组件在 `components/AppDialog.vue`，挂载在 `App.vue` 根部，无需每
 - API：全部业务端点已注册（75 个路径 / 88 个方法端点），OpenAPI 可生成（含管理后台 `/admin/*`）。
 - 测试：`pytest` 23 个用例通过（认证/权限/课表解析与对比/图片处理）。
 - 管理后台：用户审批、仪表盘、公告管理、网站设置、活动管理、页面管理、图片管理已接真实接口。
+- 管理员初始化：`backend/scripts/create_admin.py` 已合并到 `main`；账号已存在时默认不覆盖密码，使用 `--reset-password` 才会显式重置，并自动确保管理员角色和启用状态。
 
 > 图例：✅ 完成　🟡 部分完成　⬜ 未开始
 
 ## 变更记录
 
+- **修复管理员初始化流程**：`create_admin.py` 现在支持幂等初始化；已存在账号会自动恢复 `admin` 角色、`active` 状态和 `is_active=true`，只有显式传入 `--reset-password` 才会覆盖密码。修复了账号已存在但密码不正确时脚本直接跳过、导致 `admin` 无法登录的问题。
 - **新增站点 favicon 全套资源**：由蓝绿 M 形 logo 生成并放入 `frontend/public/`——`favicon.ico`（16–64 多尺寸）、`favicon-32x32.png`、`favicon.png`、`apple-touch-icon.png`（180）、`icon-192.png` / `icon-512.png`、`site.webmanifest`（主题色 `#6B5CE7`）；`index.html` 补充 `rel="icon"` / `apple-touch-icon` / `manifest` 引用。原 `/favicon.ico` 仅有链接、文件缺失，现已补齐。
 - **顶栏 / 页脚 / 登录页品牌位换 M 形 logo**：`AppHeader.vue`、`AppFooter.vue`、`Login.vue` 原「FUR」渐变字标改为 `<img>` 引用 `/logo-m-96.png`（顶栏/页脚）或 `/logo-m.png`（登录页 72px）；配套源图 `logo-m.png`（512）。
 - **移除 `PUBLIC_API_BASE_URL`**：该环境变量从未被后端或前端代码消费（前端实际使用 `VITE_API_BASE_URL`），属于死配置，已从 `config.py`、`.env.example`、`backend/.env` 中删除。将来如需拼接对外 API 链接（如邮件中的跳转链接），再按实际需求引入。

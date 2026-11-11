@@ -367,7 +367,7 @@
 
 | 文件 | 用途 |
 |---|---|
-| `create_admin.py` | 创建管理员账号脚本（默认 admin / admin123456） |
+| `create_admin.py` | 管理员初始化脚本：账号不存在时创建；账号已存在时确保 `admin` 角色、`active` 状态和 `is_active=true`；仅传入 `--reset-password` 时重置密码 |
 | `cos_smoke_test.py` | COS 连通性冒烟测试（验证 SecretId/SecretKey/Bucket 配置正确） |
 | `setup_cos_cors.py` | 配置 COS 桶 CORS 规则（允许前端直传 PUT/POST，前端上传必需） |
 | `setup_cos_public_read.py` | 配置 COS public/ 前缀公有读策略（公开图片可匿名访问） |
