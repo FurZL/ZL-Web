@@ -75,11 +75,31 @@ npm run dev
 | 3 对象存储 | 预签名直传 + 公开读 + 图片处理（缩略图/展示图） | ✅ 完成 |
 | 4 核心业务 | Gallery 公开相册 | ✅ 完成 |
 | 4 核心业务 | 个人空间私有相册 | ✅ 完成 |
+| 4 扩展功能 | 个人主页模块编辑器 / 布局草稿 / 图片展示授权 | 🟡 前端与 3 个后端端点已完成，其余接口待接通 |
 | 4 核心业务 | 课表解析（ICS/TXT）+ 对比 + 分享 | ✅ 完成（PDF 占位） |
 | 5 运营内容 | 社团介绍 / 公告 / 网站设置 / 页脚 | ✅ 完成 |
 | 6 活动系统 | 活动 / 报名 / 候补 / 签到 | ✅ 完成 |
 | 7 动态页面 | Schema 编辑器 / 发布 / 回滚 | ✅ 完成 |
 | 8 上线加固 | WAF / 备份 / 压测 / 安全检查 | ⬜ 未开始 |
+
+### 本分支进度：个人主页客制化（2026-11-13）
+
+- 新增 `/profile/me/edit` 编辑器：8 种模块、12 栅格布局、拖拽/按钮排序、复制/删除、撤销/重做、主题预设和预览。自定义 HTML 点击后在 `sandbox="allow-scripts"` 的 iframe 中运行，配套 CSP 限制资源加载。
+- 后端已实现 `GET/PUT /api/v1/profile/me/layout` 与 `PATCH /api/v1/profile/me/images/{image_id}`：布局草稿持久化、白名单校验、图片归属与展示授权校验、短时签名 URL。默认最多 16 个模块，可通过 `PROFILE_LAYOUT_MAX_BLOCKS` 调整。
+- 数据库新增 `profile_layouts` 表和 `profile_images.is_displayable`（默认 `false`），迁移为 `4f8a2c7d91b3`。拉取本分支后先在后端执行 `alembic upgrade head`。
+- 前端已预留发布、丢弃草稿、主题保存、素材清单和访客主页的调用；这 5 个后端接口尚未实现，当前只在开发 mock 中可演示。完整路径及状态见 [API 文档](docs/API.md#五个人空间-profile)。
+- **当前限制**：真实后端模式下，“保存草稿”先保存布局，再请求尚未实现的主题接口，可能提示失败但布局已落库；发布、丢弃、主题持久化、素材选择及访客主页尚未形成完整真实链路。
+- 登录态恢复改为共享 `bootstrapAuth()`：直接打开或刷新需要登录的页面时，路由守卫先等待会话恢复。API 客户端增加业务错误信封的消息提取。
+- 已验证：前端 `npm run build` 通过；后端 `pytest` **30 passed**（原有 23 + 新增 7）；新增后端模块及相关配置/模型的定向 Ruff 检查通过。真实 API 验证了布局读取 200、非法布局 422、不存在图片 404 和匿名访问 401；浏览器验证编辑器直链访问及刷新恢复登录态正常。图片存储真实读写与完整发布链路未在本轮验证。
+
+开发演示：在 `frontend/.env.profile-mock` 中写入以下内容，再执行 `npm run dev:mock`。该文件是本地配置，需自行创建；普通 `npm run dev` 默认调用真实后端，mock 插件仅作用于开发服务器。
+
+```dotenv
+VITE_API_BASE_URL=/api/v1
+VITE_PROFILE_MOCK=1
+```
+
+mock 会拦截个人主页及会话恢复接口，数据仅驻留 Vite 进程内。演示会话可在该站点浏览器控制台执行 `sessionStorage.setItem('refresh_token', 'mock-refresh')`，刷新后打开 `/profile/me/edit`；结束演示时清除此项并重启普通开发服务。
 
 ### 前端页面设计（已完成）
 
@@ -217,13 +237,13 @@ UI 组件在 `components/AppDialog.vue`，挂载在 `App.vue` 根部，无需每
 
 ### 已就绪的关键事实
 
-- 数据库：PostgreSQL 已建表（15 张业务表 + `alembic_version`），Alembic 迁移 `0addd5ed14cc` 已到 head。
+- 数据库：本分支新增个人主页布局表，Alembic 当前 head 为 `4f8a2c7d91b3`（接在 `0addd5ed14cc` 之后）。
 - 缓存：Redis 已连通（`/api/v1/ready` 返回 `redis: true`）。
 - 对象存储：腾讯云 COS 单桶（ap-shanghai，`public/`/`private/` 前缀隔离），CORS + public 读策略已配置，预签名上传/下载全链路实测通过。
 - 认证：注册（邮箱/手机 OTP）→ 待审批 → 管理员审批 → 登录/刷新令牌轮换，完整闭环已打通。
 - 图片处理：后台 worker 生成缩略图（800px）/展示图（2000px）WebP，含防解压炸弹。
-- API：全部业务端点已注册（75 个路径 / 88 个方法端点），OpenAPI 可生成（含管理后台 `/admin/*`）。
-- 测试：`pytest` 23 个用例通过（认证/权限/课表解析与对比/图片处理）。
+- API：OpenAPI 已注册 76 个路径 / 91 个方法端点（含新增的布局 GET/PUT 与图片展示授权 PATCH）；待实现的个人主页接口不计入。
+- 测试：`pytest` 30 个用例通过（认证/权限/课表解析与对比/图片处理/个人主页布局）。
 - 管理后台：用户审批、仪表盘、公告管理、网站设置、活动管理、页面管理、图片管理已接真实接口。
 - 管理员初始化：`backend/scripts/create_admin.py` 已合并到 `main`；账号已存在时默认不覆盖密码，使用 `--reset-password` 才会显式重置，并自动确保管理员角色和启用状态。
 
@@ -231,6 +251,7 @@ UI 组件在 `components/AppDialog.vue`，挂载在 `App.vue` 根部，无需每
 
 ## 变更记录
 
+- **2026-11-13：个人主页客制化阶段更新**：新增模块编辑器、渲染器、主题与素材选择组件、会话恢复初始化及开发 mock；后端接通布局草稿读写和图片展示授权，新增迁移与 7 个测试。发布、丢弃、主题、素材清单和公开主页端点仍待实现，详见本分支进度与 `docs/API.md`。
 - **修复管理员初始化流程**：`create_admin.py` 现在支持幂等初始化；已存在账号会自动恢复 `admin` 角色、`active` 状态和 `is_active=true`，只有显式传入 `--reset-password` 才会覆盖密码。修复了账号已存在但密码不正确时脚本直接跳过、导致 `admin` 无法登录的问题。
 - **新增站点 favicon 全套资源**：由蓝绿 M 形 logo 生成并放入 `frontend/public/`——`favicon.ico`（16–64 多尺寸）、`favicon-32x32.png`、`favicon.png`、`apple-touch-icon.png`（180）、`icon-192.png` / `icon-512.png`、`site.webmanifest`（主题色 `#6B5CE7`）；`index.html` 补充 `rel="icon"` / `apple-touch-icon` / `manifest` 引用。原 `/favicon.ico` 仅有链接、文件缺失，现已补齐。
 - **顶栏 / 页脚 / 登录页品牌位换 M 形 logo**：`AppHeader.vue`、`AppFooter.vue`、`Login.vue` 原「FUR」渐变字标改为 `<img>` 引用 `/logo-m-96.png`（顶栏/页脚）或 `/logo-m.png`（登录页 72px）；配套源图 `logo-m.png`（512）。

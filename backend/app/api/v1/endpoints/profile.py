@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,7 +17,9 @@ from app.schemas.image import (
     ProfileUploadCompleteRequest,
     ProfileUploadIntentRequest,
 )
+from app.schemas.profile_layout import ProfileImageDisplayPatch
 from app.services import profile_image as profile_image_service
+from app.services import profile_layout as profile_layout_service
 from app.services.image import ImageError
 
 router = APIRouter(prefix="/profile", tags=["profile"])
@@ -75,6 +78,50 @@ async def update_me(
 @router.get("/me/images")
 async def my_images(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     result = await profile_image_service.list_my_profile_images(db, user)
+    return ok(result)
+
+
+@router.get("/me/layout")
+async def get_my_layout(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return ok(await profile_layout_service.get_layout_payload(db, user))
+
+
+@router.put("/me/layout")
+async def put_my_layout(
+    body: Any = Body(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        result = await profile_layout_service.put_layout(db, user, body)
+    except profile_layout_service.ProfileLayoutError as exc:
+        raise error_to_http(exc)
+    return ok(result)
+
+
+@router.patch("/me/images/{image_id}")
+async def patch_profile_image_displayable(
+    image_id: str,
+    body: ProfileImageDisplayPatch,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        parsed_image_id = uuid.UUID(image_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "PROFILE_IMAGE_NOT_FOUND", "message": "图片不存在"},
+        )
+    try:
+        result = await profile_layout_service.set_image_displayable(
+            db, user, parsed_image_id, body.is_displayable
+        )
+    except profile_layout_service.ProfileLayoutError as exc:
+        raise error_to_http(exc)
     return ok(result)
 
 

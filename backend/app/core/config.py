@@ -52,6 +52,7 @@ class Settings(BaseSettings):
         default="https://img.example.com", alias="PUBLIC_ASSET_BASE_URL"
     )
     private_url_ttl_seconds: int = Field(default=900, alias="PRIVATE_URL_TTL_SECONDS")
+    profile_layout_max_blocks: int = Field(default=16, alias="PROFILE_LAYOUT_MAX_BLOCKS")
 
     # 邮件 / 短信 / 人机验证
     email_provider: str | None = Field(default=None, alias="EMAIL_PROVIDER")

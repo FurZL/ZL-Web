@@ -86,7 +86,13 @@ export async function request<T>(config: AxiosRequestConfig): Promise<T> {
     return body.data as T
   } catch (e) {
     if (e instanceof AxiosError) {
-      const detail = e.response?.data?.detail
+      const data = e.response?.data
+      // 业务校验失败返回 422 + 信封 { success:false, error:{ code, message } }
+      const envelope = data?.error
+      if (envelope && typeof envelope === 'object' && 'message' in envelope) {
+        throw new Error((envelope as { message: string }).message)
+      }
+      const detail = data?.detail
       // 后端 HTTPException 返回 { detail: { code, message } }
       if (detail && typeof detail === 'object' && 'message' in detail) {
         throw new Error((detail as { message: string }).message)

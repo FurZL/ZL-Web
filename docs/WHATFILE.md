@@ -12,7 +12,7 @@
 | `README.md` | 项目总览：部署边界、目录结构、快速开始、开发进度表 |
 | `AGENTS.md` | 项目架构与实施规范（完整技术约定、数据模型、API 清单、部署方案） |
 | `DESIGN-BRIEF.md` | 页面设计说明书（各页面布局、用户角色、导航规则、色彩语义、移动端要求） |
-| `.env.example` | 环境变量模板（DATABASE_URL、REDIS_URL、COS_*、SECRET_KEY 等占位值，不含真实密钥） |
+| `.env.example` | 环境变量模板（DATABASE_URL、REDIS_URL、COS_*、SECRET_KEY、PROFILE_LAYOUT_MAX_BLOCKS 等占位值，不含真实密钥） |
 | `.gitignore` | 项目根 Git 忽略规则（.env、__pycache__、node_modules、venv 等） |
 | `docker-compose.yml` | 本地开发用 PostgreSQL 16 + Redis 7 容器编排（生产不使用 Docker） |
 
@@ -24,9 +24,9 @@
 
 | 文件 | 用途 |
 |---|---|
-| `package.json` | npm 依赖声明与脚本（build = vue-tsc 类型检查 + vite 打包） |
+| `package.json` | npm 依赖声明与脚本（dev 真实 API、dev:mock 个人主页演示模式；build = vue-tsc 类型检查 + vite 打包） |
 | `package-lock.json` | npm 依赖版本锁定文件 |
-| `vite.config.ts` | Vite 构建配置（strictPort: 5173、别名 @ → src/、API 代理） |
+| `vite.config.ts` | Vite 配置（strictPort: 5173、别名 @ → src/、API 代理；显式 VITE_PROFILE_MOCK=1 时启用开发 mock） |
 | `tsconfig.json` | TypeScript 编译选项（路径别名、严格模式） |
 | `tailwind.config.js` | Tailwind CSS 配置（自定义色板 primary/ink/sub/blush/faint、圆角、字体） |
 | `postcss.config.js` | PostCSS 配置（Tailwind CSS 集成） |
@@ -56,6 +56,12 @@
 | `fonts/HarmonyOS_Sans_SC_Regular.woff2` | 鸿蒙简体中文 Regular（子集化 154KB，覆盖项目全部用到的字符） |
 | `fonts/HarmonyOS_Sans_SC_Bold.woff2` | 鸿蒙简体中文 Bold（子集化 152KB） |
 
+### dev/ — 开发演示
+
+| 文件 | 用途 |
+|---|---|
+| `profileMock.ts` | 个人主页 mock：示例模块、图片和会话恢复；覆盖草稿/发布/丢弃/主题/素材/访客页契约，仅在显式开启的 Vite 开发模式生效，数据不持久化 |
+
 ### src/ — 源代码
 
 #### src/ 入口与全局
@@ -63,40 +69,42 @@
 | 文件 | 用途 |
 |---|---|
 | `main.ts` | Vue 应用入口（创建 app、安装 Pinia / Router、导入全局样式） |
-| `App.vue` | 根组件（AppHeader + RouterView + AppFooter + AppDialog 布局结构） |
+| `App.vue` | 根组件（AppHeader + RouterView + AppFooter + AppDialog 布局结构，调用共享 bootstrapAuth 恢复登录态） |
 | `assets/main.css` | 全局样式（Tailwind 导入、CSS 变量、glass-card、btn-primary/btn-ghost、dialog-overlay、spinner、tag-badge、input/label 等基础类） |
 
 #### src/api/ — API 请求层
 
 | 文件 | 用途 |
 |---|---|
-| `client.ts` | Axios 实例封装（自动注入 Bearer Token、401 自动刷新重试、统一解包 {success, data, error}） |
+| `client.ts` | Axios 实例封装（Bearer Token、401 刷新重试、响应解包；提取 error.message 和 detail.message 业务错误） |
 | `token.ts` | Token 管理（access_token 存内存变量，refresh_token 持久化到 sessionStorage） |
+| `bootstrap.ts` | 登录态初始化（bootstrapAuth 共享 Promise，供 App 和路由守卫等待会话恢复） |
+| `profile.ts` | 个人主页 API 封装（布局读写、图片展示授权已接后端；发布/丢弃/主题/素材/公开页待后端实现） |
 | `schedule.ts` | 课表 API（上传意图/上传完成/我的课表/公开课表/对比/可见性开关/删除） |
 | `site.ts` | 站点/公告 API（公开配置/页脚/法律/社团介绍/公告 CRUD/管理设置读写） |
 | `events.ts` | 活动 API（列表/详情/报名/取消/签到 + 管理 CRUD/报名列表/管理员签到） |
-| `index.ts` | API 模块统一导出（re-export client / token / schedule / site / events / pages / adminImages） |
+| `index.ts` | API 模块统一导出（re-export client / token / schedule / site / events / pages / adminImages / profile） |
 | `pages.ts` | 动态页面 API（公开读取 + 管理 CRUD/发布/下线/版本列表/回滚） |
 | `adminImages.ts` | 图片管理 API（统计/列表/审核/公开/标签/删除） |
-| `index.ts` | API 模块统一导出（re-export client / token / schedule / site / events / pages / adminImages） |
 
 #### src/types/ — 类型定义
 
 | 文件 | 用途 |
 |---|---|
-| `index.ts` | 全部 TypeScript 接口（ApiResponse、User、GalleryImage、ScheduleSlot/ScheduleRecord、PublicConfig/FooterConfig、AnnouncementRecord、EventRecord/EventRegistration、PageRecord/PageVersion、AdminImageStats、MemberProfile 等） |
+| `index.ts` | 全部 TypeScript 接口（含新增 ProfileBlock/Theme/Media/LayoutResponse/PageResponse、模块类型与栅格宽度类型） |
 
 #### src/stores/ — Pinia 状态管理
 
 | 文件 | 用途 |
 |---|---|
 | `auth.ts` | 认证状态（login / logout / fetchMe、角色判断 isAdmin/isPhotographer、401 登出回调注册） |
+| `profileLayout.ts` | 主页编辑器状态（模块/主题/素材、撤销重做、修改标记、草稿读写及发布/丢弃调用；后者部分依赖未实现接口） |
 
 #### src/router/ — 路由
 
 | 文件 | 用途 |
 |---|---|
-| `index.ts` | Vue Router 配置（路由表：首页/介绍/图片/课表/个人空间/登录/注册/管理后台等 + 导航守卫 requiresAuth / requiresAdmin） |
+| `index.ts` | Vue Router 配置（含 /profile/me/edit；requiresAuth 守卫先等待 bootstrapAuth，另有 requiresAdmin 校验） |
 
 #### src/composables/ — 组合式函数
 
@@ -160,6 +168,34 @@
 |---|---|
 | `UploadPrivateDialog.vue` | 私有图片上传弹窗（文件选择/预览/描述/预签名直传） |
 | `EditProfileDialog.vue` | 编辑资料弹窗（昵称/简介） |
+| `ProfileRenderer.vue` | 主页白名单模块渲染器（响应式栅格、主题变量、背景及素材） |
+| `ProfileMediaPickerDialog.vue` | 主页图片展示授权管理弹窗（依赖待实现的素材清单接口，PATCH 授权端点已实现） |
+| `theme.ts` | 默认主题、5 套主题预设及颜色混合、背景、卡片表面样式函数 |
+
+#### src/components/profile/blocks/ — 主页模块
+
+| 文件 | 用途 |
+|---|---|
+| `registry.ts` | 8 种模块白名单、组件/名称/图标映射、允许宽度、字面量栅格样式及新模块生成函数 |
+| `types.ts` | 模块组件通用 Props 和属性读取辅助函数 |
+| `BioBlock.vue` | 个人简介模块 |
+| `QuoteBlock.vue` | 一句话与署名模块 |
+| `FeaturedPhotoBlock.vue` | 单张主图与说明模块 |
+| `PhotoWallBlock.vue` | 照片墙模块（2/3 列） |
+| `GalleryLinkBlock.vue` | 按标签跳转图库的入口模块 |
+| `LinksBlock.vue` | 外部链接组模块 |
+| `StatsBlock.vue` | 入圈天数、公开图库图片数模块 |
+| `SandboxBlock.vue` | 点击加载自定义 HTML，使用 iframe sandbox 与 CSP 隔离 |
+
+#### src/components/profile/editor/ — 主页编辑器面板
+
+| 文件 | 用途 |
+|---|---|
+| `ModuleLibrary.vue` | 模块库与剩余数量提示 |
+| `PreviewCanvas.vue` | 编辑画布（选中、排序、复制、删除） |
+| `PropertyPanel.vue` | 按模块类型编辑内容及栅格宽度 |
+| `ThemePanel.vue` | 主题预设、颜色、背景与卡片样式面板 |
+| `MediaPicker.vue` | 编辑器素材选择与展示授权开关（素材清单依赖待实现接口） |
 
 #### src/views/ — 页面组件
 
@@ -169,7 +205,8 @@
 | `About.vue` | 社团介绍（社团故事[从 /club/intro API 拉取，可后台编辑]、成员展示网格、加入方式） |
 | `Gallery.vue` | 公开图片展示（标签筛选、瀑布流图片列表、图片详情弹窗、上传入口 [摄影师/管理员]） |
 | `Schedule.vue` | 课表对比工具（三步流程：上传课表 → 选对比对象 → 网格可视化对比结果；走真实 API） |
-| `Profile.vue` | 个人空间（个人信息、私有相册上传/删除/预览、课表管理；支持自己/他人两种视角） |
+| `Profile.vue` | 个人空间（本人主页布局、编辑入口、图片展示管理、私有相册与课表；访客视图依赖待实现的公开主页接口） |
+| `ProfileEditor.vue` | 个人主页编辑页（/profile/me/edit，模块库/画布/属性/主题/预览、快捷键、离开前未保存提示） |
 | `Login.vue` | 登录页（用户名/密码、登录按钮、去注册链接） |
 | `Register.vue` | 注册页（普通成员/摄影师两种类型、邮箱/手机 OTP、摄影师申请理由/作品集） |
 | `RegisterPending.vue` | 注册成功等待审批提示页 |
@@ -235,7 +272,7 @@
 | `health.py` | 健康检查端点（GET /health 纯存活检查 + GET /ready 检查 DB/Redis 连通性） |
 | `auth.py` | 认证端点（POST /auth/register、verify/email、verify/phone、login、refresh、logout、password/forgot、password/reset、GET /me） |
 | `images.py` | 公开图片端点（GET /images 列表、GET /images/{id} 详情、POST upload-intent、upload-complete、DELETE 删除、POST 举报、GET 下载） |
-| `profile.py` | 个人空间端点（GET/PUT /profile/me、GET /members、GET /me/images、POST upload-intent、upload-complete、GET 签名 URL、DELETE 删除、GET /{user_id} 公开资料） |
+| `profile.py` | 个人空间端点（资料/相册之外，新增 GET/PUT /me/layout 和 PATCH /me/images/{image_id} 展示授权；不包含主页发布/主题/素材清单/访客页接口） |
 | `schedule.py` | 课表端点（GET /mine、POST upload-intent、upload-complete、GET /{id}、POST /compare、PATCH /{id}/visibility、GET /shared/{username}、DELETE /{id}） |
 | `pages.py` | 动态页面端点（GET /{slug} 公开读取、/admin CRUD/发布/下线/版本列表/回滚） |
 | `events.py` | 活动端点（列表/详情/报名/取消/签到，含候补、幂等键、容量控制） |
@@ -252,7 +289,7 @@
 | 文件 | 用途 |
 |---|---|
 | `__init__.py` | Python 包标记（空文件） |
-| `config.py` | Pydantic Settings 配置（从 .env 读取：APP_ENV、SECRET_KEY、DATABASE_URL、REDIS_URL、COS_*、TOKEN_TTL、上传限制、CORS 来源） |
+| `config.py` | Pydantic Settings 配置（环境变量、连接与第三方服务配置；PROFILE_LAYOUT_MAX_BLOCKS 默认 16） |
 | `database.py` | SQLAlchemy 2.x 异步引擎 / Base / get_db 依赖（AsyncSession 工厂） |
 | `redis.py` | Redis 连接池（异步 redis.asyncio，限流/缓存用，含 close_redis） |
 | `security.py` | 密码哈希（Argon2id）与 JWT 生成/验证（Access Token 签发与解码） |
@@ -270,10 +307,11 @@
 
 | 文件 | 用途 |
 |---|---|
-| `__init__.py` | Python 包标记（空文件） |
+| `__init__.py` | 统一导出业务模型供应用及 Alembic 加载，新增 ProfileLayout 注册 |
 | `base.py` | 通用字段混入（TimestampMixin：created_at / updated_at） |
 | `user.py` | User（用户名/邮箱/手机/密码/bio/avatar/角色/状态/摄影师申请）、UserSession（刷新令牌会话）、VerificationChallenge（验证码挑战） |
-| `image.py` | StoredObject（对象存储元数据）、Image（公开图片：标签/审核/版权）、ProfileImage（私有相册图片） |
+| `image.py` | StoredObject（对象存储元数据）、Image（公开图片）、ProfileImage（私有相册图片，新增默认 false 的 is_displayable 展示授权） |
+| `profile_layout.py` | ProfileLayout 模型（JSONB 草稿、已发布块、主题、公开开关及时间戳，按用户唯一） |
 | `schedule.py` | Schedule（课表：stored_object_id、original_name、format、parsed_json、is_public、expires_at） |
 | `content.py` | DynamicPage（动态页面：slug/schema_json/发布状态）、DynamicPageVersion（版本快照）、Announcement（公告） |
 | `event.py` | Event（活动：标题/时间/地点/容量/报名截止）、EventRegistration（报名记录：状态/签到/幂等键） |
@@ -288,6 +326,7 @@
 | `__init__.py` | Python 包标记（空文件） |
 | `auth.py` | 认证 Schema（注册请求/登录请求/Token 响应/用户信息响应） |
 | `image.py` | 图片 Schema（上传意图请求、上传完成请求、ProfileUploadIntentRequest 等） |
+| `profile_layout.py` | ProfileImageDisplayPatch（严格布尔 is_displayable，拒绝额外字段） |
 | `schedule.py` | 课表 Schema（CourseSlot、CompareRequest、ScheduleUploadIntentRequest、ScheduleUploadCompleteRequest、ScheduleVisibilityRequest） |
 | `page.py` | 动态页面 Schema（页面创建/更新/响应、PageSchema/Theme） |
 | `event.py` | 活动 Schema（活动创建/报名请求/响应） |
@@ -304,6 +343,7 @@
 | `image.py` | 图片服务（上传意图：MIME 白名单/随机 Object Key/预签名 URL；上传完成：HEAD 复核/落库；列表/删除） |
 | `image_processing.py` | 图片处理服务（下载原图 → 解码校验/防解压炸弹 → 生成 2000px 展示图 + 800px 缩略图 WebP → 上传派生图） |
 | `profile_image.py` | 私有相册服务（private/profiles/{user_id}/ 前缀、短时效签名 URL、复用 image 校验逻辑） |
+| `profile_layout.py` | 布局草稿服务（模块白名单/字段清洗/大小校验、本人图片与前缀校验、展示授权、签名素材及统计） |
 | `schedule.py` | 课表解析与对比算法（CourseSlot 数据类、ICS 解析、ZJUT TXT 解析、compare 对比：周次交集/同教室/冲突/空闲时段） |
 | `schedule_service.py` | 课表业务服务（上传意图/上传完成[下载+解析+落库]/我的课表/按用户查询公开课表/可见性开关/删除） |
 | `rate_limit.py` | 限流服务（Redis 分布式计数器、原子递增+TTL、分层限流规则） |
@@ -361,7 +401,8 @@
 | `versions/64b8838cd73c_add_profile_image_fields.py` | 迁移：添加私有相册图片字段 |
 | `versions/9394e2a89de2_add_photographer_application_fields.py` | 迁移：添加摄影师申请字段（applied_role/application_reason/application_portfolio） |
 | `versions/131029fbb8f9_add_schedule_name_and_format.py` | 迁移：添加课表 original_name / format 字段 |
-| `versions/0addd5ed14cc_add_user_bio_avatar.py` | 迁移：添加用户 bio / avatar_url 字段（当前 head） |
+| `versions/0addd5ed14cc_add_user_bio_avatar.py` | 迁移：添加用户 bio / avatar_url 字段 |
+| `versions/4f8a2c7d91b3_add_profile_layout.py` | 当前 head：新增 profile_layouts 表及 profile_images.is_displayable 列/索引，承接 0addd5ed14cc |
 
 ### scripts/ — 运维/测试脚本
 
@@ -388,6 +429,7 @@
 | `test_schedule_parser.py` | 课表解析测试（ZJUT TXT 格式/周次范围/节次解析/空格/换行/异常格式） |
 | `test_image_processing.py` | 图片处理测试（WebP 生成/尺寸裁剪/防解压炸弹/非法文件拒绝） |
 | `test_permissions.py` | 权限矩阵测试（各角色操作权限验证） |
+| `test_profile_layout.py` | 7 个布局测试（种子模块、GET/PUT 同形、未知字段清洗、错误块、素材权限过滤及 PATCH 归属校验；DB/存储为测试替身） |
 
 ### furry_zjut_backend.egg-info/ — pip 安装元数据（自动生成）
 
@@ -418,7 +460,7 @@
 
 | 文件 | 用途 |
 |---|---|
-| `API.md` | 全部 75 个 API 接口文档（交接用）：接口清单、认证说明、权限矩阵、前端/后端函数参考、类型定义 |
+| `API.md` | 已实现的 76 个 API 路径 / 91 个方法端点；含主页草稿/展示授权契约、待实现端点状态及前后端函数/类型参考 |
 | `WHATFILE.md` | 本文件 — 项目全部文件用途索引 |
 | `DEPLOYMENT.md` | 部署说明（EdgeOne Pages + 宝塔 2C2G + 本机 PostgreSQL/Redis、关键步骤索引） |
 | `SECURITY.md` | 安全基线（上线前 15 项检查清单、日志脱敏规则、认证方案选择） |

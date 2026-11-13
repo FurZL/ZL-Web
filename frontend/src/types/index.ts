@@ -298,3 +298,97 @@ export interface MemberProfile {
   bio: string
   avatar_url: string | null
 }
+
+// ---------- 个人主页客制化 ----------
+// 契约见 docs；props 用 Record<string, unknown> 承载，渲染时按类型窄化
+export type ProfileBlockType =
+  | 'bio'
+  | 'quote'
+  | 'featured_photo'
+  | 'photo_wall'
+  | 'gallery_link'
+  | 'links'
+  | 'stats'
+  | 'html_block'
+
+// 12 栅格制：移动端一律塌成 12
+export type ProfileSpan = 3 | 4 | 6 | 8 | 12
+
+export interface ProfileBlock {
+  id: string
+  type: ProfileBlockType
+  span: ProfileSpan
+  props: Record<string, unknown>
+}
+
+export interface ProfileLinkItem {
+  label: string
+  url: string
+}
+
+export type ProfileStatsKey = 'joined_days' | 'gallery_image_count'
+
+export interface ProfileStats {
+  joined_days: number
+  gallery_image_count: number
+}
+
+// 服务端解析好的图片地址；键为 object_key
+export interface ProfileMedia {
+  thumb_url: string | null
+  display_url: string | null
+  width: number | null
+  height: number | null
+}
+
+export type ProfileBackgroundType = 'solid' | 'gradient' | 'image'
+export type ProfileCardStyle = 'glass' | 'solid' | 'outline'
+
+export interface ProfileTheme {
+  primary: string
+  accent: string
+  background_type: ProfileBackgroundType
+  background_key: string | null
+  background_blur: number
+  card_style: ProfileCardStyle
+}
+
+export interface ProfilePageUser {
+  username: string
+  display_name: string
+  avatar_url: string | null
+}
+
+export interface ProfilePageResponse {
+  user: ProfilePageUser
+  theme: ProfileTheme
+  blocks: ProfileBlock[]
+  media: Record<string, ProfileMedia>
+  media_expires_in: number
+  stats: ProfileStats
+  published_at: string | null
+}
+
+export interface ProfileLayoutResponse {
+  theme: ProfileTheme
+  draft_blocks: ProfileBlock[]
+  published_blocks: ProfileBlock[] | null
+  is_public: boolean
+  max_blocks: number
+  media: Record<string, ProfileMedia>
+  media_expires_in: number
+  stats: ProfileStats
+}
+
+// 本人可引用的私有图片（仅 is_displayable 的会出现在公开页）
+export interface ProfileMediaOption {
+  id: string
+  object_key: string
+  title: string | null
+  created_at: string | null
+  is_displayable: boolean
+  thumb_url: string | null
+  display_url: string | null
+  width: number | null
+  height: number | null
+}

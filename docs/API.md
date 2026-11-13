@@ -1,6 +1,6 @@
 # Furry ZJUT API 文档
 
-> 本文件整理了项目中**全部 75 个 API 路径（88 个方法端点）**，供团队交接和查阅。
+> 本分支 OpenAPI 已注册 **76 个 API 路径（91 个方法端点）**，供团队交接和查阅；个人主页待实现接口另列，不计入上述数量。
 > 统一前缀：`/api/v1`，统一响应格式：`{"success": bool, "data": ..., "error": {"code", "message"}, "request_id": str}`
 
 ## 通用约定
@@ -128,12 +128,90 @@
 | GET | `/profile/me` | Bearer | 获取个人信息（含 bio/avatar_url） |
 | PUT | `/profile/me` | Bearer | 修改个人信息（display_name / bio / avatar_url，字段级更新） |
 | GET | `/profile/me/images` | Bearer | 私有相册列表（仅本人可见） |
+| GET | `/profile/me/layout` | Bearer | 本人布局草稿、已发布块、主题、素材与统计（已实现） |
+| PUT | `/profile/me/layout` | Bearer | 整体替换本人草稿及可选公开开关（已实现，不发布、不保存主题） |
+| PATCH | `/profile/me/images/{image_id}` | Bearer | 更新本人私有图的展示授权 is_displayable（已实现） |
 | POST | `/profile/me/images/upload-intent` | Bearer | 私有图片上传凭证 |
 | POST | `/profile/me/images/upload-complete` | Bearer | 私有图片上传完成 |
 | GET | `/profile/me/images/{image_id}/url` | Bearer | 签发短时效签名 URL（私有图下载） |
 | DELETE | `/profile/me/images/{image_id}` | Bearer | 删除私有图片 |
 | GET | `/profile/members` | 无 | 公开成员列表（active 用户昵称/简介/头像，不含隐私） |
 | GET | `/profile/{user_id}` | 无 | 公开用户资料（昵称/角色，不含隐私） |
+
+### 本分支新增契约（2026-11-13）
+
+`GET /profile/me/layout` 与成功的 `PUT /profile/me/layout` 返回同形 `data`：
+
+```json
+{
+  "theme": {
+    "primary": "#6B5CE7",
+    "accent": "#F0A6C8",
+    "background_type": "gradient",
+    "background_key": null,
+    "background_blur": 0,
+    "card_style": "glass"
+  },
+  "draft_blocks": [],
+  "published_blocks": null,
+  "is_public": true,
+  "max_blocks": 16,
+  "media": {},
+  "media_expires_in": 900,
+  "stats": { "joined_days": 0, "gallery_image_count": 0 }
+}
+```
+
+`max_blocks` 取自 `PROFILE_LAYOUT_MAX_BLOCKS`（默认 16），`media_expires_in` 取自 `PRIVATE_URL_TTL_SECONDS`（默认 900 秒），示例中的统计值仅为说明。没有布局记录时返回空草稿及默认主题，不创建记录；从未发布时 `published_blocks` 为 `null`。
+
+`PUT /profile/me/layout` 请求示例：
+
+```json
+{
+  "blocks": [
+    { "id": "bio_1", "type": "bio", "span": 8, "props": { "text": "你好，欢迎来到我的主页" } }
+  ],
+  "is_public": true
+}
+```
+
+- 请求体必须是对象，`blocks` 为必填数组；`is_public` 可选且必须为布尔值。服务端按 JSON 重新编码后限制在 256 KiB，按白名单重新序列化后落库，未知字段丢弃。`theme` 不在此端点保存。
+- `id` 匹配 `^[A-Za-z0-9_-]{1,32}$`，同一布局内唯一；模块数不超过配置上限。`span` 和 `props` 按类型校验：
+
+| type | 允许 span | props 限制 |
+|---|---|---|
+| `bio` | 4 / 6 / 8 / 12 | text ≤ 500 字符 |
+| `quote` | 4 / 6 / 12 | text ≤ 160，author ≤ 40 |
+| `featured_photo` | 12 | 非空 object_key ≤ 1024，caption ≤ 80 |
+| `photo_wall` | 6 / 8 / 12 | object_keys 最多 12 个非空字符串；columns 仅 2 或 3 |
+| `gallery_link` | 3 / 4 / 6 / 12 | tag ≤ 40；非空 label ≤ 20 |
+| `links` | 3 / 4 / 6 | items 最多 8 项；非空 label ≤ 20、非空 URL ≤ 300，仅 http/https 且有主机名 |
+| `stats` | 3 / 4 / 6 / 12 | items 最多 2 项，仅 joined_days / gallery_image_count |
+| `html_block` | 12 | html ≤ 24576 字符；height 仅 200 / 400 / 600；前端使用隔离 iframe 渲染 |
+
+照片和背景素材必须是本人的 `ProfileImage`、已开启 `is_displayable`，且对象 Key 位于 `private/profiles/{当前用户 id}/` 前缀下。`media` 按 object_key 映射 `{thumb_url, display_url, width, height}`，仅包含符合这些条件的引用素材；处理就绪时返回缩略图签名，展示图暂使用原图的短时签名 URL。图库统计只计算本人 `approved` 且 `is_public=true` 的公开图片。
+
+`PATCH /profile/me/images/{image_id}` 接受严格请求体 `{"is_displayable": true}`，拒绝额外字段和字符串/整数布尔值，成功返回 `{"id": "图片 UUID", "is_displayable": true}`。此标记默认 `false`，不会自动发布主页或把私有相册整体公开。
+
+| HTTP | 错误码/响应 | 触发条件 |
+|---|---|---|
+| 401 | 现有认证错误 | 缺少/无效凭证或账号未启用 |
+| 422 | `detail.code=PROFILE_LAYOUT_INVALID` | 布局结构、数量、模块字段/宽度或素材归属/展示权限不符；块级错误消息包含块 id |
+| 422 | `detail.code=PROFILE_LAYOUT_TOO_LARGE` | 布局超过 256 KiB 或无法按有效 JSON 编码 |
+| 422 | FastAPI 请求校验错误 | PATCH 严格布尔值/额外字段校验失败 |
+| 404 | `detail.code=PROFILE_IMAGE_NOT_FOUND` | 图片 UUID 非法、不存在或不属于当前用户 |
+
+### 前端已预留、真实后端尚未实现
+
+| 方法 | 预留路径 | 前端函数 | 当前状态 |
+|---|---|---|---|
+| GET | `/profile/{username}/page` | getProfilePage | 仅开发 mock 提供访客主页 |
+| POST | `/profile/me/layout/publish` | publishMyLayout | 仅开发 mock 提供发布 |
+| POST | `/profile/me/layout/discard` | discardMyDraft | 仅开发 mock 提供丢弃草稿 |
+| PUT | `/profile/me/theme` | saveMyTheme | 仅开发 mock 提供主题持久化 |
+| GET | `/profile/me/media` | getMyMedia | 仅开发 mock 提供可选素材清单 |
+
+以上不是已注册的 FastAPI 端点。真实后端模式下，编辑器 `saveDraft()` 先 PUT 布局再 PUT 主题，后一步当前返回 404，可能出现布局保存成功但 UI 提示失败；发布、丢弃、素材选择和访客页也尚未完成真实链路。`getMyLayout` / `saveMyLayout` / `setProfileImageDisplayable` 已有真实后端实现。迁移 `4f8a2c7d91b3` 新增 `profile_layouts` 和图片展示标记，上线此分支前需执行 `alembic upgrade head`。
 
 ---
 
@@ -267,6 +345,7 @@
 | 注册/登录/找回密码 | ✓ | ✓ | ✓ | ✓ |
 | 上传公开图片 | — | — | ✓ | ✓ |
 | 上传私有图片/课表 | — | ✓ | ✓ | ✓ |
+| 读取/保存本人布局、设置本人图片展示授权 | — | ✓ | ✓ | ✓ |
 | 报名活动/签到 | — | ✓ | ✓ | ✓ |
 | 审批用户/管理内容/网站设置 | — | — | — | ✓ |
 
@@ -278,6 +357,8 @@
 |---|---|
 | `src/api/client.ts` | 通用请求封装（Bearer 注入、401 刷新、统一解包） |
 | `src/api/token.ts` | Token 管理（内存 + sessionStorage） |
+| `src/api/bootstrap.ts` | 共享登录态恢复，供首屏与受保护路由调用 |
+| `src/api/profile.ts` | 个人主页：3 个已实现端点的封装与 5 个待接通端点的调用 |
 | `src/api/schedule.ts` | 课表 API（7 个接口） |
 | `src/api/site.ts` | 站点/公告 API（11 个接口） |
 | `src/api/events.ts` | 活动 API（10 个接口） |
@@ -301,6 +382,8 @@
 
 **内部流程**：请求拦截器注入 `Authorization: Bearer <token>` → 响应拦截器检测 401 → 自动调 `/auth/refresh` 换新 token → 重试一次 → 失败则 `clearTokens()` + 触发 `onUnauthorized`。
 
+错误提取优先读取响应信封 `error.message`，再读取 `detail.message` 或字符串 `detail`，供页面显示业务校验错误。
+
 ## 前端 `src/api/token.ts` — Token 管理
 
 | 函数 | 签名 | 说明 |
@@ -309,6 +392,41 @@
 | `setTokens(access, refresh)` | `(access: string, refresh: string): void` | 同时保存 access（内存）和 refresh（sessionStorage） |
 | `getRefreshToken()` | `(): string \| null` | 获取 refresh token |
 | `clearTokens()` | `(): void` | 清除全部 token（登出/刷新失败） |
+
+## 前端 `src/api/bootstrap.ts` — 登录态恢复
+
+| 函数 | 签名 | 说明 |
+|---|---|---|
+| `bootstrapAuth()` | `(): Promise<void>` | 同一次页面生命周期仅初始化一次，并发调用共享 Promise；存在 Refresh Token 时先 ensureAccessToken 再 fetchMe，失败保持未登录。App 首屏与 requiresAuth 守卫共用 |
+
+## 前端 `src/api/profile.ts` — 个人主页 API
+
+| 函数 | 参数 / 返回 | 对应接口及状态 |
+|---|---|---|
+| `getMyLayout()` | `Promise<ProfileLayoutResponse>` | GET /profile/me/layout，已实现 |
+| `saveMyLayout(payload)` | `{blocks: ProfileBlock[], is_public?: boolean}` → `Promise<ProfileLayoutResponse>` | PUT /profile/me/layout，已实现 |
+| `setProfileImageDisplayable(id, is_displayable)` | `(string, boolean)` → `Promise<{id, is_displayable}>` | PATCH /profile/me/images/{id}，已实现 |
+| `getProfilePage(username)` | string → `Promise<ProfilePageResponse>` | GET /profile/{username}/page，待后端实现 |
+| `publishMyLayout()` | `Promise<{published_at}>` | POST /profile/me/layout/publish，待后端实现 |
+| `discardMyDraft()` | `Promise<ProfileLayoutResponse>` | POST /profile/me/layout/discard，待后端实现 |
+| `saveMyTheme(theme)` | ProfileTheme → `Promise<{theme: ProfileTheme}>` | PUT /profile/me/theme，待后端实现 |
+| `getMyMedia()` | `Promise<{items: ProfileMediaOption[]}>` | GET /profile/me/media，待后端实现 |
+
+## 前端主页编辑器与渲染辅助函数
+
+| 文件 / 导出 | 说明 |
+|---|---|
+| `stores/profileLayout.ts`：`useProfileLayoutStore()` | 保存 blocks/theme/media/stats、已发布版本、上限、dirty/hasUnpublished/canUndo/canRedo 及加载/保存状态 |
+| store：`load()` / `loadMediaOptions()` | 读取本人布局、可选素材；素材清单失败时显示空列表 |
+| store：`addBlock(type)` / `removeBlock(id)` / `duplicateBlock(id)` | 新增/删除/复制模块；新增和复制受 maxBlocks 限制 |
+| store：`moveBlock(from, to)` / `setSpan(id, span)` / `updateProps(id, patch)` | 修改排序、宽度和属性 |
+| store：`applyThemePreset(id)` / `undo()` / `redo()` | 应用主题预设，撤销/重做模块及主题编辑 |
+| store：`saveDraft()` / `publish()` / `discard()` | 持久化操作；主题/发布/丢弃接口仍待接通，限制见上文 |
+| `components/profile/blocks/registry.ts`：`isBlockType(value)` / `normalizeSpan(type, span)` | 校验模块类型、规范化宽度；共享 BLOCK_COMPONENTS / ALLOWED_SPANS / SPAN_CLASS 白名单 |
+| registry：`newBlockId()` / `defaultProps(type)` / `newBlock(type)` | 生成客户端块 id、默认 props 和新模块 |
+| `components/profile/blocks/types.ts`：`str()` / `num()` / `strList()` | 按类型读取模块属性并提供回退值；另导出 BlockProps 与 STAT_LABELS |
+| `components/profile/theme.ts`：`tint()` / `themeVars()` / `backgroundStyle()` / `cardSurface()` | 主题颜色混合、CSS 变量、背景与卡片表面；另导出 DEFAULT_THEME / THEME_PRESETS |
+| `dev/profileMock.ts`：`profileMock()` | Vite 开发插件，显式开关启用后提供内存态演示契约；不构成真实后端实现 |
 
 ## 前端 `src/api/schedule.ts` — 课表 API
 
@@ -420,6 +538,20 @@
 | `list_my_profile_images(db, user) -> dict` | 私有相册列表（含签名缩略图 URL） |
 | `get_profile_image_signed_url(db, *, user, image_id) -> dict` | 签发短时效下载签名 URL |
 | `delete_profile_image(db, *, user, image_id)` | 删除私有图片 |
+
+### `services/profile_layout.py` — 布局草稿与展示授权
+
+| 函数 / 常量 | 说明 |
+|---|---|
+| `validate_blocks(raw) -> list[dict[str, Any]]` | 校验模块数组、数量、唯一 id、类型、span、props；按白名单重新序列化，丢弃未知字段 |
+| `get_layout_payload(db, user) -> dict[str, Any]` | 组装主题/草稿/已发布块/公开开关/上限/已授权素材/签名 TTL/统计；GET 与 PUT 共用 |
+| `put_layout(db, user, body) -> dict[str, Any]` | 校验大小、结构、素材本人归属和展示权限；创建或替换草稿及可选 is_public，提交后返回同形布局 |
+| `set_image_displayable(db, user, image_id, is_displayable) -> dict[str, Any]` | 仅更新本人私有图展示标记；非法目标返回 404 |
+| `ProfileLayoutError(code, message, status_code=422)` | 业务错误，经 error_to_http 转为 HTTPException detail 响应 |
+| `DEFAULT_THEME` / `ALLOWED_SPANS` | 默认主题与按模块类型划分的允许宽度 |
+| `MAX_LAYOUT_BYTES` / `MAX_HTML_LENGTH` | 布局重新编码后最多 256 KiB；HTML 字符数最多 24576 |
+
+`schemas/profile_layout.py` 的 `ProfileImageDisplayPatch` 使用 `StrictBool`，配置 `extra="forbid", strict=True`。模型 `ProfileLayout` 预留发布/主题字段，当前服务只实现草稿读写和图片展示授权，未提供发布/主题更新服务函数。
 
 ### `services/image_processing.py` — 图片处理
 
@@ -607,3 +739,10 @@
 | `PageVersion` | 页面版本快照 |
 | `PageBlock` / `PageSchema` | 动态页面 Schema 组件 |
 | `AdminImageStats` | 图片管理统计 |
+| `ProfileBlockType` / `ProfileSpan` | 8 种主页模块，栅格宽度联合类型（具体允许值按模块白名单限制） |
+| `ProfileBlock` / `ProfileLinkItem` | 模块 id/type/span/props、链接 label/url |
+| `ProfileStatsKey` / `ProfileStats` | joined_days / gallery_image_count 及统计值 |
+| `ProfileMedia` / `ProfileMediaOption` | 已解析签名 URL 的素材、带归属标识与展示授权的可选图片 |
+| `ProfileBackgroundType` / `ProfileCardStyle` / `ProfileTheme` | 背景/卡片类型及主题颜色、图片背景、模糊等字段 |
+| `ProfilePageUser` / `ProfilePageResponse` | 访客主页预留响应契约（真实后端待实现） |
+| `ProfileLayoutResponse` | 已实现 GET/PUT 布局的同形响应（theme/draft_blocks/published_blocks/is_public/max_blocks/media/media_expires_in/stats） |
