@@ -2,9 +2,11 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useSiteConfig } from '@/composables/useSiteConfig'
 import UserAvatar from '@/components/UserAvatar.vue'
 
 const auth = useAuthStore()
+const { siteName } = useSiteConfig()
 const menuOpen = ref(false)
 
 const navLinks = computed(() => [
@@ -71,6 +73,11 @@ onBeforeUnmount(() => {
   window.removeEventListener('scroll', onScrollOrResize, true)
   window.removeEventListener('resize', onScrollOrResize)
 })
+function logoutAndRedirect() {
+  auth.logout().finally(() => {
+    window.location.href = '/'
+  })
+}
 </script>
 
 <template>
@@ -79,12 +86,12 @@ onBeforeUnmount(() => {
       <RouterLink to="/" class="flex items-center gap-2 shrink-0">
         <img
           src="/logo-m-96.png"
-          alt="浙江理工福瑞圈"
+          :alt="siteName"
           width="36"
           height="36"
           class="w-9 h-9 rounded-xl object-contain bg-white/80 border border-white/60 shadow-soft"
         />
-        <span class="hidden lg:inline font-semibold text-ink tracking-wide">浙江理工福瑞圈</span>
+        <span class="hidden lg:inline font-semibold text-ink tracking-wide">{{ siteName }}</span>
       </RouterLink>
 
       <div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
@@ -111,7 +118,7 @@ onBeforeUnmount(() => {
 
         <template v-else>
           <button ref="triggerRef" class="flex items-center gap-2" @click.stop="toggleMenu">
-            <UserAvatar :name="auth.user!.displayName" :size="36" />
+            <UserAvatar :name="auth.user!.displayName" :size="36" :src="auth.user!.avatar || null" />
             <span class="hidden sm:block text-sm text-ink">{{ auth.user!.displayName }}</span>
             <!-- CSS 三角形箭头 -->
             <span
@@ -143,7 +150,7 @@ onBeforeUnmount(() => {
         <RouterLink v-if="auth.isAdmin" to="/admin" class="block px-3 py-2 text-sm rounded-xl2 hover:bg-primary-50 text-ink">
           管理后台
         </RouterLink>
-        <button class="w-full text-left px-3 py-2 text-sm rounded-xl2 hover:bg-primary-50 text-sub" @click="auth.logout()">
+        <button class="w-full text-left px-3 py-2 text-sm rounded-xl2 hover:bg-primary-50 text-sub" @click="logoutAndRedirect">
           退出
         </button>
       </div>

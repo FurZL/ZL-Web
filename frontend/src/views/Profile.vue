@@ -206,7 +206,7 @@ async function refreshAll() {
 const displayName = computed(() => (isSelf.value ? auth.user?.displayName : pageUser.value?.display_name) ?? '')
 const username = computed(() => (isSelf.value ? auth.user?.username : pageUser.value?.username) ?? '')
 const bio = computed(() => (isSelf.value ? auth.user?.bio : '') ?? '')
-const avatarUrl = computed(() => (isSelf.value ? null : pageUser.value?.avatar_url ?? null))
+const avatarUrl = computed(() => (isSelf.value ? auth.user?.avatar || null : pageUser.value?.avatar_url ?? null))
 
 const hasPage = computed(() => blocks.value.length > 0)
 
@@ -232,8 +232,7 @@ watch(
     <!-- 主页头部 -->
     <div class="glass-card p-6 sm:p-8">
       <div class="flex flex-col sm:flex-row items-center gap-6">
-        <UserAvatar v-if="!avatarUrl" :name="displayName || '?'" :size="84" />
-        <img v-else :src="avatarUrl" alt="" class="w-[84px] h-[84px] rounded-full object-cover" />
+        <UserAvatar :name="displayName || '?'" :size="84" :src="avatarUrl" />
 
         <div class="text-center sm:text-left flex-1 min-w-0">
           <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">

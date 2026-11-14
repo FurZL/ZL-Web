@@ -4,11 +4,13 @@ import { RouterView } from 'vue-router'
 import AppFooter from '@/components/AppFooter.vue'
 import AppHeader from '@/components/AppHeader.vue'
 import AppDialog from '@/components/AppDialog.vue'
+import { fetchSiteConfig } from '@/composables/useSiteConfig'
 import { bootstrapAuth } from '@/api/bootstrap'
 
 onMounted(() => {
   // 守卫也会调用它，这里只是保证正常首屏也有登录态
   void bootstrapAuth()
+  fetchSiteConfig()
 })
 </script>
 

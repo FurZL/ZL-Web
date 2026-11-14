@@ -112,6 +112,7 @@
 |---|---|
 | `index.ts` | 组合式函数统一导出入口（预留） |
 | `useDialog.ts` | 全局对话框（`showToast` 轻量提示 3 秒消失 + `showConfirm` 确认弹窗 Promise 化，替代 alert/confirm） |
+| `useSiteConfig.ts` | 站点配置 composable（从 /site/public-config 动态拉取站点名称/副标题，同步 document.title，供全站组件响应式使用） |
 
 #### src/utils/ — 工具函数
 
@@ -133,7 +134,7 @@
 | `AppDialog.vue` | 全局对话框 UI（Toast 滑入提示 + Confirm 玻璃卡片弹窗，挂载于 App.vue） |
 | `AppHeader.vue` | 顶部导航栏（Logo「FUR」、导航链接、登录/注册按钮、角色动态菜单、窄屏横滑适配） |
 | `AppFooter.vue` | 页脚（从 /site/footer API 拉取版权/备案/协议链接，含默认回退值） |
-| `UserAvatar.vue` | 用户头像组件（首字母圆形头像、可调尺寸、渐变背景） |
+| `UserAvatar.vue` | 用户头像组件（支持真实头像图片 + 首字母圆形回退、可调尺寸、渐变背景、加载失败自动回退） |
 | `ImageLightbox.vue` | 图片详情弹窗（大图展示、描述、拍摄者、下载按钮，Gallery 与私有相册共用） |
 | `ImagePlaceholder.vue` | 图片占位符（加载/缺图时的渐变背景 + 首字母占位） |
 
@@ -167,9 +168,10 @@
 | 文件 | 用途 |
 |---|---|
 | `UploadPrivateDialog.vue` | 私有图片上传弹窗（文件选择/预览/描述/预签名直传） |
-| `EditProfileDialog.vue` | 编辑资料弹窗（昵称/简介） |
+| `EditProfileDialog.vue` | 编辑资料弹窗（昵称/简介/头像上传：选择图片→裁剪弹窗→保存时上传 COS→实时预览） |
 | `ProfileRenderer.vue` | 主页白名单模块渲染器（响应式栅格、主题变量、背景及素材） |
 | `ProfileMediaPickerDialog.vue` | 主页图片展示授权管理弹窗（依赖待实现的素材清单接口，PATCH 授权端点已实现） |
+| `AvatarCropDialog.vue` | 头像裁剪弹窗（拖拽/缩放正方形选区、网格辅助线、128×128 Canvas 预览、两步高质量缩放输出 JPEG） |
 | `theme.ts` | 默认主题、5 套主题预设及颜色混合、背景、卡片表面样式函数 |
 
 #### src/components/profile/blocks/ — 主页模块
@@ -270,9 +272,9 @@
 |---|---|
 | `__init__.py` | Python 包标记（空文件） |
 | `health.py` | 健康检查端点（GET /health 纯存活检查 + GET /ready 检查 DB/Redis 连通性） |
-| `auth.py` | 认证端点（POST /auth/register、verify/email、verify/phone、login、refresh、logout、password/forgot、password/reset、GET /me） |
+| `auth.py` | 认证端点（POST /auth/register、verify/email、verify/phone、login[含 avatar_url]、refresh、logout、password/forgot、password/reset、GET /me） |
 | `images.py` | 公开图片端点（GET /images 列表、GET /images/{id} 详情、POST upload-intent、upload-complete、DELETE 删除、POST 举报、GET 下载） |
-| `profile.py` | 个人空间端点（资料/相册之外，新增 GET/PUT /me/layout 和 PATCH /me/images/{image_id} 展示授权；不包含主页发布/主题/素材清单/访客页接口） |
+| `profile.py` | 个人空间端点（资料/相册/头像上传 upload-intent+upload-complete+delete、布局 GET/PUT、图片展示授权 PATCH） |
 | `schedule.py` | 课表端点（GET /mine、POST upload-intent、upload-complete、GET /{id}、POST /compare、PATCH /{id}/visibility、GET /shared/{username}、DELETE /{id}） |
 | `pages.py` | 动态页面端点（GET /{slug} 公开读取、/admin CRUD/发布/下线/版本列表/回滚） |
 | `events.py` | 活动端点（列表/详情/报名/取消/签到，含候补、幂等键、容量控制） |
@@ -352,6 +354,7 @@
 | `event.py` | 活动服务（活动 CRUD、报名/候补/取消/签到，容量控制、幂等键、候补自动递补、批量统计防 N+1） |
 | `page.py` | 动态页面服务（页面 CRUD、版本快照、发布/下线、版本回滚） |
 | `admin_image.py` | 图片管理服务（列表/审核/公开/标签/删除/统计，含派生图清理） |
+| `avatar.py` | 头像上传服务（预签名直传/上传完成验证/旧头像清理/公开 URL 生成；头像存 public/avatars/{user_id}/ 前缀，限 5MB） |
 
 ### app/providers/ — 外部服务适配层
 

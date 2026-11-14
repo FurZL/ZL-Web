@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 const props = defineProps<{
   name: string
   size?: number
+  src?: string | null
 }>()
+
+const imgError = ref(false)
 
 const palette = [
   ['#6B5CE7', '#B8AEEF'],
@@ -13,7 +16,6 @@ const palette = [
   ['#F4A261', '#FAD2A6'],
 ]
 
-// 按名字稳定取色，保证同一用户头像颜色一致
 const idx = computed(() => {
   let h = 0
   for (const ch of props.name) h = (h * 31 + ch.charCodeAt(0)) % 997
@@ -25,13 +27,27 @@ const bg = computed(() => {
 })
 const initial = computed(() => props.name.trim().charAt(0) || '?')
 const sizePx = computed(() => `${props.size ?? 40}px`)
+
+const showImage = computed(() => !!props.src && !imgError.value)
 </script>
 
 <template>
   <div
-    class="rounded-full flex items-center justify-center text-white font-semibold select-none shrink-0"
-    :style="{ background: bg, width: sizePx, height: sizePx, fontSize: `${Math.round((props.size ?? 40) * 0.42)}px` }"
+    class="rounded-full flex items-center justify-center text-white font-semibold select-none shrink-0 overflow-hidden"
+    :style="{
+      width: sizePx,
+      height: sizePx,
+      background: showImage ? '#eee' : bg,
+      fontSize: `${Math.round((props.size ?? 40) * 0.42)}px`,
+    }"
   >
-    {{ initial }}
+    <img
+      v-if="showImage"
+      :src="props.src!"
+      :alt="props.name"
+      class="w-full h-full object-cover"
+      @error="imgError = true"
+    />
+    <span v-else>{{ initial }}</span>
   </div>
 </template>

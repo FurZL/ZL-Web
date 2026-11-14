@@ -18,6 +18,7 @@ from app.schemas.image import (
     ProfileUploadIntentRequest,
 )
 from app.schemas.profile_layout import ProfileImageDisplayPatch
+from app.services import avatar as avatar_service
 from app.services import profile_image as profile_image_service
 from app.services import profile_layout as profile_layout_service
 from app.services.image import ImageError
@@ -33,7 +34,7 @@ async def get_me(user: User = Depends(get_current_user)):
         "display_name": user.display_name,
         "email": user.email,
         "bio": user.bio or "",
-        "avatar_url": user.avatar_url,
+        "avatar_url": avatar_service.get_avatar_public_url(user),
         "role": user.role,
         "status": user.status,
     })
@@ -69,10 +70,59 @@ async def update_me(
         "display_name": user.display_name,
         "email": user.email,
         "bio": user.bio or "",
-        "avatar_url": user.avatar_url,
+        "avatar_url": avatar_service.get_avatar_public_url(user),
         "role": user.role,
         "status": user.status,
     })
+
+
+class AvatarUploadCompleteRequest(BaseModel):
+    object_key: str
+    bucket: str = ""
+
+
+@router.post("/me/avatar/upload-intent")
+async def avatar_upload_intent(
+    body: dict = Body(...),
+    user: User = Depends(get_current_user),
+):
+    filename = body.get("filename", "avatar")
+    mime_type = body.get("mime_type", "image/png")
+    size_bytes = body.get("size_bytes", 0)
+    try:
+        intent = await avatar_service.create_avatar_upload_intent(
+            user=user,
+            filename=filename,
+            mime_type=mime_type,
+            size_bytes=size_bytes,
+        )
+    except ImageError as exc:
+        raise error_to_http(exc)
+    return ok(intent)
+
+
+@router.post("/me/avatar/upload-complete")
+async def avatar_upload_complete(
+    body: AvatarUploadCompleteRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        result = await avatar_service.complete_avatar_upload(
+            db, user=user, object_key=body.object_key, bucket=body.bucket
+        )
+    except ImageError as exc:
+        raise error_to_http(exc)
+    return ok(result)
+
+
+@router.delete("/me/avatar")
+async def avatar_delete(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await avatar_service.delete_avatar(db, user=user)
+    return ok({"avatar_url": None})
 
 
 @router.get("/me/images")
@@ -209,7 +259,7 @@ async def list_members(db: AsyncSession = Depends(get_db)):
             "display_name": u.display_name,
             "role": u.role,
             "bio": u.bio or "",
-            "avatar_url": u.avatar_url,
+            "avatar_url": avatar_service.get_avatar_public_url(u),
         }
         for u in users
     ]})

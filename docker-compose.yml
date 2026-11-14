@@ -4,24 +4,24 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: furry-zjut-postgres
+    container_name: jellystation-postgres
     environment:
-      POSTGRES_USER: furry_app
-      POSTGRES_PASSWORD: furry_dev_password
-      POSTGRES_DB: furry_zjut
+      POSTGRES_USER: jellystation
+      POSTGRES_PASSWORD: jellystation_dev_password
+      POSTGRES_DB: jellystation
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U furry_app -d furry_zjut"]
+      test: ["CMD-SHELL", "pg_isready -U jellystation -d jellystation"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   redis:
     image: redis:7-alpine
-    container_name: furry-zjut-redis
+    container_name: jellystation-redis
     command: ["redis-server", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
     ports:
       - "6379:6379"

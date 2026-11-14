@@ -7,7 +7,7 @@ import { clearTokens, getRefreshToken, setTokens } from '@/api/token'
 interface LoginResult {
   access_token: string
   refresh_token: string
-  user: { id: string; username: string; display_name: string; role: string }
+  user: { id: string; username: string; display_name: string; role: string; avatar_url?: string | null; bio?: string }
 }
 
 function toUser(raw: MeResponse | LoginResult['user']): User {

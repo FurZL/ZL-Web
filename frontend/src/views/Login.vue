@@ -2,10 +2,12 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useSiteConfig } from '@/composables/useSiteConfig'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+const { siteName } = useSiteConfig()
 
 const account = ref('')
 const password = ref('')
@@ -37,13 +39,13 @@ async function submit() {
       <div class="text-center">
         <img
           src="/logo-m.png"
-          alt="浙江理工福瑞圈"
+          :alt="siteName"
           width="72"
           height="72"
           class="w-[72px] h-[72px] rounded-2xl object-contain bg-white/80 border border-white/60 shadow-soft mx-auto"
         />
         <h1 class="mt-4 text-2xl font-bold text-ink">欢迎回来</h1>
-        <p class="mt-1 text-sm text-sub">登录浙江理工福瑞圈</p>
+        <p class="mt-1 text-sm text-sub">登录{{ siteName }}</p>
       </div>
 
       <form class="mt-8 space-y-5" @submit.prevent="submit">

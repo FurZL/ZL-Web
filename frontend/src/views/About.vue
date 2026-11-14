@@ -5,9 +5,11 @@ import UserAvatar from '@/components/UserAvatar.vue'
 import { getClubIntro } from '@/api/site'
 import { useAuthStore } from '@/stores/auth'
 import { request } from '@/api/client'
+import { useSiteConfig } from '@/composables/useSiteConfig'
 import type { ClubIntro, MemberProfile } from '@/types'
 
 const auth = useAuthStore()
+const { siteName, siteSubtitle } = useSiteConfig()
 const members = ref<MemberProfile[]>([])
 
 const intro = ref<ClubIntro>({ title: '关于我们', content: '' })
@@ -44,7 +46,7 @@ const timeline = [
     <div class="text-center max-w-2xl mx-auto">
       <h1 class="text-3xl md:text-4xl font-bold text-ink">关于我们</h1>
       <p class="mt-4 text-sub leading-relaxed">
-        浙江理工福瑞圈，一个温暖、可爱、有社群感的 Furry 同好之家。
+        {{ siteName }}，{{ siteSubtitle }}。
       </p>
     </div>
 

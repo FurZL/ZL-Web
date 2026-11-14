@@ -23,6 +23,7 @@ from app.schemas.auth import (
     RegisterRequest,
 )
 from app.services import auth as auth_service
+from app.services import avatar as avatar_service
 from app.services.auth import AuthError
 from app.core.security import hash_password
 from app.services.otp import OtpError, send_otp, verify_otp
@@ -162,7 +163,7 @@ async def me(user: User = Depends(get_current_user)):
         "display_name": user.display_name,
         "email": user.email,
         "bio": user.bio or "",
-        "avatar_url": user.avatar_url,
+        "avatar_url": avatar_service.get_avatar_public_url(user),
         "role": user.role,
         "status": user.status,
     })

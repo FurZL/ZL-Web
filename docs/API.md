@@ -1,6 +1,6 @@
 # Furry ZJUT API 文档
 
-> 本分支 OpenAPI 已注册 **76 个 API 路径（91 个方法端点）**，供团队交接和查阅；个人主页待实现接口另列，不计入上述数量。
+> 本分支 OpenAPI 已注册 **79 个 API 路径（94 个方法端点）**，供团队交接和查阅；个人主页待实现接口另列，不计入上述数量。
 > 统一前缀：`/api/v1`，统一响应格式：`{"success": bool, "data": ..., "error": {"code", "message"}, "request_id": str}`
 
 ## 通用约定
@@ -135,8 +135,21 @@
 | POST | `/profile/me/images/upload-complete` | Bearer | 私有图片上传完成 |
 | GET | `/profile/me/images/{image_id}/url` | Bearer | 签发短时效签名 URL（私有图下载） |
 | DELETE | `/profile/me/images/{image_id}` | Bearer | 删除私有图片 |
+| POST | `/profile/me/avatar/upload-intent` | Bearer | 头像上传凭证（返回 COS 预签名 URL，限 5MB） |
+| POST | `/profile/me/avatar/upload-complete` | Bearer | 头像上传完成（验证对象存在，自动清理旧头像） |
+| DELETE | `/profile/me/avatar` | Bearer | 删除头像 |
 | GET | `/profile/members` | 无 | 公开成员列表（active 用户昵称/简介/头像，不含隐私） |
 | GET | `/profile/{user_id}` | 无 | 公开用户资料（昵称/角色，不含隐私） |
+
+### 头像上传流程（2026-11-15）
+
+前端浏览器端处理：用户选择图片 → `AvatarCropDialog` 弹窗框选正方形区域 → Canvas 两步缩放为 128×128 JPEG（质量 0.85）→ 申请 `upload-intent` → 直传 COS → `upload-complete` 确认。全链路不上传原图。
+
+**响应字段变更（2026-11-15）：**
+- `POST /auth/login` 的 `user` 对象新增 `avatar_url`（公开 URL）和 `bio`
+- `GET /auth/me` / `GET /profile/me` / `PUT /profile/me` 的 `avatar_url` 改为动态公开 URL
+- `GET /images/` / `GET /images/{id}` 新增 `photographer_avatar` 字段（拍摄者头像公开 URL）
+- `GET /profile/members` 的 `avatar_url` 改为动态公开 URL
 
 ### 本分支新增契约（2026-11-13）
 
@@ -358,7 +371,7 @@
 | `src/api/client.ts` | 通用请求封装（Bearer 注入、401 刷新、统一解包） |
 | `src/api/token.ts` | Token 管理（内存 + sessionStorage） |
 | `src/api/bootstrap.ts` | 共享登录态恢复，供首屏与受保护路由调用 |
-| `src/api/profile.ts` | 个人主页：3 个已实现端点的封装与 5 个待接通端点的调用 |
+| `src/api/profile.ts` | 个人主页：3 个已实现端点的封装与 5 个待接通端点的调用；头像上传/删除 |
 | `src/api/schedule.ts` | 课表 API（7 个接口） |
 | `src/api/site.ts` | 站点/公告 API（11 个接口） |
 | `src/api/events.ts` | 活动 API（10 个接口） |

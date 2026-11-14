@@ -8,12 +8,14 @@ import { getPublishedAnnouncements } from '@/api/site'
 import { request } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { useDialog } from '@/composables/useDialog'
+import { useSiteConfig } from '@/composables/useSiteConfig'
 import type { AnnouncementRecord, GalleryImage } from '@/types'
 
 const { showToast } = useDialog()
 
 const router = useRouter()
 const auth = useAuthStore()
+const { siteName } = useSiteConfig()
 
 const announcements = ref<AnnouncementRecord[]>([])
 const featuredImages = ref<GalleryImage[]>([])
@@ -74,7 +76,7 @@ async function downloadSelected() {
             毛茸茸的相遇<br />从这所学校开始
           </h1>
           <p class="mt-5 text-base md:text-lg text-white/85 max-w-xl mx-auto">
-            这里是浙江理工福瑞圈。分享照片、交到同好、还能用课表工具约上一起玩的时间。
+            这里是{{ siteName }}。分享照片、交到同好、还能用课表工具约上一起玩的时间。
           </p>
           <div class="mt-8 flex justify-center gap-4">
             <RouterLink v-if="!auth.isLoggedIn" to="/register" class="inline-flex items-center gap-2 rounded-full bg-primary/20 backdrop-blur-md border border-white/30 text-white px-8 py-3 font-medium hover:bg-primary/30 transition">
@@ -142,7 +144,7 @@ async function downloadSelected() {
           </div>
           <div class="px-2 py-2.5">
             <div class="flex items-center gap-2">
-              <UserAvatar :name="img.photographer" :size="24" />
+              <UserAvatar :name="img.photographer" :size="24" :src="img.photographer_avatar" />
               <span class="text-xs text-sub truncate flex-1">{{ img.description || img.title }}</span>
             </div>
             <div v-if="img.tags && img.tags.length" class="mt-1.5 flex flex-wrap gap-1.5">
@@ -163,7 +165,7 @@ async function downloadSelected() {
     >
       <template #meta>
         <div class="mt-4 flex items-center gap-2">
-          <UserAvatar :name="selected?.photographer ?? ''" :size="32" />
+          <UserAvatar :name="selected?.photographer ?? ''" :size="32" :src="selected?.photographer_avatar" />
           <div>
             <p class="text-sm text-ink">{{ selected?.photographer }}</p>
             <p class="text-xs text-faint">上传于 {{ (selected?.uploaded_at || '').slice(0, 10) }}</p>

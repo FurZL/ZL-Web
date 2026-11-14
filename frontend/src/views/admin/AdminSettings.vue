@@ -6,12 +6,14 @@ import {
   updateClubIntro,
   upsertSetting,
 } from '@/api/site'
+import { useSiteConfig } from '@/composables/useSiteConfig'
 import type { SiteSettingRecord } from '@/types'
 
 const tab = ref<'intro' | 'config' | 'footer' | 'legal'>('intro')
 const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
+const { siteName, siteSubtitle } = useSiteConfig()
 const successMsg = ref('')
 
 // 社团介绍
@@ -19,15 +21,15 @@ const intro = reactive({ title: '关于我们', content: '' })
 
 // 公开配置
 const config = reactive({
-  site_name: '浙江理工福瑞圈',
-  site_subtitle: '温暖、可爱、有社群感的 Furry 之家',
+  site_name: siteName,
+  site_subtitle: siteSubtitle,
   logo_url: '',
   favicon_url: '',
 })
 
 // 页脚
 const footer = reactive({
-  copyright_owner: '浙江理工福瑞圈',
+  copyright_owner: siteName,
   icp_number: '',
   police_number: '',
 })

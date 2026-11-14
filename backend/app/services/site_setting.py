@@ -84,8 +84,8 @@ async def list_settings(db: AsyncSession) -> list[dict]:
 # ---------- 公开配置聚合 ----------
 
 _DEFAULT_PUBLIC_CONFIG = {
-    "site_name": "浙江理工福瑞圈",
-    "site_subtitle": "温暖、可爱、有社群感的 Furry 之家",
+    "site_name": "啫喱小站",
+    "site_subtitle": "温暖、可爱、有社群感的同好之家",
     "logo_url": None,
     "favicon_url": None,
     "icp_number": None,
@@ -101,7 +101,7 @@ _DEFAULT_FOOTER = {
     ],
     "icp_number": None,
     "police_number": None,
-    "copyright_owner": "浙江理工福瑞圈",
+    "copyright_owner": "啫喱小站",
 }
 
 _DEFAULT_LEGAL = {

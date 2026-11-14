@@ -126,7 +126,7 @@ onMounted(loadImages)
         </div>
         <div class="px-2 py-2.5">
           <div class="flex items-center gap-2">
-            <UserAvatar :name="img.photographer" :size="26" />
+            <UserAvatar :name="img.photographer" :size="26" :src="img.photographer_avatar" />
             <span class="text-sm text-ink truncate flex-1">{{ img.description || img.title }}</span>
           </div>
           <div v-if="img.tags && img.tags.length" class="mt-1.5 flex flex-wrap gap-1.5">
@@ -146,7 +146,7 @@ onMounted(loadImages)
     >
       <template #meta>
         <div class="mt-4 flex items-center gap-2">
-          <UserAvatar :name="selected?.photographer ?? ''" :size="32" />
+          <UserAvatar :name="selected?.photographer ?? ''" :size="32" :src="selected?.photographer_avatar" />
           <div>
             <p class="text-sm text-ink">{{ selected?.photographer }}</p>
             <p class="text-xs text-faint">上传于 {{ (selected?.uploaded_at || '').slice(0, 10) }}</p>

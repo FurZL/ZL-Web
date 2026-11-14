@@ -128,6 +128,17 @@ async def _phone_exists(db: AsyncSession, phone: str) -> bool:
 
 # ---------- 登录 ----------
 
+def _get_avatar_url(user: User) -> str | None:
+    """生成头像公开 URL（避免循环导入）。"""
+    if not user.avatar_url:
+        return None
+    if not user.avatar_url.startswith("public/avatars/"):
+        return user.avatar_url
+    from app.providers.factory import get_storage_provider
+    storage = get_storage_provider()
+    return storage.public_url(storage.bucket, user.avatar_url)
+
+
 async def login(
     db: AsyncSession,
     account: str,
@@ -176,6 +187,8 @@ async def login(
             "username": user.username,
             "display_name": user.display_name,
             "role": user.role,
+            "avatar_url": _get_avatar_url(user),
+            "bio": user.bio or "",
         },
     }
 

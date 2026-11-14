@@ -25,6 +25,7 @@ from app.models.user import User
 from app.providers.factory import get_storage_provider
 from app.services import image_processing
 
+
 # 图片类型白名单（拒绝 SVG/HTML/脚本/压缩包等高风险类型）
 ALLOWED_MIME = {
     "image/jpeg",
@@ -205,6 +206,16 @@ async def list_public_images(
     }
 
 
+def _get_avatar_url(user: User) -> str | None:
+    """生成头像公开 URL（避免与 avatar.py 循环导入）。"""
+    if not user.avatar_url:
+        return None
+    if not user.avatar_url.startswith("public/avatars/"):
+        return user.avatar_url
+    storage = get_storage_provider()
+    return storage.public_url(storage.bucket, user.avatar_url)
+
+
 async def _image_to_dict(db: AsyncSession, image: Image) -> dict:
     stored = await db.get(StoredObject, image.stored_object_id)
     storage = get_storage_provider()
@@ -237,6 +248,7 @@ async def _image_to_dict(db: AsyncSession, image: Image) -> dict:
         "description": image.description,
         "tags": [t for t in (image.tags or "").split(",") if t],
         "photographer": uploader.display_name if uploader else "未知",
+        "photographer_avatar": _get_avatar_url(uploader) if uploader else None,
         "moderation_status": image.moderation_status,
         "is_public": image.is_public,
         "width": image.width,

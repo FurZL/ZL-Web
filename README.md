@@ -251,6 +251,7 @@ UI 组件在 `components/AppDialog.vue`，挂载在 `App.vue` 根部，无需每
 
 ## 变更记录
 
+- **2026-11-15：头像上传 + 动态站点名称**：新增头像上传全链路（浏览器端 128×128 裁剪压缩 → COS 预签名直传 → 动态公开 URL），右上角/图片展示/个人页统一显示真实头像；站点名称和副标题改为后端动态拉取，后台修改立即同步前端。登录响应补全 `avatar_url`/`bio` 字段，退出登录强制刷新回首页。
 - **2026-11-13：个人主页客制化阶段更新**：新增模块编辑器、渲染器、主题与素材选择组件、会话恢复初始化及开发 mock；后端接通布局草稿读写和图片展示授权，新增迁移与 7 个测试。发布、丢弃、主题、素材清单和公开主页端点仍待实现，详见本分支进度与 `docs/API.md`。
 - **修复管理员初始化流程**：`create_admin.py` 现在支持幂等初始化；已存在账号会自动恢复 `admin` 角色、`active` 状态和 `is_active=true`，只有显式传入 `--reset-password` 才会覆盖密码。修复了账号已存在但密码不正确时脚本直接跳过、导致 `admin` 无法登录的问题。
 - **新增站点 favicon 全套资源**：由蓝绿 M 形 logo 生成并放入 `frontend/public/`——`favicon.ico`（16–64 多尺寸）、`favicon-32x32.png`、`favicon.png`、`apple-touch-icon.png`（180）、`icon-192.png` / `icon-512.png`、`site.webmanifest`（主题色 `#6B5CE7`）；`index.html` 补充 `rel="icon"` / `apple-touch-icon` / `manifest` 引用。原 `/favicon.ico` 仅有链接、文件缺失，现已补齐。

@@ -68,6 +68,7 @@ export interface GalleryImage {
   description: string | null
   tags: string[]
   photographer: string
+  photographer_avatar: string | null
   moderation_status: string
   is_public: boolean
   width: number | null
