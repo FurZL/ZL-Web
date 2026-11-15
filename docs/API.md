@@ -1,6 +1,6 @@
 # Furry ZJUT API 文档
 
-> 本分支 OpenAPI 已注册 **79 个 API 路径（94 个方法端点）**，供团队交接和查阅；个人主页待实现接口另列，不计入上述数量。
+> 当前代码的 OpenAPI 注册 **84 个 API 路径（99 个方法端点）**。本数量包含已补齐的个人主页发布、丢弃、主题、素材和匿名公开页接口。
 > 统一前缀：`/api/v1`，统一响应格式：`{"success": bool, "data": ..., "error": {"code", "message"}, "request_id": str}`
 
 ## 通用约定
@@ -93,6 +93,7 @@
 
 - `POST /auth/register` 先读取 `registration_config`：`registration_enabled=false` 时返回 403；`require_email_verification` / `require_phone_verification` 为 false 时跳过对应 OTP 校验。
 - 注册和找回密码请求体新增 `password_confirm` / `new_password_confirm`，前后端都校验两次密码一致，且密码必须同时包含大小写字母和数字。
+- 注册请求还校验用户名 3–64 字符、昵称 1–64 字符、密码 8–128 字符；前端同步检查必填项、邮箱格式及验证码格式。FastAPI 422 字段错误会由前端客户端映射为带字段名的中文提示；具体注册失败原因仍以该次响应为准。
 - `POST /auth/verify/email`、`POST /auth/verify/phone` 对同一目标、同一用途执行 60 秒发送冷却，未到期返回业务错误码 `COOLDOWN`；前端按钮同时倒计时禁用。
 - 注册成功后异步发送「等待审批」邮件；管理员审批通过/拒绝时也会发送对应结果邮件，邮件发送失败不阻塞主流程。
 
@@ -137,7 +138,12 @@
 | GET | `/profile/me/images` | Bearer | 私有相册列表（仅本人可见） |
 | GET | `/profile/me/layout` | Bearer | 本人布局草稿、已发布块、主题、素材与统计（已实现） |
 | PUT | `/profile/me/layout` | Bearer | 整体替换本人草稿及可选公开开关（已实现，不发布、不保存主题） |
+| POST | `/profile/me/layout/publish` | Bearer | 校验草稿后发布，返回带时区的 published_at |
+| POST | `/profile/me/layout/discard` | Bearer | 丢弃草稿并恢复到已发布版本，返回完整布局 |
+| PUT | `/profile/me/theme` | Bearer | 严格校验并保存主题，返回完整布局 |
+| GET | `/profile/me/media` | Bearer | 本人所有私有图片素材及短时签名 URL（含展示授权状态） |
 | PATCH | `/profile/me/images/{image_id}` | Bearer | 更新本人私有图的展示授权 is_displayable（已实现） |
+| GET | `/profile/{username}/page` | 无 | 匿名读取已发布且公开的个人主页 |
 | POST | `/profile/me/images/upload-intent` | Bearer | 私有图片上传凭证 |
 | POST | `/profile/me/images/upload-complete` | Bearer | 私有图片上传完成 |
 | GET | `/profile/me/images/{image_id}/url` | Bearer | 签发短时效签名 URL（私有图下载） |
@@ -209,29 +215,34 @@
 | `stats` | 3 / 4 / 6 / 12 | items 最多 2 项，仅 joined_days / gallery_image_count |
 | `html_block` | 12 | html ≤ 24576 字符；height 仅 200 / 400 / 600；前端使用隔离 iframe 渲染 |
 
-照片和背景素材必须是本人的 `ProfileImage`、已开启 `is_displayable`，且对象 Key 位于 `private/profiles/{当前用户 id}/` 前缀下。`media` 按 object_key 映射 `{thumb_url, display_url, width, height}`，仅包含符合这些条件的引用素材；处理就绪时返回缩略图签名，展示图暂使用原图的短时签名 URL。图库统计只计算本人 `approved` 且 `is_public=true` 的公开图片。
+照片和背景素材必须是本人的 `ProfileImage`、已开启 `is_displayable`，且对象 Key 位于 `private/profiles/{当前用户 id}/` 前缀下。`media` 按 object_key 映射 `{thumb_url, display_url, width, height}`，仅包含符合这些条件的引用素材；处理就绪时返回缩略图签名，展示图暂使用原图的短时签名 URL。`stats` 在每次布局/公开主页读取时重新计算：`joined_days` 为账号创建后经过的完整 24 小时数；`gallery_image_count` 只统计本人 `approved` 且 `is_public=true` 的公开图库图片，不包含个人空间私有相册。
 
 `PATCH /profile/me/images/{image_id}` 接受严格请求体 `{"is_displayable": true}`，拒绝额外字段和字符串/整数布尔值，成功返回 `{"id": "图片 UUID", "is_displayable": true}`。此标记默认 `false`，不会自动发布主页或把私有相册整体公开。
+
+### 个人主页发布与公开读取（2026-11-15）
+
+- `POST /profile/me/layout/publish` 不接受请求体。草稿为空时返回 422 `PROFILE_LAYOUT_EMPTY`；成功时把通过结构与素材授权复核的草稿复制到已发布版本，并返回 `{ "published_at": "ISO-8601 with timezone" }`。
+- `POST /profile/me/layout/discard` 不接受请求体。草稿恢复为已发布块；尚无已发布版本时恢复为空数组。响应与 `GET /profile/me/layout` 同形。
+- `PUT /profile/me/theme` 请求体为 `ProfileTheme` 对象本身，包含 `primary`、`accent`、`background_type`、`background_key`、`background_blur`、`card_style`。颜色必须为 `#RRGGBB`，类型/卡片样式只能取已定义枚举，模糊度为整数 `0–20`，额外字段拒绝。非空 `background_key` 必须是本人可展示的私有图片。成功响应与 `GET /profile/me/layout` 同形。
+- `GET /profile/me/media` 返回 `{ "items": [...] }`。列表包括本人所有私有图片（无论 `is_displayable` 状态），字段为 `id`、`object_key`、`title`、`created_at`、`is_displayable`、`thumb_url`、`display_url`、`width`、`height`。对象 Key 必须位于本人 `private/profiles/{user_id}/` 前缀；签名 URL 使用 `PRIVATE_URL_TTL_SECONDS`。
+- `GET /profile/{username}/page` 无需登录。仅当用户为 active、存在布局、`is_public=true` 且 `published_blocks` 非 `null` 时返回主页。用户不存在、未发布、设为私有或未启用都统一返回 404 `PROFILE_PAGE_NOT_FOUND` / `该用户还没有公开主页`。响应中的 `user` 只含 `username`、`display_name`、`avatar_url`；公开素材仅返回已发布内容引用且仍为本人授权展示的图片，不返回邮箱、手机号或用户 UUID 字段。
+
+对应服务函数：`publish_layout()`（发布及素材复核）、`discard_layout()`（恢复草稿）、`put_theme()`（主题持久化）、`get_media_options()`（本人素材清单）、`get_public_page_payload()`（公开主页与隐私过滤）。
 
 | HTTP | 错误码/响应 | 触发条件 |
 |---|---|---|
 | 401 | 现有认证错误 | 缺少/无效凭证或账号未启用 |
 | 422 | `detail.code=PROFILE_LAYOUT_INVALID` | 布局结构、数量、模块字段/宽度或素材归属/展示权限不符；块级错误消息包含块 id |
 | 422 | `detail.code=PROFILE_LAYOUT_TOO_LARGE` | 布局超过 256 KiB 或无法按有效 JSON 编码 |
+| 422 | `detail.code=PROFILE_LAYOUT_EMPTY` | 空草稿发布 |
+| 422 | `detail.code=PROFILE_THEME_INVALID` | 主题字段格式、取值范围或背景素材授权无效 |
 | 422 | FastAPI 请求校验错误 | PATCH 严格布尔值/额外字段校验失败 |
 | 404 | `detail.code=PROFILE_IMAGE_NOT_FOUND` | 图片 UUID 非法、不存在或不属于当前用户 |
+| 404 | `detail.code=PROFILE_PAGE_NOT_FOUND` | 公开主页不存在、未发布、已隐藏或用户未启用 |
 
-### 前端已预留、真实后端尚未实现
+### 前端个人主页函数
 
-| 方法 | 预留路径 | 前端函数 | 当前状态 |
-|---|---|---|---|
-| GET | `/profile/{username}/page` | getProfilePage | 仅开发 mock 提供访客主页 |
-| POST | `/profile/me/layout/publish` | publishMyLayout | 仅开发 mock 提供发布 |
-| POST | `/profile/me/layout/discard` | discardMyDraft | 仅开发 mock 提供丢弃草稿 |
-| PUT | `/profile/me/theme` | saveMyTheme | 仅开发 mock 提供主题持久化 |
-| GET | `/profile/me/media` | getMyMedia | 仅开发 mock 提供可选素材清单 |
-
-以上不是已注册的 FastAPI 端点。真实后端模式下，编辑器 `saveDraft()` 先 PUT 布局再 PUT 主题，后一步当前返回 404，可能出现布局保存成功但 UI 提示失败；发布、丢弃、素材选择和访客页也尚未完成真实链路。`getMyLayout` / `saveMyLayout` / `setProfileImageDisplayable` 已有真实后端实现。迁移 `4f8a2c7d91b3` 新增 `profile_layouts` 和图片展示标记，上线此分支前需执行 `alembic upgrade head`。
+`getProfilePage()`、`publishMyLayout()`、`discardMyDraft()`、`saveMyTheme()` 和 `getMyMedia()` 均已有对应真实 FastAPI 端点；`saveMyTheme()` 的响应包含完整布局数据，前端继续使用其中的 `theme` 字段。`getMyLayout()`、`saveMyLayout()` 与 `setProfileImageDisplayable()` 保持原契约。
 
 ---
 
@@ -390,7 +401,7 @@
 | `src/api/client.ts` | 通用请求封装（Bearer 注入、401 刷新、统一解包） |
 | `src/api/token.ts` | Token 管理（内存 + sessionStorage） |
 | `src/api/bootstrap.ts` | 共享登录态恢复，供首屏与受保护路由调用 |
-| `src/api/profile.ts` | 个人主页：3 个已实现端点的封装与 5 个待接通端点的调用；头像上传/删除 |
+| `src/api/profile.ts` | 个人主页布局、发布/丢弃、主题、素材、公开页与展示授权 API 封装；另含头像上传/删除 |
 | `src/api/schedule.ts` | 课表 API（7 个接口） |
 | `src/api/site.ts` | 站点/公告 API（11 个接口） |
 | `src/api/events.ts` | 活动 API（10 个接口） |
@@ -409,12 +420,13 @@
 |---|---|---|
 | `api` | `axios.AxiosInstance` | 默认导出的 Axios 实例（baseURL、超时 15s、Content-Type: JSON） |
 | `request<T>(config)` | `async function(request: AxiosRequestConfig): Promise<T>` | 统一请求封装：注入 Bearer Token、自动解包 `{success, data, error}`、HTTP 异常提取后端错误消息 |
+| `formatValidationDetail(detail)` | 内部函数，`unknown -> string \| null` | 将 FastAPI 422 `detail` 校验错误数组转换为中文字段提示；不是对外 API |
 | `ensureAccessToken()` | `async function(): Promise<string \| null>` | 确保内存有有效 access token；页面刷新后用 refresh token 静默换取新 token，避免首个 401 |
 | `setUnauthorizedHandler(fn)` | `function(fn: (() => void) \| null): void` | 注册 401 登出回调（由 auth store 注册，避免循环依赖） |
 
 **内部流程**：请求拦截器注入 `Authorization: Bearer <token>` → 响应拦截器检测 401 → 自动调 `/auth/refresh` 换新 token → 重试一次 → 失败则 `clearTokens()` + 触发 `onUnauthorized`。
 
-错误提取优先读取响应信封 `error.message`，再读取 `detail.message` 或字符串 `detail`，供页面显示业务校验错误。
+错误提取优先读取响应信封 `error.message`，再读取 `detail.message` 或字符串 `detail`；FastAPI 字段校验错误数组由 `formatValidationDetail()` 映射字段名与校验提示，供页面显示可读的 422 原因。
 
 ## 前端 `src/api/token.ts` — Token 管理
 
@@ -438,11 +450,11 @@
 | `getMyLayout()` | `Promise<ProfileLayoutResponse>` | GET /profile/me/layout，已实现 |
 | `saveMyLayout(payload)` | `{blocks: ProfileBlock[], is_public?: boolean}` → `Promise<ProfileLayoutResponse>` | PUT /profile/me/layout，已实现 |
 | `setProfileImageDisplayable(id, is_displayable)` | `(string, boolean)` → `Promise<{id, is_displayable}>` | PATCH /profile/me/images/{id}，已实现 |
-| `getProfilePage(username)` | string → `Promise<ProfilePageResponse>` | GET /profile/{username}/page，待后端实现 |
-| `publishMyLayout()` | `Promise<{published_at}>` | POST /profile/me/layout/publish，待后端实现 |
-| `discardMyDraft()` | `Promise<ProfileLayoutResponse>` | POST /profile/me/layout/discard，待后端实现 |
-| `saveMyTheme(theme)` | ProfileTheme → `Promise<{theme: ProfileTheme}>` | PUT /profile/me/theme，待后端实现 |
-| `getMyMedia()` | `Promise<{items: ProfileMediaOption[]}>` | GET /profile/me/media，待后端实现 |
+| `getProfilePage(username)` | string → `Promise<ProfilePageResponse>` | GET /profile/{username}/page，已实现（匿名公开） |
+| `publishMyLayout()` | `Promise<{published_at}>` | POST /profile/me/layout/publish，已实现 |
+| `discardMyDraft()` | `Promise<ProfileLayoutResponse>` | POST /profile/me/layout/discard，已实现 |
+| `saveMyTheme(theme)` | ProfileTheme → `Promise<{theme: ProfileTheme}>` | PUT /profile/me/theme，已实现（响应为完整布局，前端读取 theme） |
+| `getMyMedia()` | `Promise<{items: ProfileMediaOption[]}>` | GET /profile/me/media，已实现 |
 
 ## 前端主页编辑器与渲染辅助函数
 
@@ -453,7 +465,7 @@
 | store：`addBlock(type)` / `removeBlock(id)` / `duplicateBlock(id)` | 新增/删除/复制模块；新增和复制受 maxBlocks 限制 |
 | store：`moveBlock(from, to)` / `setSpan(id, span)` / `updateProps(id, patch)` | 修改排序、宽度和属性 |
 | store：`applyThemePreset(id)` / `undo()` / `redo()` | 应用主题预设，撤销/重做模块及主题编辑 |
-| store：`saveDraft()` / `publish()` / `discard()` | 持久化操作；主题/发布/丢弃接口仍待接通，限制见上文 |
+| store：`saveDraft()` / `publish()` / `discard()` | 草稿、主题、发布与丢弃均走真实后端接口 |
 | `components/profile/blocks/registry.ts`：`isBlockType(value)` / `normalizeSpan(type, span)` | 校验模块类型、规范化宽度；共享 BLOCK_COMPONENTS / ALLOWED_SPANS / SPAN_CLASS 白名单 |
 | registry：`newBlockId()` / `defaultProps(type)` / `newBlock(type)` | 生成客户端块 id、默认 props 和新模块 |
 | `components/profile/blocks/types.ts`：`str()` / `num()` / `strList()` | 按类型读取模块属性并提供回退值；另导出 BlockProps 与 STAT_LABELS |

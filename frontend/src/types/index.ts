@@ -166,14 +166,15 @@ export interface PublicConfig {
   favicon_url: string | null
   icp_number: string | null
   police_number: string | null
+  registration_config?: RegistrationConfig
 }
-
 
 export interface RegistrationConfig {
   registration_enabled: boolean
   require_email_verification: boolean
   require_phone_verification: boolean
 }
+
 export interface FooterLink {
   label: string
   href: string

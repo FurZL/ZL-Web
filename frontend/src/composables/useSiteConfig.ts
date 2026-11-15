@@ -22,9 +22,7 @@ export async function fetchSiteConfig() {
     if (cfg.site_subtitle) {
       siteSubtitle.value = cfg.site_subtitle
     }
-    if ((cfg as any).registration_config) {
-      registrationConfig.value = (cfg as any).registration_config as RegistrationConfig
-    }
+    if (cfg.registration_config) registrationConfig.value = cfg.registration_config
   } catch {
     // 保持默认值
   }

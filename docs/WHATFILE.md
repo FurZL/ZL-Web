@@ -76,10 +76,10 @@
 
 | 文件 | 用途 |
 |---|---|
-| `client.ts` | Axios 实例封装（Bearer Token、401 刷新重试、响应解包；提取 error.message 和 detail.message 业务错误） |
+| `client.ts` | Axios 实例封装（Bearer Token、401 刷新重试、响应解包；提取业务错误和 FastAPI 字段校验错误） |
 | `token.ts` | Token 管理（access_token 存内存变量，refresh_token 持久化到 sessionStorage） |
 | `bootstrap.ts` | 登录态初始化（bootstrapAuth 共享 Promise，供 App 和路由守卫等待会话恢复） |
-| `profile.ts` | 个人主页 API 封装（布局读写、图片展示授权已接后端；发布/丢弃/主题/素材/公开页待后端实现） |
+| `profile.ts` | 个人主页 API 封装（布局读写、发布/丢弃、主题、素材清单、匿名公开页、图片展示授权） |
 | `schedule.ts` | 课表 API（上传意图/上传完成/我的课表/公开课表/对比/可见性开关/删除） |
 | `site.ts` | 站点/公告 API（公开配置/页脚/法律/社团介绍/公告 CRUD/管理设置读写） |
 | `events.ts` | 活动 API（列表/详情/报名/取消/签到 + 管理 CRUD/报名列表/管理员签到） |
@@ -98,7 +98,7 @@
 | 文件 | 用途 |
 |---|---|
 | `auth.ts` | 认证状态（login / logout / fetchMe、角色判断 isAdmin/isPhotographer、401 登出回调注册） |
-| `profileLayout.ts` | 主页编辑器状态（模块/主题/素材、撤销重做、修改标记、草稿读写及发布/丢弃调用；后者部分依赖未实现接口） |
+| `profileLayout.ts` | 主页编辑器状态（模块/主题/素材、撤销重做、草稿读写、发布/丢弃；页面可见且数据过期时刷新统计和签名素材，不覆盖未保存布局） |
 
 #### src/router/ — 路由
 
@@ -183,7 +183,7 @@
 | `BioBlock.vue` | 个人简介模块 |
 | `QuoteBlock.vue` | 一句话与署名模块 |
 | `FeaturedPhotoBlock.vue` | 单张主图与说明模块 |
-| `PhotoWallBlock.vue` | 照片墙模块（2/3 列） |
+| `PhotoWallBlock.vue` | 照片墙模块（2/3 列瀑布排布，按素材宽高比自适应图片高度） |
 | `GalleryLinkBlock.vue` | 按标签跳转图库的入口模块 |
 | `LinksBlock.vue` | 外部链接组模块 |
 | `StatsBlock.vue` | 入圈天数、公开图库图片数模块 |
@@ -204,13 +204,13 @@
 | 文件 | 用途 |
 |---|---|
 | `Home.vue` | 首页（Hero 横幅、社团简介、最新公告卡片[真实 API]、精选图片瀑布流预览[真实 API]） |
-| `About.vue` | 社团介绍（社团故事[从 /club/intro API 拉取，可后台编辑]、成员展示网格[含真实头像回退]、加入方式） |
+| `About.vue` | 社团介绍（社团故事[从 /club/intro API 拉取，可后台编辑]、成员展示网格[头像悬停放大并可进入成员公开主页]、加入方式） |
 | `Gallery.vue` | 公开图片展示（标签筛选、瀑布流图片列表、图片详情弹窗、上传入口 [摄影师/管理员]） |
 | `Schedule.vue` | 课表对比工具（三步流程：上传课表 → 选对比对象 → 网格可视化对比结果；走真实 API） |
-| `Profile.vue` | 个人空间（本人主页布局、编辑入口、图片展示管理、私有相册与课表；访客视图依赖待实现的公开主页接口） |
-| `ProfileEditor.vue` | 个人主页编辑页（/profile/me/edit，模块库/画布/属性/主题/预览、快捷键、离开前未保存提示） |
+| `Profile.vue` | 个人空间（本人布局与私有相册、公开主页链接分享；访客可读取已发布主页，统计在前台每分钟刷新） |
+| `ProfileEditor.vue` | 个人主页编辑页（/profile/me/edit，模块库/画布/属性/主题/预览、快捷键、离开前未保存提示、统计在前台每分钟刷新） |
 | `Login.vue` | 登录页（用户名/密码、登录按钮、注册关闭时隐藏去注册链接） |
-| `Register.vue` | 注册页（注册配置联动、密码确认+强度校验、验证码倒计时禁用、普通成员/摄影师类型、邮箱/手机 OTP、摄影师申请理由/作品集） |
+| `Register.vue` | 注册页（注册配置联动、用户名/昵称/密码长度与格式校验、邮箱/手机 OTP 格式校验、密码确认+强度校验、验证码倒计时、普通成员/摄影师类型及摄影师申请信息） |
 | `RegisterPending.vue` | 注册成功等待审批提示页 |
 | `ForgotPassword.vue` | 找回密码页（邮箱/手机验证、密码确认+强度校验、验证码倒计时、重置密码） |
 | `Events.vue` | 活动页（活动列表、筛选 Tab、报名/取消/签到、候补状态显示） |
@@ -274,7 +274,7 @@
 | `health.py` | 健康检查端点（GET /health 纯存活检查 + GET /ready 检查 DB/Redis 连通性） |
 | `auth.py` | 认证端点（POST /auth/register[含注册门控+密码强度校验]、verify/email[60s冷却]、verify/phone[60s冷却]、login[含 avatar_url]、refresh、logout、password/forgot、password/reset[含密码确认]、GET /me） |
 | `images.py` | 公开图片端点（GET /images 列表、GET /images/{id} 详情、POST upload-intent、upload-complete、DELETE 删除、POST 举报、GET 下载） |
-| `profile.py` | 个人空间端点（资料/相册/头像上传 upload-intent+upload-complete+delete、布局 GET/PUT、图片展示授权 PATCH） |
+| `profile.py` | 个人空间端点（资料/相册/头像、布局 GET/PUT/publish/discard、主题 PUT、素材 GET、图片展示授权 PATCH、匿名公开主页 GET） |
 | `schedule.py` | 课表端点（GET /mine、POST upload-intent、upload-complete、GET /{id}、POST /compare、PATCH /{id}/visibility、GET /shared/{username}、DELETE /{id}） |
 | `pages.py` | 动态页面端点（GET /{slug} 公开读取、/admin CRUD/发布/下线/版本列表/回滚） |
 | `events.py` | 活动端点（列表/详情/报名/取消/签到，含候补、幂等键、容量控制） |
@@ -433,7 +433,7 @@
 | `test_schedule_parser.py` | 课表解析测试（ZJUT TXT 格式/周次范围/节次解析/空格/换行/异常格式） |
 | `test_image_processing.py` | 图片处理测试（WebP 生成/尺寸裁剪/防解压炸弹/非法文件拒绝） |
 | `test_permissions.py` | 权限矩阵测试（各角色操作权限验证） |
-| `test_profile_layout.py` | 7 个布局测试（种子模块、GET/PUT 同形、未知字段清洗、错误块、素材权限过滤及 PATCH 归属校验；DB/存储为测试替身） |
+| `test_profile_layout.py` | 个人主页布局路由/service 契约测试（发布/丢弃、主题范围与素材授权、本人素材清单、匿名公开页隐私与统一 404；DB/存储为测试替身） |
 
 ### furry_zjut_backend.egg-info/ — pip 安装元数据（自动生成）
 
