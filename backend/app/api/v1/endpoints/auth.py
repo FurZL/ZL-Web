@@ -27,6 +27,7 @@ from app.services import avatar as avatar_service
 from app.services.auth import AuthError
 from app.core.security import hash_password
 from app.services.otp import OtpError, send_otp, verify_otp
+from app.services import site_setting
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -35,6 +36,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def send_email_code(body: OtpRequest, db: AsyncSession = Depends(get_db)):
     try:
         result = await send_otp(db, target=body.target, purpose=body.purpose)
+    except OtpError as exc:
+        raise error_to_http(exc)
     except Exception:
         raise HTTPException(status_code=500, detail={"code": "SEND_FAILED", "message": "验证码发送失败"})
     return ok(result)
@@ -44,6 +47,8 @@ async def send_email_code(body: OtpRequest, db: AsyncSession = Depends(get_db)):
 async def send_phone_code(body: OtpRequest, db: AsyncSession = Depends(get_db)):
     try:
         result = await send_otp(db, target=body.target, purpose=body.purpose)
+    except OtpError as exc:
+        raise error_to_http(exc)
     except Exception:
         raise HTTPException(status_code=500, detail={"code": "SEND_FAILED", "message": "验证码发送失败"})
     return ok(result)
@@ -51,17 +56,34 @@ async def send_phone_code(body: OtpRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/register")
 async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    # 校验邮箱验证码
-    try:
-        await verify_otp(db, target=body.email, purpose="register", code=body.email_code)
-    except OtpError as exc:
-        raise error_to_http(exc)
+    reg_cfg = await site_setting.get_registration_config(db)
 
-    # 校验手机验证码
-    try:
-        await verify_otp(db, target=body.phone, purpose="register", code=body.phone_code)
-    except OtpError as exc:
-        raise error_to_http(exc)
+    if body.password != body.password_confirm:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "PASSWORD_MISMATCH", "message": "两次输入的密码不一致"},
+        )
+
+    # 检查注册是否已关闭
+    if not reg_cfg.get("registration_enabled", True):
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "REGISTRATION_CLOSED", "message": "当前暂不开放注册，请关注公告"},
+        )
+
+    # 根据配置决定是否校验邮箱验证码
+    if reg_cfg.get("require_email_verification", True):
+        try:
+            await verify_otp(db, target=body.email, purpose="register", code=body.email_code)
+        except OtpError as exc:
+            raise error_to_http(exc)
+
+    # 根据配置决定是否校验手机验证码
+    if reg_cfg.get("require_phone_verification", True):
+        try:
+            await verify_otp(db, target=body.phone, purpose="register", code=body.phone_code)
+        except OtpError as exc:
+            raise error_to_http(exc)
 
     try:
         user = await auth_service.register_user(
@@ -136,6 +158,12 @@ async def reset_password(body: PasswordResetRequest, db: AsyncSession = Depends(
     except OtpError as exc:
         raise error_to_http(exc)
 
+
+    if body.new_password != body.new_password_confirm:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "PASSWORD_MISMATCH", "message": "两次输入的密码不一致"},
+        )
     # 找到目标用户并更新密码
 
     account = body.target.strip()

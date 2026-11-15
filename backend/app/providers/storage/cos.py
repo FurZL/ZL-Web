@@ -5,6 +5,13 @@
 
 COS SDK 是同步阻塞 API，所有方法用 asyncio.to_thread 包装成真正的 async，
 避免阻塞 FastAPI 事件循环。
+
+Dev prefix：
+  多人共用同一 Bucket 时通过 COS_DEV_PREFIX 透明隔离。数据库存储逻辑 key（不含前缀），
+  Provider 与 COS 交互时自动在前面追加 dev prefix。
+  例如 COS_DEV_PREFIX=dev-alice，逻辑 key public/gallery/original/2026/11/abc
+    → 物理 key dev-alice/public/gallery/original/2026/11/abc。
+  生产环境不设 COS_DEV_PREFIX，逻辑 key 即物理 key。
 """
 
 from __future__ import annotations
@@ -26,10 +33,27 @@ class CosStorageProvider(StorageProvider):
         self.region = settings.cos_region
         self.bucket = settings.cos_bucket
         self.public_base = settings.public_asset_base_url.rstrip("/")
+        self._dev_prefix_raw = settings.cos_dev_prefix.strip("/")
 
     @property
     def configured(self) -> bool:
         return bool(self.secret_id and self.secret_key and self.region and self.bucket)
+
+    # ------------------------------------------------------------------
+    # Dev prefix
+    # ------------------------------------------------------------------
+
+    @property
+    def _dev_prefix(self) -> str:
+        return f"{self._dev_prefix_raw}/" if self._dev_prefix_raw else ""
+
+    def _phys_key(self, logical_key: str) -> str:
+        """逻辑 key → 物理 key（挂 dev prefix）。"""
+        return f"{self._dev_prefix}{logical_key}"
+
+    # ------------------------------------------------------------------
+    # SDK helpers
+    # ------------------------------------------------------------------
 
     def _client(self):
         if not self.configured:
@@ -50,6 +74,10 @@ class CosStorageProvider(StorageProvider):
             raise RuntimeError("未配置 COS Bucket")
         return resolved
 
+    # ------------------------------------------------------------------
+    # StorageProvider interface – all use _phys_key for COS I/O
+    # ------------------------------------------------------------------
+
     async def presign_upload(
         self,
         bucket: str,
@@ -59,13 +87,14 @@ class CosStorageProvider(StorageProvider):
         expires_in: int = 900,
     ) -> UploadPresign:
         bucket = self._resolve_bucket(bucket)
+        phys_key = self._phys_key(object_key)
 
         def _do() -> str:
             client = self._client()
             return client.get_presigned_url(
                 Method="PUT",
                 Bucket=bucket,
-                Key=object_key,
+                Key=phys_key,
                 Expired=expires_in,
                 Headers={"Content-Type": content_type},
             )
@@ -85,13 +114,14 @@ class CosStorageProvider(StorageProvider):
         self, bucket: str, object_key: str, expires_in: int = 900
     ) -> str:
         bucket = self._resolve_bucket(bucket)
+        phys_key = self._phys_key(object_key)
 
         def _do() -> str:
             client = self._client()
             return client.get_presigned_url(
                 Method="GET",
                 Bucket=bucket,
-                Key=object_key,
+                Key=phys_key,
                 Expired=expires_in,
             )
 
@@ -102,13 +132,14 @@ class CosStorageProvider(StorageProvider):
 
     async def head_object(self, bucket: str, object_key: str) -> ObjectHead:
         bucket = self._resolve_bucket(bucket)
+        phys_key = self._phys_key(object_key)
 
         def _do() -> ObjectHead:
             from qcloud_cos.cos_exception import CosServiceError
 
             client = self._client()
             try:
-                resp = client.head_object(Bucket=bucket, Key=object_key)
+                resp = client.head_object(Bucket=bucket, Key=phys_key)
                 return ObjectHead(
                     exists=True,
                     size_bytes=int(resp.get("Content-Length", 0)) or None,
@@ -123,24 +154,28 @@ class CosStorageProvider(StorageProvider):
 
     async def delete_object(self, bucket: str, object_key: str) -> None:
         bucket = self._resolve_bucket(bucket)
+        phys_key = self._phys_key(object_key)
 
         def _do() -> None:
-            self._client().delete_object(Bucket=bucket, Key=object_key)
+            self._client().delete_object(Bucket=bucket, Key=phys_key)
 
         await asyncio.to_thread(_do)
 
     def public_url(self, bucket: str, object_key: str) -> str:
         # 公开内容走自定义 CDN 域名；未配置时回退 COS 默认域名。
+        # 物理 key 前缀体现在 URL 路径中（没有 CDN 重写规则时 URL 直接映射 COS 路径）。
+        phys_key = self._phys_key(object_key)
         if self.public_base and "example.com" not in self.public_base:
-            return f"{self.public_base}/{object_key}"
+            return f"{self.public_base}/{phys_key}"
         bucket = self._resolve_bucket(bucket)
-        return f"https://{bucket}.cos.{self.region}.myqcloud.com/{object_key}"
+        return f"https://{bucket}.cos.{self.region}.myqcloud.com/{phys_key}"
 
     async def get_object_bytes(self, bucket: str, object_key: str) -> bytes:
         bucket = self._resolve_bucket(bucket)
+        phys_key = self._phys_key(object_key)
 
         def _do() -> bytes:
-            resp = self._client().get_object(Bucket=bucket, Key=object_key)
+            resp = self._client().get_object(Bucket=bucket, Key=phys_key)
             return resp["Body"].get_raw_stream().read()
 
         return await asyncio.to_thread(_do)
@@ -149,11 +184,12 @@ class CosStorageProvider(StorageProvider):
         self, bucket: str, object_key: str, data: bytes, content_type: str
     ) -> None:
         bucket = self._resolve_bucket(bucket)
+        phys_key = self._phys_key(object_key)
 
         def _do() -> None:
             self._client().put_object(
                 Bucket=bucket,
-                Key=object_key,
+                Key=phys_key,
                 Body=data,
                 ContentType=content_type,
                 CacheControl="public, max-age=31536000, immutable",

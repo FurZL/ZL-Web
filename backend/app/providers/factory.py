@@ -6,7 +6,8 @@ from functools import lru_cache
 
 from app.core.config import settings
 from app.providers.captcha.base import CaptchaProvider, NoopCaptchaProvider
-from app.providers.email.base import EmailProvider, LogEmailProvider
+from app.providers.email.base import LogEmailProvider
+from app.providers.email.smtp import SmtpEmailProvider
 from app.providers.human_verification.base import (
     HumanVerificationProvider,
     NoopHumanVerificationProvider,
@@ -24,8 +25,11 @@ def get_storage_provider() -> StorageProvider:
 
 
 @lru_cache
-def get_email_provider() -> EmailProvider:
-    # 未配置时使用 no-op；配置了 EMAIL_PROVIDER=smtp 时可在此扩展。
+def get_email_provider():
+    if settings.email_provider == "smtp":
+        p = SmtpEmailProvider()
+        if p.configured:
+            return p
     return LogEmailProvider()
 
 

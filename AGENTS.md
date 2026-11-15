@@ -392,7 +392,7 @@ class HumanVerificationProvider:
 ### 5.2 验证策略
 
 按风险场景启用：
-- 注册：人机验证 + 邮箱 OTP + 手机 OTP。
+- 注册：人机验证 + 邮箱 OTP + 手机 OTP；邮箱/手机 OTP 是否强制由后台 `registration_config` 控制。
 - 登录：风险评分异常时触发人机验证；密码错误次数限制。
 - 找回密码：人机验证 + 邮箱或手机号验证。
 - 批量上传、评论、报名：按风险和频率触发验证。
@@ -729,6 +729,8 @@ POST   /password/reset
 GET    /me
 ```
 
+注册接口由 `registration_config` 门控：关闭注册返回 403；邮箱/手机验证可分别关闭。注册与找回密码要求两次密码一致且包含大小写字母和数字；`verify/email`、`verify/phone` 对同一目标同一用途执行 60 秒发送冷却。注册、审批通过/拒绝分别触发邮件通知（SMTP Provider）。
+
 ### Admin Users `/admin/users`
 ```text
 GET    /
@@ -874,24 +876,31 @@ PUT    /intro
 ```dotenv
 APP_ENV=development
 APP_NAME=Furry ZJUT
+DEBUG=true
 SECRET_KEY=replace-me
-DATABASE_URL=postgresql+psycopg://user:password@postgres:5432/furry_zjut
-REDIS_URL=redis://redis:6379/0
+API_V1_PREFIX=/api/v1
+DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/furry_zjut
+REDIS_URL=redis://localhost:6379/0
 
-FRONTEND_ORIGINS=https://www.example.com
-PUBLIC_API_BASE_URL=https://api.example.com
+FRONTEND_ORIGINS=http://localhost:5173,https://www.example.com
 
-STORAGE_PROVIDER=s3
-S3_ENDPOINT=
-S3_REGION=
-S3_BUCKET_PUBLIC=
-S3_BUCKET_PRIVATE=
-S3_ACCESS_KEY_ID=
-S3_SECRET_ACCESS_KEY=
-PUBLIC_ASSET_BASE_URL=https://img.example.com
+STORAGE_PROVIDER=cos
+COS_SECRET_ID=
+COS_SECRET_KEY=
+COS_REGION=
+COS_BUCKET=
+PUBLIC_ASSET_BASE_URL=
+PRIVATE_URL_TTL_SECONDS=900
+PROFILE_LAYOUT_MAX_BLOCKS=16
+COS_DEV_PREFIX=
 
-EMAIL_PROVIDER=
-EMAIL_API_KEY=
+EMAIL_PROVIDER=smtp
+SMTP_HOST=
+SMTP_PORT=465
+SMTP_USER=
+SMTP_PASSWORD=
+SMTP_FROM=
+SMTP_USE_SSL=true
 SMS_PROVIDER=
 SMS_API_KEY=
 CAPTCHA_PROVIDER=
@@ -899,6 +908,10 @@ CAPTCHA_SECRET_KEY=
 
 ACCESS_TOKEN_TTL_MINUTES=15
 REFRESH_TOKEN_TTL_DAYS=14
+OTP_TTL_SECONDS=600
+OTP_MAX_ATTEMPTS=5
+OTP_COOLDOWN_SECONDS=60
+OTP_DEV_MODE=true
 UPLOAD_MAX_BYTES=52428800
 ```
 

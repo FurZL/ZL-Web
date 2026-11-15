@@ -36,3 +36,17 @@ PostgreSQL/Redis 本机、仅回环监听，文件走 COS。
 ## 上线验收清单
 
 见架构文档附录 B14。
+
+## 多人开发 COS 隔离
+
+多人共用同一个 COS 测试桶时，为避免上传/派生文件互相覆盖，在 `.env` 中设置：
+
+```
+COS_DEV_PREFIX=dev-你的标识-时间戳
+```
+
+- 例如 `COS_DEV_PREFIX=dev-alice-20261115-171059`，则所有对象实际写入 `dev-alice-20261115-171059/public/...` 下。
+- 数据库始终存储**逻辑 key**（如 `public/gallery/original/2026/11/abc`），不含此前缀。
+- `CosStorageProvider` 在与 COS 交互时透明追加前缀；生产环境不设此变量则逻辑 key 即物理 key。
+- 每次开发部署到共享桶前务必把 `COS_DEV_PREFIX` 改成新的时间戳，确保与其他开发者不冲突。
+- 对象存储脚本（`setup_cos_cors.py`、`setup_cos_public_read.py` 等）需手动传入带前缀的路径或更新脚本支持前缀。

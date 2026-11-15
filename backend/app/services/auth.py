@@ -3,6 +3,7 @@
 - 密码 Argon2id 哈希。
 - Access Token 短时效 JWT；Refresh Token 不透明、只存哈希、可轮换/撤销。
 - 复用检测：旧 Refresh Token 被重放时，撤销整个会话族。
+- 注册/审批通过/拒绝均发送邮件通知。
 """
 
 from __future__ import annotations
@@ -53,6 +54,30 @@ def _create_refresh_token() -> str:
     return generate_token()
 
 
+# ---------- 邮件通知 (fire-and-forget) ----------
+
+def _send_email_notification(to: str, subject: str, template: str, username: str) -> None:
+    import asyncio as _asyncio
+    import logging as _logging
+    _logger = _logging.getLogger(__name__)
+
+    async def _send() -> None:
+        try:
+            from app.providers.factory import get_email_provider
+            from app.providers.email.smtp import SmtpEmailProvider
+            provider = get_email_provider()
+            if isinstance(provider, SmtpEmailProvider):
+                await provider.send(to=to, subject=subject, template=template, variables={"username": username})
+                _logger.info("通知邮件已发送 to=%s template=%s", to, template)
+        except Exception:
+            _logger.warning("通知邮件发送失败 to=%s template=%s", to, template, exc_info=True)
+
+    try:
+        _asyncio.ensure_future(_send())
+    except RuntimeError:
+        pass
+
+
 # ---------- 注册 ----------
 
 async def register_user(
@@ -67,13 +92,12 @@ async def register_user(
     application_reason: str | None = None,
     application_portfolio: str | None = None,
 ) -> User:
-    email = email.lower()
+    email = email.lower().strip() if email else ""
     phone = _normalize_phone(phone)
 
-    # 唯一性校验
     if await _username_exists(db, username):
         raise AuthError("USERNAME_TAKEN", "用户名已被占用")
-    if await _email_exists(db, email):
+    if email and await _email_exists(db, email):
         raise AuthError("EMAIL_TAKEN", "邮箱已被注册")
     if phone and await _phone_exists(db, phone):
         raise AuthError("PHONE_TAKEN", "手机号已被注册")
@@ -94,11 +118,14 @@ async def register_user(
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
+    if user.email:
+        _send_email_notification(user.email, "注册申请已提交", "register_pending", user.username)
+
     return user
 
 
 def _normalize_phone(phone: str) -> str:
-    """标准化为 E.164：去空格、统一 +86 前缀。"""
     p = phone.strip().replace(" ", "").replace("-", "")
     if p.startswith("0086"):
         p = "+86" + p[4:]
@@ -115,6 +142,8 @@ async def _username_exists(db: AsyncSession, username: str) -> bool:
 
 
 async def _email_exists(db: AsyncSession, email: str) -> bool:
+    if not email:
+        return False
     r = await db.scalar(select(User.id).where(User.email == email))
     return r is not None
 
@@ -129,7 +158,6 @@ async def _phone_exists(db: AsyncSession, phone: str) -> bool:
 # ---------- 登录 ----------
 
 def _get_avatar_url(user: User) -> str | None:
-    """生成头像公开 URL（避免循环导入）。"""
     if not user.avatar_url:
         return None
     if not user.avatar_url.startswith("public/avatars/"):
@@ -162,7 +190,6 @@ async def login(
 
     user.last_login_at = datetime.now(timezone.utc)
 
-    # 签发令牌
     access_token = create_access_token(user.id, user.role)
     refresh_token = _create_refresh_token()
 
@@ -221,7 +248,6 @@ async def refresh_tokens(db: AsyncSession, refresh_token: str) -> dict:
     if user is None or user.status != "active":
         raise AuthError("ACCOUNT_DISABLED", "账号不可用", 403)
 
-    # 轮换：撤销旧令牌，签发新的一对
     session.revoked_at = datetime.now(timezone.utc)
     new_refresh = _create_refresh_token()
     new_session = UserSession(
@@ -283,6 +309,10 @@ async def approve_user(db: AsyncSession, user_id: uuid.UUID) -> User:
         user.role = "photographer"
     await db.commit()
     await db.refresh(user)
+
+    if user.email:
+        _send_email_notification(user.email, "账号审批已通过", "account_approved", user.username)
+
     return user
 
 
@@ -294,4 +324,8 @@ async def reject_user(db: AsyncSession, user_id: uuid.UUID) -> User:
     user.is_active = False
     await db.commit()
     await db.refresh(user)
+
+    if user.email:
+        _send_email_notification(user.email, "注册申请结果", "account_rejected", user.username)
+
     return user

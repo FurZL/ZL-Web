@@ -2,23 +2,32 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class RegisterRequest(BaseModel):
     username: str = Field(min_length=3, max_length=64)
     display_name: str = Field(min_length=1, max_length=64)
-    email: EmailStr
-    phone: str = Field(description="含国家/地区码，将标准化为 E.164")
+    email: str = Field(default="")
+    phone: str = Field(default="")
     password: str = Field(min_length=8, max_length=128)
-    email_code: str
-    phone_code: str
+    password_confirm: str = Field(default="")
+    email_code: str = Field(default="")
+    phone_code: str = Field(default="")
     applied_role: str | None = Field(default=None, description="申请角色，例如 photographer")
     application_reason: str | None = None
     application_portfolio: str | None = None
+
+    @field_validator("password")
+    @classmethod
+    def _validate_password_strength(cls, v: str) -> str:
+        if not re.search(r"[A-Z]", v) or not re.search(r"[a-z]", v) or not re.search(r"[0-9]", v):
+            raise ValueError("密码必须包含大写字母、小写字母和数字")
+        return v
 
 
 class LoginRequest(BaseModel):
@@ -49,6 +58,14 @@ class PasswordResetRequest(BaseModel):
     target: str
     code: str
     new_password: str = Field(min_length=8, max_length=128)
+    new_password_confirm: str = Field(default="")
+
+    @field_validator("new_password")
+    @classmethod
+    def _validate_new_password_strength(cls, v: str) -> str:
+        if not re.search(r"[A-Z]", v) or not re.search(r"[a-z]", v) or not re.search(r"[0-9]", v):
+            raise ValueError("密码必须包含大写字母、小写字母和数字")
+        return v
 
 
 class TokenPair(BaseModel):
@@ -63,7 +80,7 @@ class UserOut(BaseModel):
     id: uuid.UUID
     username: str
     display_name: str
-    email: EmailStr
+    email: str = Field(default="")
     role: str
     status: str
     applied_role: str | None

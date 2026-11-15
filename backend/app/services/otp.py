@@ -53,6 +53,24 @@ async def send_otp(
     code = _generate_code()
     now = datetime.now(timezone.utc)
 
+
+    # 发送冷却：同一 target+purpose 两次发送之间至少间隔 otp_cooldown_seconds
+    latest = (
+        await db.scalars(
+            select(VerificationChallenge)
+            .where(
+                VerificationChallenge.target_hash == hash_token(target),
+                VerificationChallenge.purpose == purpose,
+            )
+            .order_by(VerificationChallenge.created_at.desc())
+        )
+    ).first()
+    if latest is not None:
+        elapsed = (now - latest.created_at).total_seconds()
+        if elapsed < settings.otp_cooldown_seconds:
+            remaining = int(settings.otp_cooldown_seconds - elapsed)
+            raise OtpError("COOLDOWN", f"发送过于频繁，请 {remaining} 秒后再试")
+
     # 作废该 target+purpose 下未消费的旧验证码
     pending = await db.scalars(
         select(VerificationChallenge).where(
@@ -86,7 +104,7 @@ async def send_otp(
 
             await get_email_provider().send(
                 to=target,
-                subject=f"【{settings.app_name}】验证码",
+                subject="验证码",
                 template="otp",
                 variables={"code": code, "purpose": purpose, "ttl_minutes": settings.otp_ttl_seconds // 60},
             )

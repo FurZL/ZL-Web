@@ -78,7 +78,7 @@ const timeline = [
       <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div v-for="m in members" :key="m.id" class="glass-card p-5 text-center hover:shadow-soft transition">
             <div class="flex justify-center">
-              <UserAvatar :name="m.display_name" :size="56" />
+              <UserAvatar :name="m.display_name" :size="56" :src="m.avatar_url" />
             </div>
             <p class="mt-3 text-sm font-medium text-ink">{{ m.display_name }}</p>
             <p class="text-xs text-faint mt-0.5">{{ m.bio || '这位同学还没有写简介' }}</p>

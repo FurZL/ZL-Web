@@ -46,6 +46,7 @@ cp ../.env.example .env            # 按需修改 DATABASE_URL / REDIS_URL / COS
 alembic upgrade head
 python scripts/create_admin.py admin admin123456 --reset-password
 python run.py                       # Windows 下必须用 run.py（避免 psycopg 事件循环问题）
+# 开发环境监听所有接口：python run.py --host 0.0.0.0
 # 热重载：python run.py --reload
 # 生产 Linux 可直接用：uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
@@ -100,6 +101,17 @@ VITE_PROFILE_MOCK=1
 ```
 
 mock 会拦截个人主页及会话恢复接口，数据仅驻留 Vite 进程内。演示会话可在该站点浏览器控制台执行 `sessionStorage.setItem('refresh_token', 'mock-refresh')`，刷新后打开 `/profile/me/edit`；结束演示时清除此项并重启普通开发服务。
+
+### 本分支进度：注册配置、邮件通知与验证码体验（2026-11-15）
+
+- 后台「网站设置」新增「注册设置」Tab：`registration_enabled` / `require_email_verification` / `require_phone_verification` 三个开关；`GET /site/public-config` 输出 `registration_config`，前端顶栏、登录页、注册页实时联动。
+- 注册接口增加后端强制门控：关闭注册时返回 403；关闭邮箱或手机验证时跳过对应 OTP 校验。注册页同步隐藏对应表单项，登录页/顶栏在关闭注册时隐藏注册入口。
+- 密码策略升级：注册和找回密码都要求两次输入一致，且密码必须同时包含大小写字母和数字；后端 `RegisterRequest`/`PasswordResetRequest` 有 Pydantic 校验，前端表单也做即时提示。
+- 邮箱/手机验证码增加 60 秒发送冷却，后端返回 `COOLDOWN` 错误，前端两个验证码按钮独立倒计时禁用。
+- 新增 `SmtpEmailProvider` 接入飞书企业邮箱 SMTP（`EMAIL_PROVIDER=smtp` + `SMTP_*`），发件名跟随 `APP_NAME`；注册提交发「等待审批」，管理员审批通过/拒绝分别发结果通知，邮件发送失败不阻塞注册或审批。
+- `About.vue` 社团介绍成员列表修复头像展示：有 `avatar_url` 显示头像，没有则回退首字母。
+- 新增 `COS_DEV_PREFIX` 多人开发隔离，后端 `CosStorageProvider` 与 COS 交互时透明追加前缀；`.env` 使用当前时间戳前缀。
+- `backend/run.py` 支持 `--host` 参数，便于开发环境监听 `0.0.0.0`。
 
 ### 前端页面设计（已完成）
 
@@ -231,7 +243,9 @@ UI 组件在 `components/AppDialog.vue`，挂载在 `App.vue` 根部，无需每
 ### 本地联调速查
 
 - 本地初始化管理员：`python scripts/create_admin.py admin admin123456 --reset-password`。账号已存在时，只有显式追加 `--reset-password` 才会重置密码；生产环境请改用随机强密码。
-- OTP 开发模式：`.env` 中 `OTP_DEV_MODE=true` 时，验证码直接返回在响应的 `dev_code` 字段（不发真实邮件/短信）。
+- OTP 开发模式：`.env` 中 `OTP_DEV_MODE=true` 时验证码直接返回在 `dev_code` 字段（不发真实邮件/短信）；`OTP_DEV_MODE=false` 时走 SMTP 真实发信（需配置 `SMTP_HOST` 等）。
+- 邮件：.env 配置 EMAIL_PROVIDER=smtp + SMTP_HOST/PORT/USER/PASSWORD/FROM 接入飞书企业邮箱；OTP_DEV_MODE=false 开启真实发信。
+- COS 多人隔离：.env 设 COS_DEV_PREFIX=dev-你的标识-时间戳 避免共用测试桶时文件冲突；生产留空。
 - COS 桶配置脚本：`backend/scripts/setup_cos_cors.py`（CORS）、`setup_cos_public_read.py`（public/ 前缀公有读），换桶后需重跑。
 - 本地开发端口：前端 Vite `5173`（strictPort），后端 uvicorn `8000`；注意 5273 等端口可能被 MiMo 主进程占用。
 
@@ -242,7 +256,7 @@ UI 组件在 `components/AppDialog.vue`，挂载在 `App.vue` 根部，无需每
 - 对象存储：腾讯云 COS 单桶（ap-shanghai，`public/`/`private/` 前缀隔离），CORS + public 读策略已配置，预签名上传/下载全链路实测通过。
 - 认证：注册（邮箱/手机 OTP）→ 待审批 → 管理员审批 → 登录/刷新令牌轮换，完整闭环已打通。
 - 图片处理：后台 worker 生成缩略图（800px）/展示图（2000px）WebP，含防解压炸弹。
-- API：OpenAPI 已注册 76 个路径 / 91 个方法端点（含新增的布局 GET/PUT 与图片展示授权 PATCH）；待实现的个人主页接口不计入。
+- API：OpenAPI 已注册 79 个路径 / 94 个方法端点（含布局草稿、图片展示授权、注册门控配置）；待实现的个人主页接口不计入。
 - 测试：`pytest` 30 个用例通过（认证/权限/课表解析与对比/图片处理/个人主页布局）。
 - 管理后台：用户审批、仪表盘、公告管理、网站设置、活动管理、页面管理、图片管理已接真实接口。
 - 管理员初始化：`backend/scripts/create_admin.py` 已合并到 `main`；账号已存在时默认不覆盖密码，使用 `--reset-password` 才会显式重置，并自动确保管理员角色和启用状态。
@@ -251,6 +265,7 @@ UI 组件在 `components/AppDialog.vue`，挂载在 `App.vue` 根部，无需每
 
 ## 变更记录
 
+- **2026-11-15：注册配置、邮件通知、密码强度与验证码冷却**：后台新增「注册设置」Tab（开启注册/要求邮箱验证/要求手机验证），前端顶栏/登录页/注册页联动隐藏注册入口，后端 /auth/register 强制门控。新增 SmtpEmailProvider 接入飞书企业邮箱 SMTP，HTML 卡片模板，发件名跟随 APP_NAME；注册提交后发「等待审批」通知，审批通过/拒绝各发通知，fire-and-forget 异步不阻塞。注册和找回密码均要求密码含大小写字母和数字，前后端双重校验；注册表单新增确认密码字段。OTP 发送新增 60 秒冷却（OTP_COOLDOWN_SECONDS），前端按钮倒计时禁用。社团介绍页成员头像修复（补传 `avatar_url`）。新增 COS_DEV_PREFIX 多人开发隔离前缀。`run.py` 支持 --host 参数。
 - **2026-11-15：头像上传 + 动态站点名称**：新增头像上传全链路（浏览器端 128×128 裁剪压缩 → COS 预签名直传 → 动态公开 URL），右上角/图片展示/个人页统一显示真实头像；站点名称和副标题改为后端动态拉取，后台修改立即同步前端。登录响应补全 `avatar_url`/`bio` 字段，退出登录强制刷新回首页。
 - **2026-11-13：个人主页客制化阶段更新**：新增模块编辑器、渲染器、主题与素材选择组件、会话恢复初始化及开发 mock；后端接通布局草稿读写和图片展示授权，新增迁移与 7 个测试。发布、丢弃、主题、素材清单和公开主页端点仍待实现，详见本分支进度与 `docs/API.md`。
 - **修复管理员初始化流程**：`create_admin.py` 现在支持幂等初始化；已存在账号会自动恢复 `admin` 角色、`active` 状态和 `is_active=true`，只有显式传入 `--reset-password` 才会覆盖密码。修复了账号已存在但密码不正确时脚本直接跳过、导致 `admin` 无法登录的问题。

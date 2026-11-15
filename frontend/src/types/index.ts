@@ -168,6 +168,12 @@ export interface PublicConfig {
   police_number: string | null
 }
 
+
+export interface RegistrationConfig {
+  registration_enabled: boolean
+  require_email_verification: boolean
+  require_phone_verification: boolean
+}
 export interface FooterLink {
   label: string
   href: string
