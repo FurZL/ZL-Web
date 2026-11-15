@@ -1,4 +1,4 @@
-"""站点公开信息端点（页脚、法律、公开配置）。"""
+"""站点公开信息端点（页脚、法律、公开配置、注册设置）。"""
 
 from __future__ import annotations
 
@@ -14,7 +14,10 @@ router = APIRouter(prefix="/site", tags=["site"])
 
 @router.get("/public-config")
 async def public_config(db: AsyncSession = Depends(get_db)):
-    return ok(await site_setting.get_public_config(db))
+    cfg = await site_setting.get_public_config(db)
+    reg = await site_setting.get_registration_config(db)
+    cfg["registration_config"] = reg
+    return ok(cfg)
 
 
 @router.get("/footer")

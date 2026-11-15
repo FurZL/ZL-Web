@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     public_asset_base_url: str = Field(
         default="https://img.example.com", alias="PUBLIC_ASSET_BASE_URL"
     )
+    # 开发环境 COS 前缀：多人共用同一桶时用此隔离，避免文件冲突。
+    # 例如 COS_DEV_PREFIX=dev-alice，则所有对象实际写入 dev-alice/public/... 下。
+    # 数据库存储逻辑 key（不含此前缀），Provider 层透明追加。生产环境留空。
+    cos_dev_prefix: str = Field(default="", alias="COS_DEV_PREFIX")
+
     private_url_ttl_seconds: int = Field(default=900, alias="PRIVATE_URL_TTL_SECONDS")
     profile_layout_max_blocks: int = Field(default=16, alias="PROFILE_LAYOUT_MAX_BLOCKS")
 
@@ -58,6 +63,12 @@ class Settings(BaseSettings):
     email_provider: str | None = Field(default=None, alias="EMAIL_PROVIDER")
     email_api_key: str | None = Field(default=None, alias="EMAIL_API_KEY")
     email_from: str | None = Field(default=None, alias="EMAIL_FROM")
+    smtp_host: str | None = Field(default=None, alias="SMTP_HOST")
+    smtp_port: int = Field(default=465, alias="SMTP_PORT")
+    smtp_user: str | None = Field(default=None, alias="SMTP_USER")
+    smtp_password: str | None = Field(default=None, alias="SMTP_PASSWORD")
+    smtp_from: str | None = Field(default=None, alias="SMTP_FROM")
+    smtp_use_ssl: bool = Field(default=True, alias="SMTP_USE_SSL")
     sms_provider: str | None = Field(default=None, alias="SMS_PROVIDER")
     sms_api_key: str | None = Field(default=None, alias="SMS_API_KEY")
     captcha_provider: str | None = Field(default=None, alias="CAPTCHA_PROVIDER")
@@ -80,6 +91,7 @@ class Settings(BaseSettings):
     otp_max_attempts: int = Field(default=5, alias="OTP_MAX_ATTEMPTS")
     # 开发模式：不真正发送邮件/短信，验证码返回在响应里（仅用于本地联调）
     otp_dev_mode: bool = Field(default=False, alias="OTP_DEV_MODE")
+    otp_cooldown_seconds: int = Field(default=60, alias="OTP_COOLDOWN_SECONDS")
 
     # 上传
     upload_max_bytes: int = Field(default=52_428_800, alias="UPLOAD_MAX_BYTES")

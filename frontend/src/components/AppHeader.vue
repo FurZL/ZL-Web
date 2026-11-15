@@ -6,7 +6,7 @@ import { useSiteConfig } from '@/composables/useSiteConfig'
 import UserAvatar from '@/components/UserAvatar.vue'
 
 const auth = useAuthStore()
-const { siteName } = useSiteConfig()
+const { siteName, registrationConfig } = useSiteConfig()
 const menuOpen = ref(false)
 
 const navLinks = computed(() => [
@@ -111,7 +111,7 @@ function logoutAndRedirect() {
           <RouterLink to="/login" class="text-[13px] font-medium text-primary-700 bg-primary/5 border border-primary/10 hover:bg-primary/15 rounded-lg px-3 py-1.5 transition">
             登录
           </RouterLink>
-          <RouterLink to="/register" class="text-[13px] font-medium text-primary-700 bg-primary/15 border border-primary/20 hover:bg-primary/25 rounded-lg px-3.5 py-1.5 shadow-glass transition">
+          <RouterLink v-if="registrationConfig.registration_enabled" to="/register" class="text-[13px] font-medium text-primary-700 bg-primary/15 border border-primary/20 hover:bg-primary/25 rounded-lg px-3.5 py-1.5 shadow-glass transition">
             注册
           </RouterLink>
         </template>

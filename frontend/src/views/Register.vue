@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { request } from '@/api/client'
+import { useSiteConfig } from '@/composables/useSiteConfig'
+import type { RegistrationConfig } from '@/types'
 
 const router = useRouter()
+const { registrationConfig } = useSiteConfig()
 
 const type = ref<'member' | 'photographer'>('member')
 const form = ref({
@@ -12,6 +15,7 @@ const form = ref({
   email: '',
   phone: '',
   password: '',
+  passwordConfirm: '',
   emailCode: '',
   phoneCode: '',
   reason: '',
@@ -20,10 +24,28 @@ const form = ref({
 
 const error = ref('')
 const submitting = ref(false)
-const sendingEmail = ref(false)
-const sendingPhone = ref(false)
-const sentEmail = ref(false)
-const sentPhone = ref(false)
+
+const emailCooldown = ref(0)
+const phoneCooldown = ref(0)
+
+const regCfg = ref<RegistrationConfig>(registrationConfig.value)
+
+onMounted(async () => {
+  try {
+    const cfg = await request<any>({ method: 'GET', url: '/site/public-config' })
+    if (cfg.registration_config) regCfg.value = cfg.registration_config
+  } catch { /* keep defaults */ }
+  if (!regCfg.value.registration_enabled) router.replace('/')
+})
+
+function startCooldown(kind: 'email' | 'phone') {
+  const cd = kind === 'email' ? emailCooldown : phoneCooldown
+  cd.value = 60
+  const timer = setInterval(() => {
+    cd.value--
+    if (cd.value <= 0) clearInterval(timer)
+  }, 1000)
+}
 
 async function sendCode(kind: 'email' | 'phone') {
   const target = kind === 'email' ? form.value.email : form.value.phone
@@ -32,31 +54,28 @@ async function sendCode(kind: 'email' | 'phone') {
     return
   }
   error.value = ''
-  if (kind === 'email') sendingEmail.value = true
-  else sendingPhone.value = true
   try {
-    const res = await request<{ dev_code?: string }>({
+    await request<{ dev_code?: string }>({
       method: 'POST',
       url: kind === 'email' ? '/auth/verify/email' : '/auth/verify/phone',
       data: { target, purpose: 'register' },
     })
-    if (kind === 'email') {
-      sentEmail.value = true
-      if (res.dev_code) form.value.emailCode = res.dev_code
-    } else {
-      sentPhone.value = true
-      if (res.dev_code) form.value.phoneCode = res.dev_code
-    }
+    startCooldown(kind)
   } catch (e) {
     error.value = e instanceof Error ? e.message : '验证码发送失败'
-  } finally {
-    if (kind === 'email') sendingEmail.value = false
-    else sendingPhone.value = false
   }
 }
 
 async function submit() {
   error.value = ''
+  if (form.value.password !== form.value.passwordConfirm) {
+    error.value = '两次输入的密码不一致'
+    return
+  }
+  if (!/[A-Z]/.test(form.value.password) || !/[a-z]/.test(form.value.password) || !/[0-9]/.test(form.value.password)) {
+    error.value = '密码必须包含大写字母、小写字母和数字'
+    return
+  }
   submitting.value = true
   try {
     await request({
@@ -65,11 +84,12 @@ async function submit() {
       data: {
         username: form.value.username,
         display_name: form.value.displayName,
-        email: form.value.email,
-        phone: form.value.phone,
+        email: regCfg.value.require_email_verification ? form.value.email : '',
+        phone: regCfg.value.require_phone_verification ? form.value.phone : '',
         password: form.value.password,
-        email_code: form.value.emailCode,
-        phone_code: form.value.phoneCode,
+        password_confirm: form.value.passwordConfirm,
+        email_code: regCfg.value.require_email_verification ? form.value.emailCode : '',
+        phone_code: regCfg.value.require_phone_verification ? form.value.phoneCode : '',
         applied_role: type.value === 'photographer' ? 'photographer' : null,
         application_reason: type.value === 'photographer' ? form.value.reason : null,
         application_portfolio: type.value === 'photographer' ? form.value.portfolio : null,
@@ -92,7 +112,6 @@ async function submit() {
         <p class="mt-1 text-sm text-sub">注册并通过管理员审批后即可登录</p>
       </div>
 
-      <!-- 类型选择 -->
       <div class="mt-8 grid grid-cols-2 gap-3">
         <button
           class="rounded-xl2 p-4 text-left transition border-2"
@@ -122,23 +141,33 @@ async function submit() {
           <input v-model="form.displayName" class="input" placeholder="大家怎么称呼你" />
         </div>
 
-        <div>
+        <div v-if="regCfg.require_email_verification">
           <label class="label">邮箱</label>
           <div class="flex gap-2">
             <input v-model="form.email" class="input flex-1" placeholder="name@example.com" type="email" />
-            <button type="button" class="btn-ghost !px-4 !py-2 whitespace-nowrap shrink-0" :disabled="sendingEmail" @click="sendCode('email')">
-              {{ sendingEmail ? '发送中…' : sentEmail ? '重新发送' : '发送验证码' }}
+            <button
+              type="button"
+              class="btn-ghost !px-4 !py-2 whitespace-nowrap shrink-0"
+              :disabled="emailCooldown > 0"
+              @click="sendCode('email')"
+            >
+              {{ emailCooldown > 0 ? `${emailCooldown}s` : '发送验证码' }}
             </button>
           </div>
           <input v-model="form.emailCode" class="input mt-2" placeholder="邮箱验证码" />
         </div>
 
-        <div>
+        <div v-if="regCfg.require_phone_verification">
           <label class="label">手机号</label>
           <div class="flex gap-2">
             <input v-model="form.phone" class="input flex-1" placeholder="+86 138..." />
-            <button type="button" class="btn-ghost !px-4 !py-2 whitespace-nowrap shrink-0" :disabled="sendingPhone" @click="sendCode('phone')">
-              {{ sendingPhone ? '发送中…' : sentPhone ? '重新发送' : '发送验证码' }}
+            <button
+              type="button"
+              class="btn-ghost !px-4 !py-2 whitespace-nowrap shrink-0"
+              :disabled="phoneCooldown > 0"
+              @click="sendCode('phone')"
+            >
+              {{ phoneCooldown > 0 ? `${phoneCooldown}s` : '发送验证码' }}
             </button>
           </div>
           <input v-model="form.phoneCode" class="input mt-2" placeholder="手机验证码" />
@@ -146,10 +175,13 @@ async function submit() {
 
         <div>
           <label class="label">密码</label>
-          <input v-model="form.password" type="password" class="input" placeholder="至少 8 位" />
+          <input v-model="form.password" type="password" class="input" placeholder="至少 8 位，含大小写字母和数字" />
+        </div>
+        <div>
+          <label class="label">确认密码</label>
+          <input v-model="form.passwordConfirm" type="password" class="input" placeholder="请再次输入密码" />
         </div>
 
-        <!-- 摄影师额外字段 -->
         <template v-if="type === 'photographer'">
           <div>
             <label class="label">申请理由</label>

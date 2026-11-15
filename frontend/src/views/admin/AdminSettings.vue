@@ -9,7 +9,7 @@ import {
 import { useSiteConfig } from '@/composables/useSiteConfig'
 import type { SiteSettingRecord } from '@/types'
 
-const tab = ref<'intro' | 'config' | 'footer' | 'legal'>('intro')
+const tab = ref<'intro' | 'config' | 'footer' | 'legal' | 'registration'>('intro')
 const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
@@ -40,6 +40,13 @@ const legal = reactive({
   privacy_url: '',
   copyright_notice: '',
   contact_email: '',
+})
+
+// 注册设置
+const registration = reactive({
+  registration_enabled: true,
+  require_email_verification: true,
+  require_phone_verification: true,
 })
 
 const allSettings = ref<SiteSettingRecord[]>([])
@@ -76,6 +83,12 @@ async function load() {
       legal.privacy_url = lg.privacy_url ?? ''
       legal.copyright_notice = lg.copyright_notice ?? ''
       legal.contact_email = lg.contact_email ?? ''
+    }
+    const reg = settingsData.items.find((s) => s.key === 'registration_config')?.value as Record<string, boolean> | undefined
+    if (reg) {
+      registration.registration_enabled = reg.registration_enabled ?? true
+      registration.require_email_verification = reg.require_email_verification ?? true
+      registration.require_phone_verification = reg.require_phone_verification ?? true
     }
   } catch (e) {
     error.value = e instanceof Error ? e.message : '加载失败'
@@ -158,21 +171,40 @@ async function saveLegal() {
   }
 }
 
+async function saveRegistration() {
+  saving.value = true
+  error.value = ''
+  try {
+    await upsertSetting({
+      key: 'registration_config',
+      value: { ...registration },
+      category: 'site',
+      is_public: true,
+    })
+    showSuccess('注册设置已保存')
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : '保存失败'
+  } finally {
+    saving.value = false
+  }
+}
+
 const tabs = [
   { key: 'intro', label: '社团介绍' },
   { key: 'config', label: '公开配置' },
   { key: 'footer', label: '页脚信息' },
   { key: 'legal', label: '法律信息' },
+  { key: 'registration', label: '注册设置' },
 ] as const
 </script>
 
 <template>
   <div>
     <h1 class="text-2xl font-bold text-ink">网站设置</h1>
-    <p class="mt-1 text-sm text-sub">社团介绍、Logo、页脚备案信息与法律链接</p>
+    <p class="mt-1 text-sm text-sub">社团介绍、Logo、页脚备案信息、法律链接与注册控制</p>
 
     <!-- Tab 切换 -->
-    <div class="mt-6 flex gap-2">
+    <div class="mt-6 flex gap-2 flex-wrap">
       <button
         v-for="t in tabs"
         :key="t.key"
@@ -277,6 +309,57 @@ const tabs = [
         </div>
         <button class="btn-primary" :disabled="saving" @click="saveLegal">
           {{ saving ? '保存中…' : '保存法律信息' }}
+        </button>
+      </div>
+
+      <!-- 注册设置 -->
+      <div v-else-if="tab === 'registration'" class="glass-card p-6 space-y-6">
+        <div>
+          <h2 class="text-lg font-semibold text-ink">注册开关</h2>
+          <p class="text-sm text-sub mt-1">控制是否允许新用户注册，以及注册时需要验证哪些联系方式。</p>
+        </div>
+
+        <!-- 是否开启注册 -->
+        <label class="flex items-center justify-between p-4 rounded-xl bg-white/60 border border-white/60 cursor-pointer hover:bg-white/80 transition">
+          <div>
+            <p class="font-medium text-ink">开启注册</p>
+            <p class="text-sm text-sub">关闭后前端注册入口隐藏，后端拒绝注册请求</p>
+          </div>
+          <input
+            v-model="registration.registration_enabled"
+            type="checkbox"
+            class="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+          />
+        </label>
+
+        <!-- 是否开启邮箱验证 -->
+        <label class="flex items-center justify-between p-4 rounded-xl bg-white/60 border border-white/60 cursor-pointer hover:bg-white/80 transition">
+          <div>
+            <p class="font-medium text-ink">要求邮箱验证</p>
+            <p class="text-sm text-sub">关闭后注册时无需填写邮箱验证码，但邮箱字段仍然必填</p>
+          </div>
+          <input
+            v-model="registration.require_email_verification"
+            type="checkbox"
+            class="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+          />
+        </label>
+
+        <!-- 是否开启手机验证 -->
+        <label class="flex items-center justify-between p-4 rounded-xl bg-white/60 border border-white/60 cursor-pointer hover:bg-white/80 transition">
+          <div>
+            <p class="font-medium text-ink">要求手机验证</p>
+            <p class="text-sm text-sub">关闭后注册时无需填写手机验证码，但手机字段仍然必填</p>
+          </div>
+          <input
+            v-model="registration.require_phone_verification"
+            type="checkbox"
+            class="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+          />
+        </label>
+
+        <button class="btn-primary" :disabled="saving" @click="saveRegistration">
+          {{ saving ? '保存中…' : '保存注册设置' }}
         </button>
       </div>
     </div>

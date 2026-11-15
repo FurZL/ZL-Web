@@ -7,7 +7,7 @@ import { useSiteConfig } from '@/composables/useSiteConfig'
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
-const { siteName } = useSiteConfig()
+const { siteName, registrationConfig } = useSiteConfig()
 
 const account = ref('')
 const password = ref('')
@@ -65,7 +65,7 @@ async function submit() {
 
       <div class="mt-6 text-center text-sm text-sub space-y-2">
         <p><RouterLink to="/forgot-password" class="text-primary-700 hover:underline">忘记密码？</RouterLink></p>
-        <p>还没有账号？<RouterLink to="/register" class="text-primary-700 hover:underline">去注册</RouterLink></p>
+        <p v-if="registrationConfig.registration_enabled">还没有账号？<RouterLink to="/register" class="text-primary-700 hover:underline">去注册</RouterLink></p>
       </div>
     </div>
   </div>

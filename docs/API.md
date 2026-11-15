@@ -78,9 +78,9 @@
 
 | 方法 | 路径 | 认证 | 说明 |
 |---|---|---|---|
-| POST | `/auth/register` | 无 | 注册（用户名/昵称/邮箱/手机/密码，可选摄影师申请） |
-| POST | `/auth/verify/email` | 无 | 邮箱 OTP 验证 |
-| POST | `/auth/verify/phone` | 无 | 手机 OTP 验证 |
+| POST | `/auth/register` | 无 | 注册（受 registration_config 门控，关闭返回 403；密码须含大小写字母和数字；前端须传 password_confirm） |
+| POST | `/auth/verify/email` | 无 | 邮箱 OTP 验证（60s 冷却，后端 COOLDOWN 错误 + 前端倒计时） |
+| POST | `/auth/verify/phone` | 无 | 手机 OTP 验证（60s 冷却，后端 COOLDOWN 错误 + 前端倒计时） |
 | POST | `/auth/login` | 无 | 登录，返回 `{access_token, refresh_token, user}` |
 | POST | `/auth/refresh` | Refresh Token | 刷新 Access Token（轮换 Refresh Token） |
 | POST | `/auth/logout` | Bearer | 登出（撤销当前 Refresh Token） |
@@ -88,6 +88,13 @@
 | POST | `/auth/password/forgot` | 无 | 找回密码（发送验证码） |
 | POST | `/auth/password/reset` | 无 | 重置密码（验证码 + 新密码；真实更新密码 + 撤销全部会话） |
 | GET | `/auth/me` | Bearer | 获取当前用户信息（含 bio/avatar_url） |
+
+### 注册门控、密码强度与 OTP 冷却（2026-11-15）
+
+- `POST /auth/register` 先读取 `registration_config`：`registration_enabled=false` 时返回 403；`require_email_verification` / `require_phone_verification` 为 false 时跳过对应 OTP 校验。
+- 注册和找回密码请求体新增 `password_confirm` / `new_password_confirm`，前后端都校验两次密码一致，且密码必须同时包含大小写字母和数字。
+- `POST /auth/verify/email`、`POST /auth/verify/phone` 对同一目标、同一用途执行 60 秒发送冷却，未到期返回业务错误码 `COOLDOWN`；前端按钮同时倒计时禁用。
+- 注册成功后异步发送「等待审批」邮件；管理员审批通过/拒绝时也会发送对应结果邮件，邮件发送失败不阻塞主流程。
 
 ---
 
@@ -331,9 +338,21 @@
 
 | 方法 | 路径 | 认证 | 说明 |
 |---|---|---|---|
-| GET | `/site/public-config` | 无 | 公开配置（网站名称/Logo/备案号等） |
+| GET | `/site/public-config` | 无 | 公开配置（网站名称/Logo/备案号/注册门控等，含 registration_config） |
 | GET | `/site/footer` | 无 | 页脚配置（版权/链接/备案号） |
 | GET | `/site/legal` | 无 | 法律信息（协议/隐私/版权/联系方式） |
+
+`GET /site/public-config` 的 `registration_config` 结构：
+
+```json
+{
+  "registration_enabled": true,
+  "require_email_verification": true,
+  "require_phone_verification": true
+}
+```
+
+后台「网站设置 → 注册设置」保存同一组字段；前端 `useSiteConfig()` 和 `AppHeader/Login/Register` 依据此配置同步隐藏或显示注册、邮箱验证、手机验证区域。
 
 ---
 
@@ -531,6 +550,7 @@
 | `revoke_all_sessions(db, user_id)` | 撤销全部会话（登出所有设备） |
 | `approve_user(db, user_id) -> User` | 审批通过（激活账号） |
 | `reject_user(db, user_id) -> User` | 拒绝注册 |
+| `_send_email_notification(to, subject, template, username)` | 注册/审批邮件通知（fire-and-forget，发送失败仅记录日志） |
 
 ### `services/image.py` — 公开图片服务
 
@@ -655,6 +675,7 @@
 | `get_footer_config(db) -> dict` | 页脚配置聚合 |
 | `get_legal_config(db) -> dict` | 法律信息聚合 |
 | `get_club_intro(db) -> dict` | 社团介绍聚合 |
+| `get_registration_config(db) -> dict` | 注册门控聚合（开启注册/邮箱验证/手机验证，含默认值） |
 
 ### `services/admin_image.py` — 图片管理服务
 
@@ -671,7 +692,7 @@
 
 | 函数 | 说明 |
 |---|---|
-| `send_otp(db, target, purpose, channel) -> dict` | 发送验证码（哈希存储、频率限制） |
+| `send_otp(db, target, purpose, channel) -> dict` | 发送验证码（哈希存储、用途隔离、60 秒冷却、频率限制） |
 | `verify_otp(db, target, purpose, code) -> bool` | 校验验证码（单次使用、尝试次数限制） |
 
 ---
@@ -739,6 +760,7 @@
 | `CompareFreeSlot` | 对比结果空闲时段 |
 | `CompareConflict` | 对比结果冲突记录 |
 | `PublicConfig` | 站点公开配置 |
+| `RegistrationConfig` | 注册门控配置（registration_enabled / require_email_verification / require_phone_verification） |
 | `FooterConfig` | 页脚配置 |
 | `FooterLink` | 页脚链接 |
 | `LegalConfig` | 法律信息 |

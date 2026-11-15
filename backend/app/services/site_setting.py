@@ -4,7 +4,7 @@
 - 所有配置以 key → value_json 形式存入 site_settings 表。
 - 公开内容仅限 is_public=True 的记录，由 /site/* 公开端点输出。
 - 敏感密钥不入此表，一律走环境变量 / Secret 管理。
-- 典型 key：public_config / footer / legal / club_intro / announcements。
+- 典型 key：public_config / footer / legal / club_intro / registration_config。
 """
 
 from __future__ import annotations
@@ -81,7 +81,7 @@ async def list_settings(db: AsyncSession) -> list[dict]:
     ]
 
 
-# ---------- 公开配置聚合 ----------
+# ---------- 默认值 ----------
 
 _DEFAULT_PUBLIC_CONFIG = {
     "site_name": "啫喱小站",
@@ -116,6 +116,14 @@ _DEFAULT_CLUB_INTRO = {
     "content": "",
 }
 
+_DEFAULT_REGISTRATION_CONFIG = {
+    "registration_enabled": True,
+    "require_email_verification": True,
+    "require_phone_verification": True,
+}
+
+
+# ---------- 公开配置聚合 ----------
 
 async def get_public_config(db: AsyncSession) -> dict:
     val = await get_public_setting(db, "public_config")
@@ -135,3 +143,8 @@ async def get_legal_config(db: AsyncSession) -> dict:
 async def get_club_intro(db: AsyncSession) -> dict:
     val = await get_public_setting(db, "club_intro")
     return {**_DEFAULT_CLUB_INTRO, **(val or {})}
+
+
+async def get_registration_config(db: AsyncSession) -> dict:
+    val = await get_public_setting(db, "registration_config")
+    return {**_DEFAULT_REGISTRATION_CONFIG, **(val or {})}

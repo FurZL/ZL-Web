@@ -12,7 +12,7 @@
 | `README.md` | 项目总览：部署边界、目录结构、快速开始、开发进度表 |
 | `AGENTS.md` | 项目架构与实施规范（完整技术约定、数据模型、API 清单、部署方案） |
 | `DESIGN-BRIEF.md` | 页面设计说明书（各页面布局、用户角色、导航规则、色彩语义、移动端要求） |
-| `.env.example` | 环境变量模板（DATABASE_URL、REDIS_URL、COS_*、SECRET_KEY、PROFILE_LAYOUT_MAX_BLOCKS 等占位值，不含真实密钥） |
+| `.env.example` | 环境变量模板（DATABASE_URL、REDIS_URL、COS_*、SMTP_*、OTP_COOLDOWN_SECONDS、COS_DEV_PREFIX、SECRET_KEY、PROFILE_LAYOUT_MAX_BLOCKS 等占位值，不含真实密钥） |
 | `.gitignore` | 项目根 Git 忽略规则（.env、__pycache__、node_modules、venv 等） |
 | `docker-compose.yml` | 本地开发用 PostgreSQL 16 + Redis 7 容器编排（生产不使用 Docker） |
 
@@ -91,7 +91,7 @@
 
 | 文件 | 用途 |
 |---|---|
-| `index.ts` | 全部 TypeScript 接口（含新增 ProfileBlock/Theme/Media/LayoutResponse/PageResponse、模块类型与栅格宽度类型） |
+| `index.ts` | 全部 TypeScript 接口（含 ProfileBlock/Theme/Media/LayoutResponse/PageResponse/RegistrationConfig、模块类型与栅格宽度类型） |
 
 #### src/stores/ — Pinia 状态管理
 
@@ -112,7 +112,7 @@
 |---|---|
 | `index.ts` | 组合式函数统一导出入口（预留） |
 | `useDialog.ts` | 全局对话框（`showToast` 轻量提示 3 秒消失 + `showConfirm` 确认弹窗 Promise 化，替代 alert/confirm） |
-| `useSiteConfig.ts` | 站点配置 composable（从 /site/public-config 动态拉取站点名称/副标题，同步 document.title，供全站组件响应式使用） |
+| `useSiteConfig.ts` | 站点配置 composable（从 /site/public-config 动态拉取站点名称/副标题/注册门控配置，同步 document.title，供全站组件响应式使用） |
 
 #### src/utils/ — 工具函数
 
@@ -132,7 +132,7 @@
 | 文件 | 用途 |
 |---|---|
 | `AppDialog.vue` | 全局对话框 UI（Toast 滑入提示 + Confirm 玻璃卡片弹窗，挂载于 App.vue） |
-| `AppHeader.vue` | 顶部导航栏（Logo「FUR」、导航链接、登录/注册按钮、角色动态菜单、窄屏横滑适配） |
+| `AppHeader.vue` | 顶部导航栏（Logo、导航链接、登录/注册按钮[注册关闭时隐藏]、角色动态菜单、窄屏横滑适配） |
 | `AppFooter.vue` | 页脚（从 /site/footer API 拉取版权/备案/协议链接，含默认回退值） |
 | `UserAvatar.vue` | 用户头像组件（支持真实头像图片 + 首字母圆形回退、可调尺寸、渐变背景、加载失败自动回退） |
 | `ImageLightbox.vue` | 图片详情弹窗（大图展示、描述、拍摄者、下载按钮，Gallery 与私有相册共用） |
@@ -204,15 +204,15 @@
 | 文件 | 用途 |
 |---|---|
 | `Home.vue` | 首页（Hero 横幅、社团简介、最新公告卡片[真实 API]、精选图片瀑布流预览[真实 API]） |
-| `About.vue` | 社团介绍（社团故事[从 /club/intro API 拉取，可后台编辑]、成员展示网格、加入方式） |
+| `About.vue` | 社团介绍（社团故事[从 /club/intro API 拉取，可后台编辑]、成员展示网格[含真实头像回退]、加入方式） |
 | `Gallery.vue` | 公开图片展示（标签筛选、瀑布流图片列表、图片详情弹窗、上传入口 [摄影师/管理员]） |
 | `Schedule.vue` | 课表对比工具（三步流程：上传课表 → 选对比对象 → 网格可视化对比结果；走真实 API） |
 | `Profile.vue` | 个人空间（本人主页布局、编辑入口、图片展示管理、私有相册与课表；访客视图依赖待实现的公开主页接口） |
 | `ProfileEditor.vue` | 个人主页编辑页（/profile/me/edit，模块库/画布/属性/主题/预览、快捷键、离开前未保存提示） |
-| `Login.vue` | 登录页（用户名/密码、登录按钮、去注册链接） |
-| `Register.vue` | 注册页（普通成员/摄影师两种类型、邮箱/手机 OTP、摄影师申请理由/作品集） |
+| `Login.vue` | 登录页（用户名/密码、登录按钮、注册关闭时隐藏去注册链接） |
+| `Register.vue` | 注册页（注册配置联动、密码确认+强度校验、验证码倒计时禁用、普通成员/摄影师类型、邮箱/手机 OTP、摄影师申请理由/作品集） |
 | `RegisterPending.vue` | 注册成功等待审批提示页 |
-| `ForgotPassword.vue` | 找回密码页（邮箱/手机验证、重置密码） |
+| `ForgotPassword.vue` | 找回密码页（邮箱/手机验证、密码确认+强度校验、验证码倒计时、重置密码） |
 | `Events.vue` | 活动页（活动列表、筛选 Tab、报名/取消/签到、候补状态显示） |
 | `DynamicPage.vue` | 动态页面渲染器（白名单 Schema 组件：hero/rich_text/image/countdown/button/notice/event_info/card/divider，未知组件忽略） |
 | `NotFound.vue` | 404 页面 |
@@ -227,7 +227,7 @@
 | `AdminEvents.vue` | 活动管理（活动 CRUD、发布/取消、报名列表/签到管理弹窗） |
 | `AdminPages.vue` | 页面管理（页面列表、JSON Schema 编辑器、发布/下线、版本历史/回滚） |
 | `AdminAnnouncements.vue` | 公告管理（公告列表、新建/编辑弹窗、置顶/发布/删除操作） |
-| `AdminSettings.vue` | 网站设置（社团介绍/公开配置/页脚信息/法律信息四个 Tab 表单） |
+| `AdminSettings.vue` | 网站设置（社团介绍/公开配置/页脚信息/法律信息/注册设置五个 Tab 表单） |
 | `PlaceholderView.vue` | 通用占位页面组件（尚未开发的管理子模块共用的空壳视图） |
 
 ---
@@ -240,7 +240,7 @@
 |---|---|
 | `pyproject.toml` | Python 项目配置（依赖声明、pytest 配置、项目元数据） |
 | `alembic.ini` | Alembic 数据库迁移工具配置（迁移脚本目录、日志级别） |
-| `run.py` | 启动入口（解决 Windows 上 uvicorn ProactorEventLoop 与 psycopg SelectorEventLoop 冲突） |
+| `run.py` | 启动入口（解决 Windows 上 uvicorn ProactorEventLoop 与 psycopg SelectorEventLoop 冲突；--host 参数支持监听所有接口） |
 | `.env` | 本地开发环境变量（真实密钥：DATABASE_URL、COS_SECRET_* 等；已 gitignore，勿提交） |
 
 ### app/ — 应用主体
@@ -272,13 +272,13 @@
 |---|---|
 | `__init__.py` | Python 包标记（空文件） |
 | `health.py` | 健康检查端点（GET /health 纯存活检查 + GET /ready 检查 DB/Redis 连通性） |
-| `auth.py` | 认证端点（POST /auth/register、verify/email、verify/phone、login[含 avatar_url]、refresh、logout、password/forgot、password/reset、GET /me） |
+| `auth.py` | 认证端点（POST /auth/register[含注册门控+密码强度校验]、verify/email[60s冷却]、verify/phone[60s冷却]、login[含 avatar_url]、refresh、logout、password/forgot、password/reset[含密码确认]、GET /me） |
 | `images.py` | 公开图片端点（GET /images 列表、GET /images/{id} 详情、POST upload-intent、upload-complete、DELETE 删除、POST 举报、GET 下载） |
 | `profile.py` | 个人空间端点（资料/相册/头像上传 upload-intent+upload-complete+delete、布局 GET/PUT、图片展示授权 PATCH） |
 | `schedule.py` | 课表端点（GET /mine、POST upload-intent、upload-complete、GET /{id}、POST /compare、PATCH /{id}/visibility、GET /shared/{username}、DELETE /{id}） |
 | `pages.py` | 动态页面端点（GET /{slug} 公开读取、/admin CRUD/发布/下线/版本列表/回滚） |
 | `events.py` | 活动端点（列表/详情/报名/取消/签到，含候补、幂等键、容量控制） |
-| `site.py` | 站点公开信息端点（GET /public-config、/footer、/legal，从 SiteSetting 读取并返回默认值） |
+| `site.py` | 站点公开信息端点（GET /public-config[含 registration_config]、/footer、/legal，从 SiteSetting 读取并返回默认值） |
 | `club.py` | 社团介绍端点（GET /intro 公开读取、PUT /intro 管理员写入） |
 | `admin_users.py` | 用户管理端点（GET 列表、GET /pending、GET /{id}、POST approve、reject、PATCH role、status） |
 | `admin_settings.py` | 网站设置管理端点（GET/PUT 读写 SiteSetting、Provider 测试） |
@@ -291,7 +291,7 @@
 | 文件 | 用途 |
 |---|---|
 | `__init__.py` | Python 包标记（空文件） |
-| `config.py` | Pydantic Settings 配置（环境变量、连接与第三方服务配置；PROFILE_LAYOUT_MAX_BLOCKS 默认 16） |
+| `config.py` | Pydantic Settings 配置（环境变量、连接与第三方服务配置；含 COS_DEV_PREFIX/SMTP_*/OTP_COOLDOWN_SECONDS；PROFILE_LAYOUT_MAX_BLOCKS 默认 16） |
 | `database.py` | SQLAlchemy 2.x 异步引擎 / Base / get_db 依赖（AsyncSession 工厂） |
 | `redis.py` | Redis 连接池（异步 redis.asyncio，限流/缓存用，含 close_redis） |
 | `security.py` | 密码哈希（Argon2id）与 JWT 生成/验证（Access Token 签发与解码） |
@@ -326,7 +326,7 @@
 | 文件 | 用途 |
 |---|---|
 | `__init__.py` | Python 包标记（空文件） |
-| `auth.py` | 认证 Schema（注册请求/登录请求/Token 响应/用户信息响应） |
+| `auth.py` | 认证 Schema（注册请求[密码强度校验+password_confirm]/登录请求/Token 响应/用户信息响应/密码重置确认） |
 | `image.py` | 图片 Schema（上传意图请求、上传完成请求、ProfileUploadIntentRequest 等） |
 | `profile_layout.py` | ProfileImageDisplayPatch（严格布尔 is_displayable，拒绝额外字段） |
 | `schedule.py` | 课表 Schema（CourseSlot、CompareRequest、ScheduleUploadIntentRequest、ScheduleUploadCompleteRequest、ScheduleVisibilityRequest） |
@@ -349,7 +349,7 @@
 | `schedule.py` | 课表解析与对比算法（CourseSlot 数据类、ICS 解析、ZJUT TXT 解析、compare 对比：周次交集/同教室/冲突/空闲时段） |
 | `schedule_service.py` | 课表业务服务（上传意图/上传完成[下载+解析+落库]/我的课表/按用户查询公开课表/可见性开关/删除） |
 | `rate_limit.py` | 限流服务（Redis 分布式计数器、原子递增+TTL、分层限流规则） |
-| `site_setting.py` | 网站设置服务（SiteSetting 读写、公开配置/页脚/法律/社团介绍聚合，敏感密钥不入此表） |
+| `site_setting.py` | 网站设置服务（SiteSetting 读写、公开配置/页脚/法律/社团介绍/注册门控聚合，敏感密钥不入此表） |
 | `announcement.py` | 公告服务（公开列表：已发布+未过期+置顶在前；管理 CRUD：创建/更新/置顶/发布/删除） |
 | `event.py` | 活动服务（活动 CRUD、报名/候补/取消/签到，容量控制、幂等键、候补自动递补、批量统计防 N+1） |
 | `page.py` | 动态页面服务（页面 CRUD、版本快照、发布/下线、版本回滚） |
@@ -361,11 +361,12 @@
 | 文件 | 用途 |
 |---|---|
 | `__init__.py` | Python 包标记（空文件） |
-| `factory.py` | Provider 工厂（get_storage_provider / get_email_provider / get_sms_provider / get_captcha_provider / get_human_verification_provider，按配置选择实现） |
+| `factory.py` | Provider 工厂（get_storage_provider / get_email_provider[EMAIL_PROVIDER=smtp→SmtpEmailProvider] / get_sms_provider / get_captcha_provider / get_human_verification_provider，按配置选择实现） |
 | `storage/base.py` | 存储 Provider 抽象基类（presign_upload / presign_download / head_object / delete_object / get_object_bytes / put_object_bytes / public_url） |
 | `storage/cos.py` | 腾讯云 COS 实现（单桶 public/private 前缀隔离、asyncio.to_thread 包装同步 SDK） |
 | `storage/__init__.py` | Python 包标记（空文件） |
 | `email/base.py` | 邮件 Provider 抽象 + LogEmailProvider（开发模式：打印不真发） |
+| `email/smtp.py` | SMTP 邮件 Provider（飞书企业邮箱 SSL，HTML 模板：OTP/注册待审批/审批通过/审批拒绝/测试） |
 | `email/__init__.py` | Python 包标记（空文件） |
 | `sms/base.py` | 短信 Provider 抽象 + LogSmsProvider（开发模式：打印不真发） |
 | `sms/__init__.py` | Python 包标记（空文件） |
