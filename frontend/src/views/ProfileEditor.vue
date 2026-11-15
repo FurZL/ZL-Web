@@ -17,6 +17,8 @@ const { showToast, showConfirm } = useDialog()
 const selectedId = ref<string | null>(null)
 const previewing = ref(false)
 const themeOpen = ref(false)
+const RUNTIME_DATA_REFRESH_INTERVAL_MS = 60_000
+let runtimeDataRefreshTimer: number | undefined
 
 const remaining = computed(() => Math.max(0, store.maxBlocks - store.blocks.length))
 
@@ -106,15 +108,26 @@ function onBeforeUnload(e: BeforeUnloadEvent) {
   e.returnValue = ''
 }
 
+function refreshRuntimeDataWhenVisible() {
+  if (document.visibilityState === 'visible') void store.refreshRuntimeData()
+}
+
 onMounted(() => {
   void store.load()
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('beforeunload', onBeforeUnload)
+  document.addEventListener('visibilitychange', refreshRuntimeDataWhenVisible)
+  runtimeDataRefreshTimer = window.setInterval(
+    refreshRuntimeDataWhenVisible,
+    RUNTIME_DATA_REFRESH_INTERVAL_MS,
+  )
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('beforeunload', onBeforeUnload)
+  document.removeEventListener('visibilitychange', refreshRuntimeDataWhenVisible)
+  if (runtimeDataRefreshTimer !== undefined) window.clearInterval(runtimeDataRefreshTimer)
 })
 
 onBeforeRouteLeave(async () => {

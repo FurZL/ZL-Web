@@ -134,17 +134,17 @@ async function submit() {
       <form class="mt-8 space-y-4" @submit.prevent="submit">
         <div>
           <label class="label">用户名</label>
-          <input v-model="form.username" class="input" placeholder="用于登录的唯一用户名" />
+          <input v-model="form.username" class="input" placeholder="用于登录的唯一用户名" minlength="3" maxlength="64" required />
         </div>
         <div>
           <label class="label">昵称</label>
-          <input v-model="form.displayName" class="input" placeholder="大家怎么称呼你" />
+          <input v-model="form.displayName" class="input" placeholder="大家怎么称呼你" maxlength="64" required />
         </div>
 
         <div v-if="regCfg.require_email_verification">
           <label class="label">邮箱</label>
           <div class="flex gap-2">
-            <input v-model="form.email" class="input flex-1" placeholder="name@example.com" type="email" />
+            <input v-model="form.email" class="input flex-1" placeholder="name@example.com" type="email" autocomplete="email" required />
             <button
               type="button"
               class="btn-ghost !px-4 !py-2 whitespace-nowrap shrink-0"
@@ -154,13 +154,13 @@ async function submit() {
               {{ emailCooldown > 0 ? `${emailCooldown}s` : '发送验证码' }}
             </button>
           </div>
-          <input v-model="form.emailCode" class="input mt-2" placeholder="邮箱验证码" />
+          <input v-model="form.emailCode" class="input mt-2" placeholder="邮箱验证码" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required />
         </div>
 
         <div v-if="regCfg.require_phone_verification">
           <label class="label">手机号</label>
           <div class="flex gap-2">
-            <input v-model="form.phone" class="input flex-1" placeholder="+86 138..." />
+            <input v-model="form.phone" class="input flex-1" placeholder="+86 138..." autocomplete="tel" required />
             <button
               type="button"
               class="btn-ghost !px-4 !py-2 whitespace-nowrap shrink-0"
@@ -170,16 +170,16 @@ async function submit() {
               {{ phoneCooldown > 0 ? `${phoneCooldown}s` : '发送验证码' }}
             </button>
           </div>
-          <input v-model="form.phoneCode" class="input mt-2" placeholder="手机验证码" />
+          <input v-model="form.phoneCode" class="input mt-2" placeholder="手机验证码" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required />
         </div>
 
         <div>
           <label class="label">密码</label>
-          <input v-model="form.password" type="password" class="input" placeholder="至少 8 位，含大小写字母和数字" />
+          <input v-model="form.password" type="password" class="input" placeholder="至少 8 位，含大小写字母和数字" minlength="8" maxlength="128" autocomplete="new-password" required />
         </div>
         <div>
           <label class="label">确认密码</label>
-          <input v-model="form.passwordConfirm" type="password" class="input" placeholder="请再次输入密码" />
+          <input v-model="form.passwordConfirm" type="password" class="input" placeholder="请再次输入密码" minlength="8" maxlength="128" autocomplete="new-password" required />
         </div>
 
         <template v-if="type === 'photographer'">

@@ -27,6 +27,8 @@ const auth = useAuthStore()
 const { showToast, showConfirm } = useDialog()
 
 const isSelf = computed(() => !route.params.username)
+const DATA_REFRESH_INTERVAL_MS = 60_000
+const MEDIA_REFRESH_MARGIN_MS = 60_000
 
 // ---------- 已发布的主页 ----------
 const theme = ref<ProfileTheme>({ ...DEFAULT_THEME })
@@ -39,8 +41,13 @@ const pageLoading = ref(false)
 const pageError = ref('')
 const neverPublished = ref(false)
 const unpublishedHint = ref(false)
+const ownPageIsPublic = ref(false)
+const ownPageHasPublishedVersion = ref(false)
 
 let mediaExpiresAt = 0
+let dataLoadedAt = 0
+let dataRefreshTimer: number | undefined
+let dataRefreshInFlight = false
 
 const backgroundUrl = computed(() => {
   const key = theme.value.background_key
@@ -59,6 +66,8 @@ async function loadOwnPage() {
   media.value = data.media ?? {}
   stats.value = data.stats ?? stats.value
   applyMediaExpiry(data.media_expires_in)
+  ownPageIsPublic.value = data.is_public
+  ownPageHasPublishedVersion.value = data.published_blocks !== null
   // 自己的页面看到的是已发布版本；没有发布过就给出编辑引导
   blocks.value = data.published_blocks ?? []
   neverPublished.value = data.published_blocks === null
@@ -82,16 +91,18 @@ async function loadPage() {
   pageError.value = ''
   neverPublished.value = false
   unpublishedHint.value = false
+  if (!isSelf.value) pageUser.value = null
   try {
     if (isSelf.value) {
       await loadOwnPage()
     } else {
       await loadPublicPage(String(route.params.username))
     }
+    dataLoadedAt = Date.now()
   } catch (e) {
     const msg = e instanceof Error ? e.message : '加载失败'
     // 未发布 / 已隐藏：这不是错误页，而是「这个人还没有公开主页」
-    if (!isSelf.value && /未发布|不存在|not found|PROFILE_PAGE/i.test(msg)) {
+    if (!isSelf.value && /未发布|不存在|还没有公开主页|not found|PROFILE_PAGE/i.test(msg)) {
       neverPublished.value = true
     } else {
       pageError.value = msg
@@ -101,13 +112,33 @@ async function loadPage() {
   }
 }
 
-/** 私有图签名 URL 有有效期，回到前台且逼近过期时静默重取一次 */
+/** 统计或签名素材过期时静默刷新，不重置当前展示的主页布局。 */
+async function refreshRuntimeData() {
+  if (pageLoading.value || dataRefreshInFlight) return
+  dataRefreshInFlight = true
+  try {
+    const data = isSelf.value
+      ? await getMyLayout()
+      : await getProfilePage(String(route.params.username))
+    stats.value = data.stats ?? stats.value
+    media.value = data.media ?? media.value
+    applyMediaExpiry(data.media_expires_in)
+    dataLoadedAt = Date.now()
+  } catch {
+    // Keep the last successful values and retry on the next refresh interval.
+  } finally {
+    dataRefreshInFlight = false
+  }
+}
+
 function onVisibility() {
   if (document.visibilityState !== 'visible') return
-  if (!mediaExpiresAt) return
-  if (Date.now() < mediaExpiresAt - 60_000) return
-  if (pageLoading.value) return
-  void loadPage()
+  if (pageLoading.value || dataRefreshInFlight) return
+  const dataIsStale = Date.now() - dataLoadedAt >= DATA_REFRESH_INTERVAL_MS
+  const mediaNeedsRefresh =
+    mediaExpiresAt > 0 && Date.now() >= mediaExpiresAt - MEDIA_REFRESH_MARGIN_MS
+  if (!dataIsStale && !mediaNeedsRefresh) return
+  void refreshRuntimeData()
 }
 
 // ---------- 私有相册（仅自己） ----------
@@ -206,17 +237,33 @@ async function refreshAll() {
 const displayName = computed(() => (isSelf.value ? auth.user?.displayName : pageUser.value?.display_name) ?? '')
 const username = computed(() => (isSelf.value ? auth.user?.username : pageUser.value?.username) ?? '')
 const bio = computed(() => (isSelf.value ? auth.user?.bio : '') ?? '')
-const avatarUrl = computed(() => (isSelf.value ? auth.user?.avatar || null : pageUser.value?.avatar_url ?? null))
+const avatarUrl = computed(() => (isSelf.value ? null : pageUser.value?.avatar_url ?? null))
+const canShareOwnPage = computed(
+  () => isSelf.value && ownPageIsPublic.value && ownPageHasPublishedVersion.value && !!username.value,
+)
+
+async function copyProfileLink() {
+  if (!username.value) return
+  const url = new URL(`/profile/${encodeURIComponent(username.value)}`, window.location.origin).toString()
+  try {
+    await navigator.clipboard.writeText(url)
+    showToast('主页链接已复制')
+  } catch {
+    showToast('复制失败，请检查浏览器剪贴板权限')
+  }
+}
 
 const hasPage = computed(() => blocks.value.length > 0)
 
 onMounted(() => {
   void refreshAll()
   document.addEventListener('visibilitychange', onVisibility)
+  dataRefreshTimer = window.setInterval(onVisibility, DATA_REFRESH_INTERVAL_MS)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', onVisibility)
+  if (dataRefreshTimer !== undefined) window.clearInterval(dataRefreshTimer)
 })
 
 watch(
@@ -232,7 +279,8 @@ watch(
     <!-- 主页头部 -->
     <div class="glass-card p-6 sm:p-8">
       <div class="flex flex-col sm:flex-row items-center gap-6">
-        <UserAvatar :name="displayName || '?'" :size="84" :src="avatarUrl" />
+        <UserAvatar v-if="!avatarUrl" :name="displayName || '?'" :size="84" />
+        <img v-else :src="avatarUrl" alt="" class="w-[84px] h-[84px] rounded-full object-cover" />
 
         <div class="text-center sm:text-left flex-1 min-w-0">
           <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
@@ -244,6 +292,20 @@ watch(
         </div>
 
         <div v-if="isSelf" class="flex flex-col sm:flex-row gap-2 shrink-0">
+          <button
+            v-if="!pageLoading && canShareOwnPage"
+            class="btn-ghost !px-4 !py-2 text-sm"
+            @click="copyProfileLink"
+          >
+            复制主页链接
+          </button>
+          <button
+            v-else-if="!pageLoading"
+            class="btn-ghost !px-4 !py-2 text-sm"
+            @click="router.push('/profile/me/edit')"
+          >
+            设置主页公开
+          </button>
           <button class="btn-primary !px-5 !py-2 text-sm" @click="router.push('/profile/me/edit')">编辑主页</button>
           <button class="btn-ghost !px-5 !py-2 text-sm" @click="showEdit = true">编辑资料</button>
         </div>

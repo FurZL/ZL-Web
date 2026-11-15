@@ -27,6 +27,7 @@ import type {
 
 const HISTORY_LIMIT = 50
 const HISTORY_DEBOUNCE_MS = 400
+const RUNTIME_DATA_REFRESH_INTERVAL_MS = 60_000
 
 interface Snapshot {
   blocks: ProfileBlock[]
@@ -57,6 +58,8 @@ export const useProfileLayoutStore = defineStore('profileLayout', () => {
   const saving = ref(false)
   const publishing = ref(false)
   const loadError = ref('')
+  let runtimeDataLoadedAt = 0
+  let runtimeRefreshPromise: Promise<void> | null = null
 
   // ---------- 历史 ----------
   // 两个基准不能合并：
@@ -152,6 +155,7 @@ export const useProfileLayoutStore = defineStore('profileLayout', () => {
       publishedBlocks.value = data.published_blocks ?? null
       isPublic.value = data.is_public
       maxBlocks.value = data.max_blocks
+      runtimeDataLoadedAt = Date.now()
       resetHistory(blocks.value, theme.value)
       void loadMediaOptions()
     } catch (e) {
@@ -162,6 +166,32 @@ export const useProfileLayoutStore = defineStore('profileLayout', () => {
         suppress = false
       }, 0)
     }
+  }
+
+  function refreshRuntimeData(): Promise<void> {
+    if (
+      document.visibilityState !== 'visible' ||
+      loading.value ||
+      Date.now() - runtimeDataLoadedAt < RUNTIME_DATA_REFRESH_INTERVAL_MS
+    ) {
+      return Promise.resolve()
+    }
+    if (runtimeRefreshPromise) return runtimeRefreshPromise
+
+    const request = (async () => {
+      try {
+        const data = await getMyLayout()
+        stats.value = data.stats ?? { ...EMPTY_STATS }
+        media.value = data.media ?? media.value
+        runtimeDataLoadedAt = Date.now()
+      } catch {
+        // Keep the last successful values until the next refresh attempt.
+      } finally {
+        runtimeRefreshPromise = null
+      }
+    })()
+    runtimeRefreshPromise = request
+    return request
   }
 
   async function loadMediaOptions() {
@@ -241,8 +271,10 @@ export const useProfileLayoutStore = defineStore('profileLayout', () => {
       // resetHistory 一并算成「已同步」，实际却没发出去。
       const themeData = await saveMyTheme(clone(theme.value))
       theme.value = { ...DEFAULT_THEME, ...themeData.theme }
+      stats.value = data.stats ?? stats.value
       publishedBlocks.value = data.published_blocks ?? publishedBlocks.value
       media.value = data.media ?? media.value
+      runtimeDataLoadedAt = Date.now()
       suppress = true
       resetHistory(blocks.value, theme.value)
       window.setTimeout(() => {
@@ -257,10 +289,13 @@ export const useProfileLayoutStore = defineStore('profileLayout', () => {
     publishing.value = true
     try {
       // 先把当前草稿与主题落库，再发布，避免发布的是上一版
-      await saveMyLayout({ blocks: clone(blocks.value), is_public: isPublic.value })
+      const data = await saveMyLayout({ blocks: clone(blocks.value), is_public: isPublic.value })
+      stats.value = data.stats ?? stats.value
+      media.value = data.media ?? media.value
       await saveMyTheme(clone(theme.value))
       await publishMyLayout()
       publishedBlocks.value = clone(blocks.value)
+      runtimeDataLoadedAt = Date.now()
       suppress = true
       resetHistory(blocks.value, theme.value)
       window.setTimeout(() => {
@@ -277,7 +312,9 @@ export const useProfileLayoutStore = defineStore('profileLayout', () => {
     blocks.value = data.draft_blocks ?? []
     theme.value = { ...DEFAULT_THEME, ...data.theme }
     media.value = data.media ?? media.value
+    stats.value = data.stats ?? stats.value
     publishedBlocks.value = data.published_blocks ?? null
+    runtimeDataLoadedAt = Date.now()
     resetHistory(blocks.value, theme.value)
     window.setTimeout(() => {
       suppress = false
@@ -302,6 +339,7 @@ export const useProfileLayoutStore = defineStore('profileLayout', () => {
     canUndo,
     canRedo,
     load,
+    refreshRuntimeData,
     loadMediaOptions,
     addBlock,
     removeBlock,

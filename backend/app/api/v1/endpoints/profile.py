@@ -6,7 +6,7 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -17,7 +17,7 @@ from app.schemas.image import (
     ProfileUploadCompleteRequest,
     ProfileUploadIntentRequest,
 )
-from app.schemas.profile_layout import ProfileImageDisplayPatch
+from app.schemas.profile_layout import ProfileImageDisplayPatch, ProfileTheme
 from app.services import avatar as avatar_service
 from app.services import profile_image as profile_image_service
 from app.services import profile_layout as profile_layout_service
@@ -55,7 +55,10 @@ async def update_me(
     if body.display_name is not None:
         name = body.display_name.strip()
         if not name or len(name) > 64:
-            raise HTTPException(status_code=400, detail={"code": "INVALID_NAME", "message": "昵称不能为空且不超过 64 字"})
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "INVALID_NAME", "message": "昵称不能为空且不超过 64 字"},
+            )
         user.display_name = name
     if body.bio is not None:
         user.bio = body.bio[:500] or None
@@ -152,6 +155,54 @@ async def put_my_layout(
     return ok(result)
 
 
+@router.post("/me/layout/publish")
+async def publish_my_layout(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        result = await profile_layout_service.publish_layout(db, user)
+    except profile_layout_service.ProfileLayoutError as exc:
+        raise error_to_http(exc)
+    return ok(result)
+
+
+@router.post("/me/layout/discard")
+async def discard_my_layout(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return ok(await profile_layout_service.discard_layout(db, user))
+
+
+@router.put("/me/theme")
+async def put_my_theme(
+    body: Any = Body(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        theme = ProfileTheme.model_validate(body)
+    except ValidationError:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "PROFILE_THEME_INVALID", "message": "主题配置格式无效"},
+        )
+    try:
+        result = await profile_layout_service.put_theme(db, user, theme.model_dump())
+    except profile_layout_service.ProfileLayoutError as exc:
+        raise error_to_http(exc)
+    return ok(result)
+
+
+@router.get("/me/media")
+async def get_my_profile_media(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return ok(await profile_layout_service.get_media_options(db, user))
+
+
 @router.patch("/me/images/{image_id}")
 async def patch_profile_image_displayable(
     image_id: str,
@@ -234,7 +285,9 @@ async def delete_image(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        await profile_image_service.delete_profile_image(db, user=user, image_id=parse_uuid(image_id))
+        await profile_image_service.delete_profile_image(
+            db, user=user, image_id=parse_uuid(image_id)
+        )
     except ImageError as exc:
         raise error_to_http(exc)
     return ok({"message": "已删除"})
@@ -265,6 +318,15 @@ async def list_members(db: AsyncSession = Depends(get_db)):
     ]})
 
 
+@router.get("/{username}/page")
+async def get_public_profile_page(username: str, db: AsyncSession = Depends(get_db)):
+    try:
+        result = await profile_layout_service.get_public_page_payload(db, username)
+    except profile_layout_service.ProfileLayoutError as exc:
+        raise error_to_http(exc)
+    return ok(result)
+
+
 @router.get("/{user_id}")
 async def public_profile(user_id: str, db: AsyncSession = Depends(get_db)):
     uid = parse_uuid(user_id)
@@ -272,4 +334,11 @@ async def public_profile(user_id: str, db: AsyncSession = Depends(get_db)):
     if u is None:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "用户不存在"})
     # 公开资料不泄露 email/手机号等隐私
-    return ok({"id": str(u.id), "username": u.username, "display_name": u.display_name, "role": u.role})
+    return ok(
+        {
+            "id": str(u.id),
+            "username": u.username,
+            "display_name": u.display_name,
+            "role": u.role,
+        }
+    )

@@ -13,6 +13,43 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+const validationFieldLabels: Record<string, string> = {
+  username: '用户名',
+  display_name: '昵称',
+  email: '邮箱',
+  phone: '手机号',
+  password: '密码',
+  password_confirm: '确认密码',
+  email_code: '邮箱验证码',
+  phone_code: '手机验证码',
+}
+
+function formatValidationDetail(detail: unknown): string | null {
+  if (!Array.isArray(detail) || detail.length === 0) return null
+  const issue = detail[0]
+  if (!issue || typeof issue !== 'object' || !('msg' in issue)) return null
+
+  const rawMessage = (issue as { msg?: unknown }).msg
+  if (typeof rawMessage !== 'string') return null
+  const location = (issue as { loc?: unknown }).loc
+  const segments = Array.isArray(location)
+    ? location.filter((part): part is string => typeof part === 'string' && part !== 'body')
+    : []
+  const field = segments[segments.length - 1]
+  const label = field ? validationFieldLabels[field] : undefined
+
+  let message = rawMessage
+  const minLength = message.match(/^String should have at least (\d+) characters$/)
+  const maxLength = message.match(/^String should have at most (\d+) characters$/)
+  if (message === 'Field required') message = '不能为空'
+  else if (message === 'Input should be a valid string') message = '格式不正确'
+  else if (minLength) message = `至少需要 ${minLength[1]} 个字符`
+  else if (maxLength) message = `不能超过 ${maxLength[1]} 个字符`
+  else if (message.startsWith('Value error, ')) message = message.slice('Value error, '.length)
+
+  return label ? `${label}：${message}` : message
+}
+
 // 请求拦截：注入 access token
 api.interceptors.request.use((config) => {
   const token = getAccessToken()
@@ -100,6 +137,8 @@ export async function request<T>(config: AxiosRequestConfig): Promise<T> {
       if (typeof detail === 'string') {
         throw new Error(detail)
       }
+      const validationMessage = formatValidationDetail(detail)
+      if (validationMessage) throw new Error(validationMessage)
       throw new Error(e.message || '网络请求失败')
     }
     throw e

@@ -6,6 +6,7 @@ import json
 import re
 import uuid
 from collections.abc import Mapping
+from copy import deepcopy
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlsplit
@@ -18,6 +19,7 @@ from app.models.image import Image, ProfileImage, StoredObject
 from app.models.profile_layout import ProfileLayout
 from app.models.user import User
 from app.providers.factory import get_storage_provider
+from app.services.avatar import get_avatar_public_url
 from app.services.image_processing import derive_profile_thumb_key
 
 DEFAULT_THEME: dict[str, Any] = {
@@ -249,12 +251,39 @@ async def _owned_displayable_images(
     return {
         stored.object_key: (image, stored)
         for image, stored in result.all()
-        if stored.object_key.startswith(owner_prefix)
+        if image.owner_id == user.id
+        and image.is_displayable
+        and stored.visibility == "private"
+        and stored.object_key in object_keys
+        and stored.object_key.startswith(owner_prefix)
     }
 
 
 def _layout_theme(layout: ProfileLayout | None) -> dict[str, Any]:
     return {**DEFAULT_THEME, **(layout.theme if layout and layout.theme else {})}
+
+
+async def _media_item(
+    image: ProfileImage, stored: StoredObject, storage: Any
+) -> dict[str, Any]:
+    thumb_url = None
+    if stored.processing_status == "ready":
+        thumb_url = await storage.presign_download(
+            stored.bucket,
+            derive_profile_thumb_key(stored.object_key),
+            expires_in=settings.private_url_ttl_seconds,
+        )
+    display_url = await storage.presign_download(
+        stored.bucket,
+        stored.object_key,
+        expires_in=settings.private_url_ttl_seconds,
+    )
+    return {
+        "thumb_url": thumb_url,
+        "display_url": display_url,
+        "width": image.width,
+        "height": image.height,
+    }
 
 
 async def _media_payload(
@@ -263,25 +292,43 @@ async def _media_payload(
     storage = get_storage_provider()
     media: dict[str, dict[str, Any]] = {}
     for object_key, (image, stored) in rows.items():
-        thumb_url = None
-        if stored.processing_status == "ready":
-            thumb_url = await storage.presign_download(
-                stored.bucket,
-                derive_profile_thumb_key(stored.object_key),
-                expires_in=settings.private_url_ttl_seconds,
-            )
-        display_url = await storage.presign_download(
-            stored.bucket,
-            stored.object_key,
-            expires_in=settings.private_url_ttl_seconds,
-        )
-        media[object_key] = {
-            "thumb_url": thumb_url,
-            "display_url": display_url,
-            "width": image.width,
-            "height": image.height,
-        }
+        media[object_key] = await _media_item(image, stored, storage)
     return media
+
+
+async def get_media_options(db: AsyncSession, user: User) -> dict[str, list[dict[str, Any]]]:
+    result = await db.execute(
+        select(ProfileImage, StoredObject)
+        .join(StoredObject, StoredObject.id == ProfileImage.stored_object_id)
+        .where(
+            ProfileImage.owner_id == user.id,
+            StoredObject.visibility == "private",
+        )
+        .order_by(ProfileImage.created_at.desc())
+    )
+    owner_prefix = f"private/profiles/{user.id}/"
+    storage = get_storage_provider()
+    items = []
+    for image, stored in result.all():
+        if (
+            image.owner_id != user.id
+            or stored.visibility != "private"
+            or stored.deleted_at is not None
+            or not stored.object_key.startswith(owner_prefix)
+        ):
+            continue
+        media = await _media_item(image, stored, storage)
+        items.append(
+            {
+                "id": str(image.id),
+                "object_key": stored.object_key,
+                "title": image.description or "未命名",
+                "created_at": image.created_at.isoformat() if image.created_at else None,
+                "is_displayable": image.is_displayable,
+                **media,
+            }
+        )
+    return {"items": items}
 
 
 async def _stats(db: AsyncSession, user: User) -> dict[str, int]:
@@ -367,3 +414,107 @@ async def set_image_displayable(
     await db.commit()
     await db.refresh(image)
     return {"id": str(image.id), "is_displayable": image.is_displayable}
+
+
+async def publish_layout(db: AsyncSession, user: User) -> dict[str, str]:
+    layout = await db.get(ProfileLayout, user.id)
+    if layout is None or not layout.draft_blocks:
+        raise ProfileLayoutError("PROFILE_LAYOUT_EMPTY", "草稿为空，无法发布")
+
+    blocks = validate_blocks(layout.draft_blocks)
+    requested_keys = _collect_media_keys(blocks, _layout_theme(layout))
+    available = await _owned_displayable_images(db, user, requested_keys)
+    missing_key = next((key for key in requested_keys if key not in available), None)
+    if missing_key is not None:
+        raise _invalid(f"素材不可展示或不属于本人：{missing_key}")
+
+    published_at = datetime.now(UTC)
+    layout.draft_blocks = blocks
+    layout.published_blocks = deepcopy(blocks)
+    layout.published_at = published_at
+    await db.commit()
+    await db.refresh(layout)
+    return {"published_at": layout.published_at.isoformat()}
+
+
+async def discard_layout(db: AsyncSession, user: User) -> dict[str, Any]:
+    layout = await db.get(ProfileLayout, user.id)
+    if layout is not None:
+        layout.draft_blocks = deepcopy(layout.published_blocks or [])
+        await db.commit()
+        await db.refresh(layout)
+    return await get_layout_payload(db, user)
+
+
+async def put_theme(
+    db: AsyncSession, user: User, theme: dict[str, Any]
+) -> dict[str, Any]:
+    theme = {**DEFAULT_THEME, **theme}
+    background_key = theme.get("background_key")
+    if background_key:
+        available = await _owned_displayable_images(db, user, {background_key})
+        if background_key not in available:
+            raise ProfileLayoutError(
+                "PROFILE_THEME_INVALID", "主题背景素材不可展示或不属于本人"
+            )
+
+    layout = await db.get(ProfileLayout, user.id)
+    if layout is None:
+        layout = ProfileLayout(
+            user_id=user.id,
+            draft_blocks=[],
+            published_blocks=None,
+            is_public=True,
+            theme=theme,
+        )
+        db.add(layout)
+    else:
+        layout.theme = theme
+
+    await db.commit()
+    await db.refresh(layout)
+    return await get_layout_payload(db, user)
+
+
+async def get_public_page_payload(db: AsyncSession, username: str) -> dict[str, Any]:
+    user_result = await db.execute(
+        select(User).where(
+            User.username == username,
+            User.status == "active",
+            User.is_active.is_(True),
+        )
+    )
+    user = user_result.scalar_one_or_none()
+    if user is None:
+        raise ProfileLayoutError(
+            "PROFILE_PAGE_NOT_FOUND", "该用户还没有公开主页", status_code=404
+        )
+
+    layout = await db.get(ProfileLayout, user.id)
+    if layout is None or not layout.is_public or layout.published_blocks is None:
+        raise ProfileLayoutError(
+            "PROFILE_PAGE_NOT_FOUND", "该用户还没有公开主页", status_code=404
+        )
+
+    blocks = validate_blocks(layout.published_blocks)
+    theme = _layout_theme(layout)
+    rows = await _owned_displayable_images(
+        db, user, _collect_media_keys(blocks, theme)
+    )
+    published_at = layout.published_at
+    if published_at is not None and published_at.tzinfo is None:
+        published_at = published_at.replace(tzinfo=UTC)
+
+    return {
+        "user": {
+            "username": user.username,
+            "display_name": user.display_name,
+            "avatar_url": get_avatar_public_url(user),
+        },
+        "theme": theme,
+        "blocks": blocks,
+        "media": await _media_payload(rows),
+        "media_expires_in": settings.private_url_ttl_seconds,
+        "stats": await _stats(db, user),
+        "published_at": published_at.isoformat() if published_at else None,
+    }

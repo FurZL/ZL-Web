@@ -76,13 +76,25 @@ const timeline = [
     <div class="mt-12">
       <h2 class="text-xl font-bold text-ink mb-6">可爱的大家</h2>
       <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div v-for="m in members" :key="m.id" class="glass-card p-5 text-center hover:shadow-soft transition">
-            <div class="flex justify-center">
-              <UserAvatar :name="m.display_name" :size="56" :src="m.avatar_url" />
-            </div>
-            <p class="mt-3 text-sm font-medium text-ink">{{ m.display_name }}</p>
-            <p class="text-xs text-faint mt-0.5">{{ m.bio || '这位同学还没有写简介' }}</p>
+        <div
+          v-for="m in members"
+          :key="m.id"
+          class="glass-card p-5 text-center"
+        >
+          <div class="flex justify-center">
+            <RouterLink
+              :to="{ name: 'user-profile', params: { username: m.username } }"
+              class="group inline-flex rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              :aria-label="`打开 ${m.display_name} 的主页`"
+            >
+              <span class="inline-flex rounded-full transition-transform duration-200 group-hover:scale-110 group-focus-visible:scale-110 motion-reduce:transition-none">
+                <UserAvatar :name="m.display_name" :size="56" :src="m.avatar_url" />
+              </span>
+            </RouterLink>
           </div>
+          <p class="mt-3 text-sm font-medium text-ink">{{ m.display_name }}</p>
+          <p class="text-xs text-faint mt-0.5">{{ m.bio || '这位同学还没有写简介' }}</p>
+        </div>
       </div>
     </div>
 
