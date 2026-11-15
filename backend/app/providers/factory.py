@@ -12,6 +12,7 @@ from app.providers.human_verification.base import (
     HumanVerificationProvider,
     NoopHumanVerificationProvider,
 )
+from app.providers.sms.aliyun import AliyunSmsProvider
 from app.providers.sms.base import LogSmsProvider, SmsProvider
 from app.providers.storage.base import StorageProvider
 from app.providers.storage.cos import CosStorageProvider
@@ -35,6 +36,10 @@ def get_email_provider():
 
 @lru_cache
 def get_sms_provider() -> SmsProvider:
+    if settings.sms_provider == "aliyun":
+        p = AliyunSmsProvider()
+        if p.configured:
+            return p
     return LogSmsProvider()
 
 

@@ -68,6 +68,7 @@ class CosStorageProvider(StorageProvider):
         )
         return CosS3Client(config)
 
+
     def _resolve_bucket(self, bucket: str | None) -> str:
         resolved = bucket or self.bucket
         if not resolved:

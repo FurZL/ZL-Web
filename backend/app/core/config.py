@@ -70,6 +70,12 @@ class Settings(BaseSettings):
     smtp_from: str | None = Field(default=None, alias="SMTP_FROM")
     smtp_use_ssl: bool = Field(default=True, alias="SMTP_USE_SSL")
     sms_provider: str | None = Field(default=None, alias="SMS_PROVIDER")
+    # 阿里云短信
+    sms_aliyun_access_key_id: str | None = Field(default=None, alias="SMS_ALIYUN_ACCESS_KEY_ID")
+    sms_aliyun_access_key_secret: str | None = Field(default=None, alias="SMS_ALIYUN_ACCESS_KEY_SECRET")
+    sms_aliyun_sign_name: str | None = Field(default=None, alias="SMS_ALIYUN_SIGN_NAME")
+    sms_aliyun_template_code: str | None = Field(default=None, alias="SMS_ALIYUN_TEMPLATE_CODE")
+    sms_aliyun_region: str | None = Field(default=None, alias="SMS_ALIYUN_REGION")
     sms_api_key: str | None = Field(default=None, alias="SMS_API_KEY")
     captcha_provider: str | None = Field(default=None, alias="CAPTCHA_PROVIDER")
     captcha_secret_key: str | None = Field(default=None, alias="CAPTCHA_SECRET_KEY")
@@ -91,7 +97,7 @@ class Settings(BaseSettings):
     otp_max_attempts: int = Field(default=5, alias="OTP_MAX_ATTEMPTS")
     # 开发模式：不真正发送邮件/短信，验证码返回在响应里（仅用于本地联调）
     otp_dev_mode: bool = Field(default=False, alias="OTP_DEV_MODE")
-    otp_cooldown_seconds: int = Field(default=60, alias="OTP_COOLDOWN_SECONDS")
+    otp_cooldown_seconds: int = Field(default=120, alias="OTP_COOLDOWN_SECONDS")
 
     # 上传
     upload_max_bytes: int = Field(default=52_428_800, alias="UPLOAD_MAX_BYTES")

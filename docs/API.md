@@ -1,6 +1,6 @@
 # Furry ZJUT API 文档
 
-> 当前代码的 OpenAPI 注册 **84 个 API 路径（99 个方法端点）**。本数量包含已补齐的个人主页发布、丢弃、主题、素材和匿名公开页接口。
+> 当前代码的 OpenAPI 注册 **87 个 API 路径（102 个方法端点）**。本数量包含已补齐的个人主页发布、丢弃、主题、素材和匿名公开页接口。
 > 统一前缀：`/api/v1`，统一响应格式：`{"success": bool, "data": ..., "error": {"code", "message"}, "request_id": str}`
 
 ## 通用约定
@@ -38,6 +38,7 @@
 |---|---|---|
 | 健康检查 | `/health` `/ready` | `endpoints/health.py` |
 | 认证 | `/auth` | `endpoints/auth.py` |
+| 人机验证 | `/captcha` | `endpoints/captcha.py` |
 | 图片 | `/images` | `endpoints/images.py` |
 | 图片管理 | `/admin/images` | `endpoints/admin_images.py` |
 | 个人空间 | `/profile` | `endpoints/profile.py` |
@@ -79,9 +80,9 @@
 | 方法 | 路径 | 认证 | 说明 |
 |---|---|---|---|
 | POST | `/auth/register` | 无 | 注册（受 registration_config 门控，关闭返回 403；密码须含大小写字母和数字；前端须传 password_confirm） |
-| POST | `/auth/verify/email` | 无 | 邮箱 OTP 验证（60s 冷却，后端 COOLDOWN 错误 + 前端倒计时） |
-| POST | `/auth/verify/phone` | 无 | 手机 OTP 验证（60s 冷却，后端 COOLDOWN 错误 + 前端倒计时） |
-| POST | `/auth/login` | 无 | 登录，返回 `{access_token, refresh_token, user}` |
+| POST | `/auth/verify/email` | 无 | 邮箱 OTP 验证（120s 冷却，须先通过人机验证，传入 verification_token） |
+| POST | `/auth/verify/phone` | 无 | 手机 OTP 验证（120s 冷却，须先通过人机验证，传入 verification_token） |
+| POST | `/auth/login` | 无 | 登录（须先通过人机验证，传入 verification_token），返回 `{access_token, refresh_token, user}` |
 | POST | `/auth/refresh` | Refresh Token | 刷新 Access Token（轮换 Refresh Token） |
 | POST | `/auth/logout` | Bearer | 登出（撤销当前 Refresh Token） |
 | POST | `/auth/logout-all` | Bearer | 登出所有设备（撤销全部会话） |
@@ -89,13 +90,32 @@
 | POST | `/auth/password/reset` | 无 | 重置密码（验证码 + 新密码；真实更新密码 + 撤销全部会话） |
 | GET | `/auth/me` | Bearer | 获取当前用户信息（含 bio/avatar_url） |
 
+SMS_PROVIDER=aliyun
+
+### 阿里云短信（2026-11-16）
+
+- `SMS_PROVIDER=aliyun` 时启用 `AliyunSmsProvider`，封装 `alibabacloud_dysmsapi20170525` SDK
+- 配置字段：`SMS_ALIYUN_ACCESS_KEY_ID`、`SMS_ALIYUN_ACCESS_KEY_SECRET`、`SMS_ALIYUN_SIGN_NAME`、`SMS_ALIYUN_TEMPLATE_CODE`、`SMS_ALIYUN_REGION`
+- 发送目标为 E.164 格式（`+8613800000000`），短信内容为 `{"code":"123456"}`，由模板 `SMS_512658529` 渲染
+
 ### 注册门控、密码强度与 OTP 冷却（2026-11-15）
 
 - `POST /auth/register` 先读取 `registration_config`：`registration_enabled=false` 时返回 403；`require_email_verification` / `require_phone_verification` 为 false 时跳过对应 OTP 校验。
 - 注册和找回密码请求体新增 `password_confirm` / `new_password_confirm`，前后端都校验两次密码一致，且密码必须同时包含大小写字母和数字。
 - 注册请求还校验用户名 3–64 字符、昵称 1–64 字符、密码 8–128 字符；前端同步检查必填项、邮箱格式及验证码格式。FastAPI 422 字段错误会由前端客户端映射为带字段名的中文提示；具体注册失败原因仍以该次响应为准。
-- `POST /auth/verify/email`、`POST /auth/verify/phone` 对同一目标、同一用途执行 60 秒发送冷却，未到期返回业务错误码 `COOLDOWN`；前端按钮同时倒计时禁用。
+- `POST /auth/verify/email`、`POST /auth/verify/phone` 对同一目标、同一用途执行 120 秒发送冷却，未到期返回业务错误码 `COOLDOWN`；前端按钮同时倒计时禁用。
 - 注册成功后异步发送「等待审批」邮件；管理员审批通过/拒绝时也会发送对应结果邮件，邮件发送失败不阻塞主流程。
+
+---
+
+## 人机验证 `/captcha`
+
+| 方法 | 路径 | 认证 | 说明 |
+|---|---|---|---|
+| GET | `/captcha/challenge` | 无 | 获取滑块验证挑战，返回 `{token, gap_x, gap_y, expires_in}`（120s 有效），坐标存 Redis |
+| POST | `/captcha/verify` | 无 | 校验滑块位置 `{token, x}`，±6px 容差，通过返回 `{verification_token}`（300s 有效，一次性消耗） |
+
+`LoginRequest`、`OtpRequest` 均新增可选字段 `verification_token`，登录和获取验证码都须先通过人机验证，须先通过人机验证，否则返回 400 `CAPTCHA_REQUIRED`。
 
 ---
 
@@ -704,7 +724,7 @@
 
 | 函数 | 说明 |
 |---|---|
-| `send_otp(db, target, purpose, channel) -> dict` | 发送验证码（哈希存储、用途隔离、60 秒冷却、频率限制） |
+| `send_otp(db, target, purpose, channel) -> dict` | 发送验证码（哈希存储、用途隔离、120 秒冷却、频率限制） |
 | `verify_otp(db, target, purpose, code) -> bool` | 校验验证码（单次使用、尝试次数限制） |
 
 ---

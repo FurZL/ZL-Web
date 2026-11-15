@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import SliderCaptcha from '@/components/SliderCaptcha.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useSiteConfig } from '@/composables/useSiteConfig'
@@ -13,16 +14,28 @@ const account = ref('')
 const password = ref('')
 const error = ref('')
 const submitting = ref(false)
+const captchaShow = ref(false)
+let captchaToken = ''
 
-async function submit() {
+function triggerLogin() {
   if (!account.value || !password.value) {
     error.value = '请输入账号和密码'
     return
   }
   error.value = ''
+  captchaShow.value = true
+}
+
+async function onCaptchaVerified(token: string) {
+  captchaShow.value = false
+  captchaToken = token
+  await doLogin()
+}
+
+async function doLogin() {
   submitting.value = true
   try {
-    await auth.login(account.value, password.value)
+    await auth.login(account.value, password.value, captchaToken)
     const redirect = (route.query.redirect as string) || '/'
     router.push(redirect)
   } catch (e) {
@@ -48,7 +61,7 @@ async function submit() {
         <p class="mt-1 text-sm text-sub">登录{{ siteName }}</p>
       </div>
 
-      <form class="mt-8 space-y-5" @submit.prevent="submit">
+      <form class="mt-8 space-y-5" @submit.prevent="triggerLogin">
         <div>
           <label class="label">用户名 / 邮箱 / 手机号</label>
           <input v-model="account" class="input" placeholder="请输入账号" autocomplete="username" />
@@ -69,4 +82,5 @@ async function submit() {
       </div>
     </div>
   </div>
+  <SliderCaptcha :show="captchaShow" @close="captchaShow = false" @verified="onCaptchaVerified" />
 </template>

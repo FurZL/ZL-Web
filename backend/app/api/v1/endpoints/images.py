@@ -191,5 +191,5 @@ async def download_image(
 
 
     storage = get_storage_provider()
-    url = await storage.presign_download(stored.bucket, stored.object_key)
+    url = storage.public_url(stored.bucket, stored.object_key)
     return ok({"url": url})

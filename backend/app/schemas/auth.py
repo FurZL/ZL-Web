@@ -33,11 +33,13 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     account: str = Field(description="用户名/邮箱/手机号")
     password: str
+    verification_token: str | None = Field(default=None, description="人机验证 token")
 
 
 class OtpRequest(BaseModel):
     target: str = Field(description="邮箱或手机号")
     purpose: str = "register"
+    verification_token: str | None = Field(default=None, description="人机验证 token")
 
 
 class VerifyOtpRequest(BaseModel):

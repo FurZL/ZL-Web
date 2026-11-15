@@ -48,3 +48,8 @@ deploy/scripts/start-vite.ps1
 .vscode/
 .DS_Store
 Thumbs.db
+# Codex / WorkBuddy
+.workbuddy/
+.local-dev/
+_err.py
+temp_fp_patch.py

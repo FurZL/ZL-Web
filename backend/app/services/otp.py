@@ -87,7 +87,7 @@ async def send_otp(
         purpose=purpose,
         channel=channel,
         code_hash=hash_code(code),
-        provider=settings.email_provider or settings.sms_provider or "dev",
+        provider=settings.sms_provider if channel == "sms" else (settings.email_provider or "dev"),
         status="pending",
         attempts=0,
         expires_at=now + timedelta(seconds=settings.otp_ttl_seconds),
