@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 const props = defineProps<{
   name: string
@@ -8,6 +8,10 @@ const props = defineProps<{
 }>()
 
 const imgError = ref(false)
+
+watch(() => props.src, () => {
+  imgError.value = false
+})
 
 const palette = [
   ['#6B5CE7', '#B8AEEF'],

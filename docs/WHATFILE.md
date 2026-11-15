@@ -97,7 +97,7 @@
 
 | 文件 | 用途 |
 |---|---|
-| `auth.ts` | 认证状态（login / logout / fetchMe、角色判断 isAdmin/isPhotographer、401 登出回调注册） |
+| `auth.ts` | 认证状态（login 支持可选 captchaToken / logout / fetchMe、角色判断 isAdmin/isPhotographer、401 登出回调注册） |
 | `profileLayout.ts` | 主页编辑器状态（模块/主题/素材、撤销重做、草稿读写、发布/丢弃；页面可见且数据过期时刷新统计和签名素材，不覆盖未保存布局） |
 
 #### src/router/ — 路由
@@ -131,6 +131,7 @@
 
 | 文件 | 用途 |
 |---|---|
+| `SliderCaptcha.vue` | 滑块拼图人机验证组件（Bing 壁纸背景 + Pointer Events 拖拽 + CSS background-image 拼图块） |
 | `AppDialog.vue` | 全局对话框 UI（Toast 滑入提示 + Confirm 玻璃卡片弹窗，挂载于 App.vue） |
 | `AppHeader.vue` | 顶部导航栏（Logo、导航链接、登录/注册按钮[注册关闭时隐藏]、角色动态菜单、窄屏横滑适配） |
 | `AppFooter.vue` | 页脚（从 /site/footer API 拉取版权/备案/协议链接，含默认回退值） |
@@ -209,7 +210,7 @@
 | `Schedule.vue` | 课表对比工具（三步流程：上传课表 → 选对比对象 → 网格可视化对比结果；走真实 API） |
 | `Profile.vue` | 个人空间（本人布局与私有相册、公开主页链接分享；访客可读取已发布主页，统计在前台每分钟刷新） |
 | `ProfileEditor.vue` | 个人主页编辑页（/profile/me/edit，模块库/画布/属性/主题/预览、快捷键、离开前未保存提示、统计在前台每分钟刷新） |
-| `Login.vue` | 登录页（用户名/密码、登录按钮、注册关闭时隐藏去注册链接） |
+| `Login.vue` | 登录页（用户名/密码、登录按钮[触发滑块人机验证]、注册关闭时隐藏去注册链接） |
 | `Register.vue` | 注册页（注册配置联动、用户名/昵称/密码长度与格式校验、邮箱/手机 OTP 格式校验、密码确认+强度校验、验证码倒计时、普通成员/摄影师类型及摄影师申请信息） |
 | `RegisterPending.vue` | 注册成功等待审批提示页 |
 | `ForgotPassword.vue` | 找回密码页（邮箱/手机验证、密码确认+强度校验、验证码倒计时、重置密码） |
@@ -272,7 +273,7 @@
 |---|---|
 | `__init__.py` | Python 包标记（空文件） |
 | `health.py` | 健康检查端点（GET /health 纯存活检查 + GET /ready 检查 DB/Redis 连通性） |
-| `auth.py` | 认证端点（POST /auth/register[含注册门控+密码强度校验]、verify/email[60s冷却]、verify/phone[60s冷却]、login[含 avatar_url]、refresh、logout、password/forgot、password/reset[含密码确认]、GET /me） |
+| `auth.py` | 认证端点（POST /auth/register[含注册门控+密码强度校验]、verify/email[120s冷却+人机验证]、verify/phone[120s冷却+人机验证]、login[含 avatar_url+人机验证]、refresh、logout、password/forgot、password/reset[含密码确认]、GET /me） |
 | `images.py` | 公开图片端点（GET /images 列表、GET /images/{id} 详情、POST upload-intent、upload-complete、DELETE 删除、POST 举报、GET 下载） |
 | `profile.py` | 个人空间端点（资料/相册/头像、布局 GET/PUT/publish/discard、主题 PUT、素材 GET、图片展示授权 PATCH、匿名公开主页 GET） |
 | `schedule.py` | 课表端点（GET /mine、POST upload-intent、upload-complete、GET /{id}、POST /compare、PATCH /{id}/visibility、GET /shared/{username}、DELETE /{id}） |
@@ -284,6 +285,7 @@
 | `admin_settings.py` | 网站设置管理端点（GET/PUT 读写 SiteSetting、Provider 测试） |
 | `announcements.py` | 公告端点（GET /published 公开列表、/admin CRUD：创建/编辑/置顶/发布/删除） |
 | `admin_events.py` | 活动管理端点（创建/编辑/发布/取消/删除/报名列表/管理员签到） |
+| `captcha.py` | 人机验证端点（滑块挑战/校验，Redis 存储，token 一次性消耗） |
 | `admin_images.py` | 图片管理端点（列表/统计/审核/公开/标签/删除） |
 
 ### app/core/ — 核心基础设施
@@ -361,6 +363,7 @@
 | 文件 | 用途 |
 |---|---|
 | `__init__.py` | Python 包标记（空文件） |
+| `aliyun.py` | 阿里云短信 Provider（SMS_PROVIDER=aliyun 时启用） |
 | `factory.py` | Provider 工厂（get_storage_provider / get_email_provider[EMAIL_PROVIDER=smtp→SmtpEmailProvider] / get_sms_provider / get_captcha_provider / get_human_verification_provider，按配置选择实现） |
 | `storage/base.py` | 存储 Provider 抽象基类（presign_upload / presign_download / head_object / delete_object / get_object_bytes / put_object_bytes / public_url） |
 | `storage/cos.py` | 腾讯云 COS 实现（单桶 public/private 前缀隔离、asyncio.to_thread 包装同步 SDK） |

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.api.response import error_to_http, ok
+from app.api.v1.endpoints.captcha import check_verification_token
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.auth import (
@@ -34,6 +35,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/verify/email")
 async def send_email_code(body: OtpRequest, db: AsyncSession = Depends(get_db)):
+    if not await check_verification_token(body.verification_token or ""):
+        raise HTTPException(status_code=400, detail={"code": "CAPTCHA_REQUIRED", "message": "请先完成人机验证"})
     try:
         result = await send_otp(db, target=body.target, purpose=body.purpose)
     except OtpError as exc:
@@ -45,6 +48,8 @@ async def send_email_code(body: OtpRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/verify/phone")
 async def send_phone_code(body: OtpRequest, db: AsyncSession = Depends(get_db)):
+    if not await check_verification_token(body.verification_token or ""):
+        raise HTTPException(status_code=400, detail={"code": "CAPTCHA_REQUIRED", "message": "请先完成人机验证"})
     try:
         result = await send_otp(db, target=body.target, purpose=body.purpose)
     except OtpError as exc:
@@ -109,6 +114,8 @@ async def login(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    if not await check_verification_token(body.verification_token or ""):
+        raise HTTPException(status_code=400, detail={"code": "CAPTCHA_REQUIRED", "message": "请先完成人机验证"})
     try:
         result = await auth_service.login(
             db,

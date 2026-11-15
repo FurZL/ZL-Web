@@ -40,13 +40,13 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
   })
 
-  async function login(account: string, password: string) {
+  async function login(account: string, password: string, captchaToken?: string) {
     loading.value = true
     try {
       const data = await request<LoginResult>({
         method: 'POST',
         url: '/auth/login',
-        data: { account, password },
+        data: { account, password, verification_token: captchaToken || undefined },
       })
       setTokens(data.access_token, data.refresh_token)
       user.value = toUser(data.user)

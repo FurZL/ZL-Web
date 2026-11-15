@@ -110,9 +110,9 @@ async def list_my_profile_images(
                 from app.services.image_processing import derive_profile_thumb_key
 
                 thumb_key = derive_profile_thumb_key(stored.object_key)
-                thumb_url = await storage.presign_download(stored.bucket, thumb_key)
+                thumb_url = storage.public_url(stored.bucket, thumb_key)
             except Exception:
-                logger.warning("生成缩略图签名 URL 失败 key=%s", stored.object_key, exc_info=True)
+                logger.warning("生成缩略图 URL 失败 key=%s", stored.object_key, exc_info=True)
                 thumb_url = None
 
         items.append({
@@ -141,7 +141,7 @@ async def get_profile_image_signed_url(
         raise ImageError("NOT_FOUND", "对象不存在", 404)
 
     storage = get_storage_provider()
-    url = await storage.presign_download(stored.bucket, stored.object_key)
+    url = storage.public_url(stored.bucket, stored.object_key)
     return {"url": url, "expires_in": settings.private_url_ttl_seconds}
 
 
