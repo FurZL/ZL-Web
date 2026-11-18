@@ -265,6 +265,7 @@ async function deleteFromPreview() {
     await request({ method: 'DELETE', url: `/profile/me/images/${img.id}` })
     closePreview()
     await refreshAll()
+    showToast('图片已删除')
   } catch (e) {
     showToast(e instanceof Error ? e.message : '删除失败')
   }
@@ -277,6 +278,7 @@ async function deletePhoto(img: ProfileImage) {
   try {
     await request({ method: 'DELETE', url: `/profile/me/images/${img.id}` })
     await refreshAll()
+    showToast('图片已删除')
   } catch (e) {
     showToast(e instanceof Error ? e.message : '删除失败')
   } finally {
@@ -447,7 +449,7 @@ watch(
             <div class="flex items-center gap-2">
               <p class="text-sm text-ink truncate flex-1">{{ p.title ?? '未命名' }}</p>
               <button
-                class="text-faint hover:text-blush shrink-0 opacity-0 group-hover:opacity-100 transition disabled:opacity-50"
+                class="text-faint hover:text-blush shrink-0 transition disabled:opacity-50 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
                 title="删除"
                 :disabled="deletingId === p.id"
                 @click="deletePhoto(p)"

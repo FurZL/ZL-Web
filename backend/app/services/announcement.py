@@ -123,5 +123,5 @@ async def delete(db: AsyncSession, announcement_id: uuid.UUID) -> None:
     a = await db.get(Announcement, announcement_id)
     if a is None:
         raise ValueError("公告不存在")
-    db.delete(a)
+    await db.delete(a)
     await db.commit()

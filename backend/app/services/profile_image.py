@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.image import ProfileImage, StoredObject
+from app.models.profile_layout import ProfileLayout
 from app.models.user import User
 from app.providers.factory import get_storage_provider
 from app.services.image import (
@@ -25,6 +26,37 @@ from app.services.image import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _remove_media_references(blocks: list[dict], object_key: str) -> list[dict]:
+    cleaned: list[dict] = []
+    for block in blocks:
+        props = dict(block.get("props") or {})
+        if block.get("type") == "featured_photo":
+            if props.get("object_key") == object_key:
+                continue
+        elif block.get("type") == "photo_wall":
+            keys = [key for key in props.get("object_keys", []) if key != object_key]
+            if not keys:
+                continue
+            props["object_keys"] = keys
+        cleaned.append({**block, "props": props})
+    return cleaned
+
+
+async def _purge_layout_references(
+    db: AsyncSession, user: User, object_key: str
+) -> None:
+    layout = await db.get(ProfileLayout, user.id)
+    if layout is None:
+        return
+    layout.draft_blocks = _remove_media_references(layout.draft_blocks or [], object_key)
+    if layout.published_blocks is not None:
+        layout.published_blocks = _remove_media_references(
+            layout.published_blocks, object_key
+        )
+    if (layout.theme or {}).get("background_key") == object_key:
+        layout.theme = {**layout.theme, "background_key": None}
 
 
 async def create_profile_upload_intent(
@@ -169,6 +201,7 @@ async def delete_profile_image(
                 await storage.delete_object(stored.bucket, thumb_key)
         except Exception:
             logger.warning("删除私有缩略图失败 key=%s", stored.object_key, exc_info=True)
-        db.delete(stored)
-    db.delete(image)
+        await _purge_layout_references(db, user, stored.object_key)
+        await db.delete(stored)
+    await db.delete(image)
     await db.commit()

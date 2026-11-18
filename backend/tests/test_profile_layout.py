@@ -14,7 +14,9 @@ from app.core.database import get_db
 from app.models.image import ProfileImage, StoredObject
 from app.models.profile_layout import ProfileLayout
 from app.models.user import User
+from app.services import profile_image as profile_image_service
 from app.services import profile_layout as profile_layout_service
+from app.services.profile_layout import DEFAULT_THEME
 
 
 class FakeResult:
@@ -41,6 +43,8 @@ class FakeDatabase:
             return self.layouts.get(key)
         if model is ProfileImage:
             return next((image for image in self.images if image.id == key), None)
+        if model is StoredObject:
+            return self.stored_objects.get(key)
         return None
 
     async def execute(self, statement):
@@ -65,6 +69,20 @@ class FakeDatabase:
     async def scalar(self, _statement):
         return 12
 
+    async def scalars(self, _statement):
+        return FakeResult(
+            [image for image in self.images if image.owner_id == self.user_id]
+        )
+
+    async def delete(self, value):
+        if isinstance(value, ProfileImage):
+            self.images = [image for image in self.images if image.id != value.id]
+        elif isinstance(value, StoredObject):
+            self.stored_objects.pop(value.id, None)
+
+    async def commit(self):
+        return None
+
     def add(self, value):
         if isinstance(value, ProfileLayout):
             self.layouts[value.user_id] = value
@@ -77,8 +95,14 @@ class FakeDatabase:
 
 
 class FakeStorage:
+    def __init__(self):
+        self.deleted = []
+
     def public_url(self, bucket, object_key):
         return f"https://assets.example.test/{object_key}"
+
+    async def delete_object(self, bucket, object_key):
+        self.deleted.append((bucket, object_key))
 
     async def presign_download(self, bucket, object_key, expires_in=900):
         return f"signed://{bucket}/{object_key}?ttl={expires_in}"
@@ -146,13 +170,15 @@ def profile_api(monkeypatch):
 
     app.dependency_overrides[get_current_user] = fake_current_user
     app.dependency_overrides[get_db] = fake_db
-    monkeypatch.setattr(profile_layout_service, "get_storage_provider", lambda: FakeStorage())
+    fake_storage = FakeStorage()
+    monkeypatch.setattr(profile_layout_service, "get_storage_provider", lambda: fake_storage)
+    monkeypatch.setattr(profile_image_service, "get_storage_provider", lambda: fake_storage)
     monkeypatch.setattr(
         profile_layout_service,
         "get_avatar_public_url",
         lambda _user: "https://assets.example.test/avatar.webp",
     )
-    return TestClient(app), db, images, user_id
+    return TestClient(app), db, images, user_id, fake_storage
 
 
 @pytest.fixture
@@ -220,7 +246,7 @@ def seed_blocks():
 
 
 def test_seed_layout_put_get_and_media_permissions(profile_api, seed_blocks):
-    client, _db, _images, _user_id = profile_api
+    client, _db, _images, _user_id, _storage = profile_api
     response = client.put("/api/v1/profile/me/layout", json={"blocks": seed_blocks})
 
     assert response.status_code == 200
@@ -243,7 +269,7 @@ def test_seed_layout_put_get_and_media_permissions(profile_api, seed_blocks):
 
 
 def test_layout_validation_error_includes_block_id(profile_api, seed_blocks):
-    client, _db, _images, _user_id = profile_api
+    client, _db, _images, _user_id, _storage = profile_api
     blocks = [dict(seed_blocks[0], span=99)]
 
     response = client.put("/api/v1/profile/me/layout", json={"blocks": blocks})
@@ -262,7 +288,7 @@ def test_layout_validation_error_includes_block_id(profile_api, seed_blocks):
     ],
 )
 def test_layout_rejects_private_or_other_users_object_key(profile_api, object_key):
-    client, _db, _images, _user_id = profile_api
+    client, _db, _images, _user_id, _storage = profile_api
     block = {
         "id": "seed-photo",
         "type": "featured_photo",
@@ -280,7 +306,7 @@ def test_layout_rejects_private_or_other_users_object_key(profile_api, object_ke
 
 
 def test_layout_drops_unknown_props_before_persisting(profile_api):
-    client, db, _images, user_id = profile_api
+    client, db, _images, user_id, _storage = profile_api
     response = client.put(
         "/api/v1/profile/me/layout",
         json={
@@ -303,7 +329,7 @@ def test_layout_drops_unknown_props_before_persisting(profile_api):
 
 
 def test_patch_image_displayable_and_non_owner_is_not_found(profile_api):
-    client, _db, images, _user_id = profile_api
+    client, _db, images, _user_id, _storage = profile_api
     own_image = images[0]
     response = client.patch(
         f"/api/v1/profile/me/images/{own_image.id}",
@@ -325,7 +351,7 @@ def test_patch_image_displayable_and_non_owner_is_not_found(profile_api):
 
 
 def test_publish_rejects_empty_draft(profile_api):
-    client, _db, _images, _user_id = profile_api
+    client, _db, _images, _user_id, _storage = profile_api
     client.put("/api/v1/profile/me/layout", json={"blocks": []})
 
     response = client.post("/api/v1/profile/me/layout/publish")
@@ -335,7 +361,7 @@ def test_publish_rejects_empty_draft(profile_api):
 
 
 def test_publish_and_discard_restore_published_blocks(profile_api):
-    client, _db, _images, _user_id = profile_api
+    client, _db, _images, _user_id, _storage = profile_api
     published_block = {
         "id": "published-bio",
         "type": "bio",
@@ -364,7 +390,7 @@ def test_publish_and_discard_restore_published_blocks(profile_api):
 
 
 def test_theme_update_validates_assets_and_returns_layout_payload(profile_api):
-    client, _db, _images, _user_id = profile_api
+    client, _db, _images, _user_id, _storage = profile_api
     theme = {
         "primary": "#123ABC",
         "accent": "#FEDCBA",
@@ -397,7 +423,7 @@ def test_theme_update_validates_assets_and_returns_layout_payload(profile_api):
     ],
 )
 def test_theme_update_rejects_invalid_fields(profile_api, override):
-    client, _db, _images, _user_id = profile_api
+    client, _db, _images, _user_id, _storage = profile_api
     theme = {
         "primary": "#6B5CE7",
         "accent": "#F0A6C8",
@@ -415,7 +441,7 @@ def test_theme_update_rejects_invalid_fields(profile_api, override):
 
 
 def test_theme_update_rejects_private_or_other_user_background(profile_api):
-    client, _db, _images, _user_id = profile_api
+    client, _db, _images, _user_id, _storage = profile_api
     theme = {
         "primary": "#6B5CE7",
         "accent": "#F0A6C8",
@@ -432,7 +458,7 @@ def test_theme_update_rejects_private_or_other_user_background(profile_api):
 
 
 def test_my_media_lists_all_own_images_with_visibility_state(profile_api):
-    client, _db, _images, _user_id = profile_api
+    client, _db, _images, _user_id, _storage = profile_api
 
     response = client.get("/api/v1/profile/me/media")
 
@@ -453,7 +479,7 @@ def test_my_media_lists_all_own_images_with_visibility_state(profile_api):
 def test_public_page_is_anonymous_and_uses_only_published_displayable_media(
     profile_api, seed_blocks
 ):
-    client, _db, images, _user_id = profile_api
+    client, _db, images, _user_id, _storage = profile_api
     client.put("/api/v1/profile/me/layout", json={"blocks": seed_blocks})
     assert client.post("/api/v1/profile/me/layout/publish").status_code == 200
     draft_only = {
@@ -484,7 +510,7 @@ def test_public_page_is_anonymous_and_uses_only_published_displayable_media(
     ["missing_user", "inactive_status", "inactive_flag", "no_layout", "unpublished", "private"],
 )
 def test_public_page_uses_same_not_found_for_ineligible_profiles(profile_api, scenario):
-    client, db, _images, _user_id = profile_api
+    client, db, _images, _user_id, _storage = profile_api
     block = {
         "id": "bio-1",
         "type": "bio",
@@ -514,3 +540,74 @@ def test_public_page_uses_same_not_found_for_ineligible_profiles(profile_api, sc
         "code": "PROFILE_PAGE_NOT_FOUND",
         "message": "该用户还没有公开主页",
     }
+
+
+def test_delete_profile_image_removes_image_and_stored_object(profile_api):
+    client, db, images, _user_id, storage = profile_api
+    target = images[0]
+    stored_id = target.stored_object_id
+    stored = db.stored_objects[stored_id]
+    expected_key = stored.object_key
+
+    response = client.delete(f"/api/v1/profile/me/images/{target.id}")
+
+    assert response.status_code == 200
+    assert response.json()["data"] == {"message": "已删除"}
+    assert all(image.id != target.id for image in db.images)
+    assert stored_id not in db.stored_objects
+    assert (stored.bucket, expected_key) in storage.deleted
+
+    response = client.get("/api/v1/profile/me/images")
+    assert all(item["id"] != str(target.id) for item in response.json()["data"]["items"])
+
+
+def test_delete_profile_image_rejects_other_users_image(profile_api):
+    client, db, images, _user_id, storage = profile_api
+    other = next(image for image in images if image.owner_id != _user_id)
+    stored_id = other.stored_object_id
+
+    response = client.delete(f"/api/v1/profile/me/images/{other.id}")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == {"code": "NOT_FOUND", "message": "图片不存在"}
+    assert any(image.id == other.id for image in db.images)
+    assert stored_id in db.stored_objects
+    assert not storage.deleted
+
+
+def test_delete_profile_image_removes_layout_media_references(profile_api):
+    client, db, images, user_id, _storage = profile_api
+    target = next(
+        image
+        for image in images
+        if image.owner_id == user_id and image.is_displayable
+    )
+    stored = db.stored_objects[target.stored_object_id]
+    layout = ProfileLayout(
+        user_id=user_id,
+        draft_blocks=[
+            {
+                "id": "wall",
+                "type": "photo_wall",
+                "span": 12,
+                "props": {"object_keys": [stored.object_key], "columns": 2},
+            }
+        ],
+        published_blocks=[
+            {
+                "id": "featured",
+                "type": "featured_photo",
+                "span": 12,
+                "props": {"object_key": stored.object_key, "caption": "cover"},
+            }
+        ],
+        theme={**DEFAULT_THEME, "background_key": stored.object_key},
+    )
+    db.layouts[user_id] = layout
+
+    response = client.delete(f"/api/v1/profile/me/images/{target.id}")
+
+    assert response.status_code == 200
+    assert layout.draft_blocks == []
+    assert layout.published_blocks == []
+    assert layout.theme["background_key"] is None

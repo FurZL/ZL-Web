@@ -141,8 +141,8 @@ async def delete_schedule(db: AsyncSession, schedule_id: uuid.UUID, user: User) 
             await storage.delete_object(stored.bucket, stored.object_key)
         except Exception:
             logger.warning("删除课表对象失败 key=%s", stored.object_key, exc_info=True)
-        db.delete(stored)
-    db.delete(s)
+        await db.delete(stored)
+    await db.delete(s)
     await db.commit()
 
 

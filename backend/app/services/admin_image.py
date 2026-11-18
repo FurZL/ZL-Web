@@ -111,9 +111,9 @@ async def delete_image(db: AsyncSession, image_id: uuid.UUID) -> None:
                     logger.warning("删除派生图失败 key=%s", derive(stored.object_key), exc_info=True)
         except Exception:
             logger.warning("删除对象存储文件失败 key=%s", stored.object_key, exc_info=True)
-        db.delete(stored)
+        await db.delete(stored)
 
-    db.delete(image)
+    await db.delete(image)
     await db.commit()
 
 

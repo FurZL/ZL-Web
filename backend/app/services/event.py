@@ -422,8 +422,8 @@ async def delete_event(db: AsyncSession, event_id: uuid.UUID) -> None:
         )
     ).all()
     for r in regs:
-        db.delete(r)
-    db.delete(e)
+        await db.delete(r)
+    await db.delete(e)
     await db.commit()
 
 
