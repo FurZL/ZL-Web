@@ -67,6 +67,44 @@ npm run dev
 
 前端开发服务器：http://localhost:5173
 
+## 登录保持（7 天滑动会话）
+
+- Access Token 默认 15 分钟有效，仅保存在前端内存；Refresh Token 默认 7 天，由后端写入 `HttpOnly` Cookie，跨标签页共享。
+- 新标签页打开时，前端用 Cookie 静默刷新 Access Token；7 天内每活动一次，会话窗口就顺延一次。超过 7 天未访问则 Refresh Token 过期，需要重新登录。
+- Cookie 默认 `SameSite=Lax`，生产环境自动 `Secure`；通过 `REFRESH_TOKEN_TTL_DAYS` 调整有效期，通过 `AUTH_COOKIE_NAME`/`AUTH_COOKIE_SAMESITE` 调整 Cookie 行为。
+
+## 第三方登录、法律页面与图片代理
+
+- QQ 登录采用「后端生成授权地址 → QQ 回调前端 `/oauth/qq` → 前端携带 `code/state` 调后端换取登录态」流程。登录、发起绑定和绑定已有账号都要先通过滑块拼图验证。
+- 已绑定 QQ 直接登录；未绑定 QQ 进入绑定页，用已审批的本站账号密码完成绑定并登录；已登录用户可在个人主页绑定或解绑 QQ。
+- 后台「网站设置 → 第三方登录」提供总开关与 QQ 子开关。QQ 的 App ID / App Key 只放后端环境变量，不写入 `site_settings`。
+- 注册必须分别勾选《用户协议》和《隐私政策》。后端记录协议版本与同意时间；用户协议和隐私政策包含第三方服务清单、官方隐私政策链接、违法信息处置及依法配合有权机关的条款。
+- 用户图片的展示、私有缩略图和下载都走 `PUBLIC_ASSET_BASE_URL` 代理域；COS 原生预签名地址只用于浏览器上传直传，不返回给展示/下载接口。
+
+| 项目 | 本地开发 | 生产/上线 |
+|---|---|---|
+| 前端 SPA | `http://localhost:5173`（Vite strictPort） | `https://www.furzl.cn` |
+| 后端 API | `http://127.0.0.1:8000` | Nginx 反代至 `127.0.0.1:8000` |
+| API 前缀 | `/api/v1` | `/api/v1` |
+| QQ 前端回调 | `/oauth/qq` | `https://www.furzl.cn/oauth/qq` |
+| 用户协议 | `/legal/terms` | `https://www.furzl.cn/legal/terms` |
+| 隐私政策 | `/legal/privacy` | `https://www.furzl.cn/legal/privacy` |
+| 版权声明 | `/legal/copyright` | `https://www.furzl.cn/legal/copyright` |
+| 联系我们 | `/legal/contact` | `https://www.furzl.cn/legal/contact` |
+| 联系邮箱 | `contact@furzl.cn` | `contact@furzl.cn` |
+
+### 本次变更总览（2026-11-19）
+
+| 类别 | 新增 | 修改/替换 | 删除或废弃 |
+|---|---|---|---|
+| 认证 | 7 天 HttpOnly Refresh Cookie；跨标签页会话恢复；协议同意字段与落库记录 | Access Token 仍为 15 分钟内存令牌；刷新令牌有效期由 14 天改 7 天 | 前端不再把 Refresh Token 写入 `sessionStorage` |
+| 第三方登录 | QQ Provider、OAuth 端点、绑定表、登录/绑定页面、后台开关 | 登录页增加 QQ 入口，个人主页增加账号绑定区 | 无已上线的第三方登录方案可迁移 |
+| 图片 | 代理域统一承载公开图、私有缩略图和下载 | `presign_download → public_url`；测试如实断言代理域 | 展示/下载不再返回 COS 原生预签名 URL |
+| 数据 | `user_third_parties` 表；`users` 协议版本/同意时间字段 | 迁移链新增 `e7f3a91b2d44`、`2b7e4c9d1a60`，head 为 `2b7e4c9d1a60` | 无表或字段删除 |
+| 页面 | `/oauth/qq`、`/legal/:slug`、四个法律页面、页脚链接回退 | 注册页协议勾选；登录页 QQ 登录；个人主页绑定；后台设置新增第三方登录 Tab | 无页面删除 |
+| API | 5 个 QQ/OAuth 端点、2 个个人绑定端点、1 个后台 OAuth 测试端点 | 登录/刷新/登出改用 Cookie；注册和图片/主页响应调整 | 没有删除路由；旧登录客户端契约不再兼容 |
+| 配置 | `AUTH_COOKIE_NAME`、`AUTH_COOKIE_SAMESITE`、`OAUTH_FRONTEND_BASE_URL`、`QQ_APP_ID`、`QQ_APP_KEY`、`QQ_REDIRECT_URI` | `REFRESH_TOKEN_TTL_DAYS` 默认 14 → 7；法律默认值和页脚默认值补齐 | 未新增数据库端口；Redis 仍为 `6379`，PostgreSQL 仍为 `5432` |
+
 ## 开发进度
 
 按架构文档「十七、开发实施顺序」分阶段推进。当前状态：**阶段 1–7 全部完成（认证、图片、个人空间、课表、运营内容、活动系统、动态页面全链路已打通）**。管理员初始化脚本已支持幂等执行、账号激活和显式密码重置。
@@ -88,8 +126,8 @@ npm run dev
 ### 本分支进度：个人主页客制化初版（截至 2026-11-13）
 
 - 新增 `/profile/me/edit` 编辑器：8 种模块、12 栅格布局、拖拽/按钮排序、复制/删除、撤销/重做、主题预设和预览。自定义 HTML 点击后在 `sandbox="allow-scripts"` 的 iframe 中运行，配套 CSP 限制资源加载。
-- 后端已实现 `GET/PUT /api/v1/profile/me/layout` 与 `PATCH /api/v1/profile/me/images/{image_id}`：布局草稿持久化、白名单校验、图片归属与展示授权校验、短时签名 URL。默认最多 16 个模块，可通过 `PROFILE_LAYOUT_MAX_BLOCKS` 调整。
-- 数据库新增 `profile_layouts` 表和 `profile_images.is_displayable`（默认 `false`），迁移为 `4f8a2c7d91b3`。拉取本分支后先在后端执行 `alembic upgrade head`。
+- 后端已实现 `GET/PUT /api/v1/profile/me/layout` 与 `PATCH /api/v1/profile/me/images/{image_id}`：布局草稿持久化、白名单校验、图片归属与展示授权校验、代理域素材 URL。默认最多 16 个模块，可通过 `PROFILE_LAYOUT_MAX_BLOCKS` 调整。
+- 数据库新增 `profile_layouts` 表和 `profile_images.is_displayable`（默认 `false`），对应迁移 `4f8a2c7d91b3`；后续又新增 QQ 绑定表与用户协议同意字段。拉取本分支后先在后端执行 `alembic upgrade head`，当前 head 为 `2b7e4c9d1a60`。
 - 前端已预留发布、丢弃草稿、主题保存、素材清单和访客主页的调用；这 5 个后端接口尚未实现，当前只在开发 mock 中可演示。完整路径及状态见 [API 文档](docs/API.md#五个人空间-profile)。
 - **当前限制**：真实后端模式下，“保存草稿”先保存布局，再请求尚未实现的主题接口，可能提示失败但布局已落库；发布、丢弃、主题持久化、素材选择及访客主页尚未形成完整真实链路。
 - 登录态恢复改为共享 `bootstrapAuth()`：直接打开或刷新需要登录的页面时，路由守卫先等待会话恢复。API 客户端增加业务错误信封的消息提取。
@@ -111,7 +149,7 @@ VITE_API_BASE_URL=/api/v1
 VITE_PROFILE_MOCK=1
 ```
 
-mock 会拦截个人主页及会话恢复接口，数据仅驻留 Vite 进程内。演示会话可在该站点浏览器控制台执行 `sessionStorage.setItem('refresh_token', 'mock-refresh')`，刷新后打开 `/profile/me/edit`；结束演示时清除此项并重启普通开发服务。
+mock 会拦截个人主页及会话恢复接口，数据仅驻留 Vite 进程内。演示会话可在该站点浏览器控制台执行 `localStorage.setItem('auth_session', '1')`，刷新后打开 `/profile/me/edit`；结束演示时清除此项并重启普通开发服务。
 
 ### 本分支进度：注册配置、邮件通知与验证码体验（2026-11-15）
 
@@ -263,21 +301,23 @@ UI 组件在 `components/AppDialog.vue`，挂载在 `App.vue` 根部，无需每
 
 ### 已就绪的关键事实
 
-- 数据库：本分支新增个人主页布局表，Alembic 当前 head 为 `4f8a2c7d91b3`（接在 `0addd5ed14cc` 之后）。
-- 缓存：当前本地 Redis 未运行；`/api/v1/ready` 返回 `degraded` / `redis: false`。Docker Desktop 服务因当前 Windows 权限无法启动，恢复 Redis 后再复核。
-- 对象存储：腾讯云 COS 单桶（ap-shanghai，`public/`/`private/` 前缀隔离），CORS + public 读策略已配置，预签名上传/下载全链路实测通过。
+- 数据库：个人主页布局表、QQ 账号绑定表和用户协议同意字段均已落库；Alembic 当前 head 为 `2b7e4c9d1a60`，迁移链为 `81c6d451559a → 9394e2a89de2 → 64b8838cd73c → 131029fbb8f9 → 0addd5ed14cc → 4f8a2c7d91b3 → e7f3a91b2d44 → 2b7e4c9d1a60`。
+- 缓存：本地 Redis 已连通；2026-11-19 验证 `/api/v1/ready` 返回 `{"status":"ready","redis":true}`。验证码、限流与 QQ OAuth state 都依赖 Redis，部署时必须先确认该接口。
+- 对象存储：腾讯云 COS 单桶（`public/`/`private/` 前缀隔离），CORS 与 public 读策略已配置；浏览器上传使用预签名直传，展示/下载改为代理域 URL。
 - 认证：注册（邮箱/手机 OTP）→ 待审批 → 管理员审批 → 登录/刷新令牌轮换，完整闭环已打通。
 - 图片处理：后台 worker 生成缩略图（800px）/展示图（2000px）WebP，含防解压炸弹。
-- API：当前代码 OpenAPI 注册 86 个路径 / 101 个方法端点，包含人机验证滑块、个人主页发布/丢弃、主题、素材清单和匿名公开页接口。
+- API：当前代码 OpenAPI 注册 94 个路径 / 109 个方法端点，包含人机验证滑块、个人主页发布/丢弃/主题/素材、匿名公开页、QQ 登录/绑定及 OAuth Provider 测试接口。
 - 测试：`pytest -q -p no:cacheprovider` 48 个用例通过（含个人主页发布/丢弃、主题校验、素材授权与匿名公开页隐私测试）。
 - 管理后台：用户审批、仪表盘、公告管理、网站设置、活动管理、页面管理、图片管理已接真实接口。
 - 管理员初始化：`backend/scripts/create_admin.py` 已合并到 `main`；账号已存在时默认不覆盖密码，使用 `--reset-password` 才会显式重置，并自动确保管理员角色和启用状态。
+- QQ 第三方登录：登录页与个人主页绑定均先通过滑块拼图验证，回调统一落回 `https://www.furzl.cn/oauth/qq`；后台「网站设置 → 第三方登录」控制登录入口开关，`QQ_APP_ID` / `QQ_APP_KEY` 只从后端环境变量读取。
 
 > 图例：✅ 完成　🟡 部分完成　⬜ 未开始
 
 ## 变更记录
 
-- **2026-11-18：安全加固 + 私有图片访问回归**：修复注册角色注入（`applied_role` 仅允许 `photographer`，注册始终落为 `member`）；修复审核员可越权修改用户角色/状态（改角色/状态仅管理员可操作，管理员与审核员仅超级管理员可修改）；修复未公开图片可匿名读取的 IDOR（仅公开且审核通过的图片可访问/下载）。登录、OTP 发送、刷新、密码重置增加 Redis 应用层限流，触发返回 429。个人主页/私有相册图片改回后端鉴权后的短时效签名 URL，不再通过 `public_url` 直读。修复 `backend/pyproject.toml` 依赖列表误写入 `` `r`n `` 导致 pip 解析失败的 TOML 语法问题。生产环境关闭 `/docs`、`/redoc`、`/openapi.json`。
+- **2026-11-18：安全加固 + 私有图片访问回归（部分方案已被 2026-11-19 取代）**：修复注册角色注入（`applied_role` 仅允许 `photographer`，注册始终落为 `member`）；修复审核员可越权修改用户角色/状态（改角色/状态仅管理员可操作，管理员与审核员仅超级管理员可修改）；修复未公开图片可匿名读取的 IDOR（仅公开且审核通过的图片可访问/下载）。登录、OTP 发送、刷新、密码重置增加 Redis 应用层限流，触发返回 429。当时私有图使用短时效签名 URL；2026-11-19 已改回 `PUBLIC_ASSET_BASE_URL` 代理域方案。修复 `backend/pyproject.toml` 依赖列表误写入 `` `r`n `` 导致 pip 解析失败的 TOML 语法问题。生产环境关闭 `/docs`、`/redoc`、`/openapi.json`。
+- **2026-11-19：QQ 第三方登录、7 天 Cookie 会话、法律页面与代理域回归**：新增 `user_third_parties` 绑定表（迁移 `e7f3a91b2d44`）和用户协议同意字段（迁移 `2b7e4c9d1a60`）；QQ 授权码流程回调到前端 `/oauth/qq`，已绑定 QQ 直接登录，未绑定走「绑定已有账号」页；个人主页可绑定/解绑 QQ；后台新增第三方登录开关。登录、绑定与 QQ 授权开始入口均要求滑块拼图验证。Refresh Token 改由 7 天 HttpOnly Cookie 承载，前端不再写 `sessionStorage`。图片展示、私有缩略图和下载恢复为代理域 `public_url`，COS 原生预签名只用于上传。新增 `/legal/terms`、`/legal/privacy`、`/legal/copyright`、`/legal/contact`，注册页改为两个独立协议勾选，后端校验并记录版本与时间。
 - **2026-11-15：注册配置、邮件通知、密码强度与验证码冷却**：后台新增「注册设置」Tab（开启注册/要求邮箱验证/要求手机验证），前端顶栏/登录页/注册页联动隐藏注册入口，后端 /auth/register 强制门控。新增 SmtpEmailProvider 接入飞书企业邮箱 SMTP，HTML 卡片模板，发件名跟随 APP_NAME；注册提交后发「等待审批」通知，审批通过/拒绝各发通知，fire-and-forget 异步不阻塞。注册和找回密码均要求密码含大小写字母和数字，前后端双重校验；注册表单新增确认密码字段。OTP 发送新增 60 秒冷却（OTP_COOLDOWN_SECONDS），前端按钮倒计时禁用。社团介绍页成员头像修复（补传 `avatar_url`）。新增 COS_DEV_PREFIX 多人开发隔离前缀。`run.py` 支持 --host 参数。
 - **2026-11-16：人机验证 + 阿里云短信 + 图片域名隐藏 + 头像同步 + OTP 风控**：新增滑块拼图人机验证（GET /captcha/challenge + POST /captcha/verify，Canvas 拼图 + Bing 壁纸背景，±6px 容差，验证 token 一次性消耗），验证通过后才可获取邮箱/手机验证码。接入阿里云短信服务（AliyunSmsProvider，签名"杭州轻绒文化"，模板 SMS_512658529）。所有图片/文件 URL 统一走 EdgeOne 代理域名 zl.test.tiking.top（公有读、私有缩略图、下载、头像），仅上传预签名 URL 保留 COS 原生域名（桶私有读写，签名保障安全）。OTP 发送冷却从 60s 提升到 120s，邮箱/手机号格式前端强校验（+86 锁死 + 11 位数字 / 邮箱正则），格式不符不可获取验证码。修复 Profile 页面自己视角头像不显示问题，UserAvatar 组件 src 更新时重置 imgError 状态。新增 COS 代理域名客户端（后因 EdgeOne 不支持 PUT 回退），presign_download 全部改为 public_url 走代理域名。
 

@@ -3,14 +3,14 @@ import type { ApiResponse } from '@/types'
 import {
   clearTokens,
   getAccessToken,
-  getRefreshToken,
-  setTokens,
+  setAccessToken,
 } from './token'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 })
 
 const validationFieldLabels: Record<string, string> = {
@@ -69,16 +69,11 @@ export function setUnauthorizedHandler(fn: (() => void) | null) {
 let refreshing: Promise<string | null> | null = null
 
 async function doRefresh(): Promise<string | null> {
-  const refreshToken = getRefreshToken()
-  if (!refreshToken) return null
   try {
-    const res = await axios.post(
-      `${import.meta.env.VITE_API_BASE_URL || '/api/v1'}/auth/refresh`,
-      { refresh_token: refreshToken },
-    )
+    const res = await api.post('/auth/refresh', {})
     const data = res.data as ApiResponse<{ access_token: string; refresh_token: string }>
     if (data.success && data.data) {
-      setTokens(data.data.access_token, data.data.refresh_token)
+      setAccessToken(data.data.access_token)
       return data.data.access_token
     }
     return null
@@ -152,7 +147,6 @@ export async function request<T>(config: AxiosRequestConfig): Promise<T> {
  */
 export async function ensureAccessToken(): Promise<string | null> {
   if (getAccessToken()) return getAccessToken()
-  if (!getRefreshToken()) return null
   refreshing = refreshing ?? doRefresh()
   const token = await refreshing
   refreshing = null

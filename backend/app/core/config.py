@@ -88,9 +88,21 @@ class Settings(BaseSettings):
 
     # 认证
     access_token_ttl_minutes: int = Field(default=15, alias="ACCESS_TOKEN_TTL_MINUTES")
-    refresh_token_ttl_days: int = Field(default=14, alias="REFRESH_TOKEN_TTL_DAYS")
+    refresh_token_ttl_days: int = Field(default=7, alias="REFRESH_TOKEN_TTL_DAYS")
+    auth_cookie_name: str = Field(default="refresh_token", alias="AUTH_COOKIE_NAME")
     auth_cookie_secure: bool = Field(default=False, alias="AUTH_COOKIE_SECURE")
+    auth_cookie_samesite: str = Field(default="lax", alias="AUTH_COOKIE_SAMESITE")
     password_hash_scheme: str = Field(default="argon2", alias="PASSWORD_HASH_SCHEME")
+
+    # 第三方登录（QQ）
+    oauth_frontend_base_url: str = Field(
+        default="http://localhost:5173", alias="OAUTH_FRONTEND_BASE_URL"
+    )
+    qq_app_id: str | None = Field(default=None, alias="QQ_APP_ID")
+    qq_app_key: str | None = Field(default=None, alias="QQ_APP_KEY")
+    qq_redirect_uri: str = Field(
+        default="https://www.furzl.cn/oauth/qq", alias="QQ_REDIRECT_URI"
+    )
 
     # 验证码（OTP）
     otp_ttl_seconds: int = Field(default=600, alias="OTP_TTL_SECONDS")

@@ -16,7 +16,12 @@ router = APIRouter(prefix="/site", tags=["site"])
 async def public_config(db: AsyncSession = Depends(get_db)):
     cfg = await site_setting.get_public_config(db)
     reg = await site_setting.get_registration_config(db)
+    oauth_cfg = await site_setting.get_oauth_config(db)
     cfg["registration_config"] = reg
+    cfg["oauth_config"] = {
+        "enabled": bool(oauth_cfg.get("enabled")),
+        "qq_enabled": bool(oauth_cfg.get("qq_enabled")),
+    }
     return ok(cfg)
 
 

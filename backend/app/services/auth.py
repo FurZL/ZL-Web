@@ -91,9 +91,11 @@ async def register_user(
     applied_role: str | None = None,
     application_reason: str | None = None,
     application_portfolio: str | None = None,
+    terms_version: str = "",
+    privacy_version: str = "",
 ) -> User:
     email = email.lower().strip() if email else ""
-    phone = _normalize_phone(phone)
+    phone = _normalize_phone(phone) or None
 
     if await _username_exists(db, username):
         raise AuthError("USERNAME_TAKEN", "用户名已被占用")
@@ -112,6 +114,9 @@ async def register_user(
         applied_role=applied_role,
         application_reason=application_reason,
         application_portfolio=application_portfolio,
+        terms_version=terms_version.strip()[:32] or None,
+        privacy_version=privacy_version.strip()[:32] or None,
+        legal_accepted_at=datetime.now(timezone.utc),
         status="pending",
         is_active=False,
     )
@@ -127,6 +132,8 @@ async def register_user(
 
 def _normalize_phone(phone: str) -> str:
     p = phone.strip().replace(" ", "").replace("-", "")
+    if not p:
+        return ""
     if p.startswith("0086"):
         p = "+86" + p[4:]
     elif p.startswith("86") and len(p) == 13:

@@ -21,6 +21,7 @@ from app.schemas.profile_layout import ProfileImageDisplayPatch, ProfileTheme
 from app.services import avatar as avatar_service
 from app.services import profile_image as profile_image_service
 from app.services import profile_layout as profile_layout_service
+from app.services import third_party_auth
 from app.services.image import ImageError
 
 router = APIRouter(prefix="/profile", tags=["profile"])
@@ -38,6 +39,30 @@ async def get_me(user: User = Depends(get_current_user)):
         "role": user.role,
         "status": user.status,
     })
+
+
+@router.get("/me/third-party")
+async def my_third_party_bindings(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    bindings = await third_party_auth.list_bindings(db, user)
+    return ok({"items": bindings})
+
+
+@router.delete("/me/third-party/{provider}")
+async def delete_my_third_party_binding(
+    provider: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if provider not in third_party_auth.SUPPORTED_PROVIDERS:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "OAUTH_PROVIDER_UNSUPPORTED", "message": "暂不支持该登录方式"},
+        )
+    await third_party_auth.unbind_provider(db, user, provider)
+    return ok({"message": "已解绑"})
 
 
 class ProfileUpdateRequest(BaseModel):

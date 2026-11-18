@@ -9,7 +9,7 @@ import {
 import { useSiteConfig } from '@/composables/useSiteConfig'
 import type { SiteSettingRecord } from '@/types'
 
-const tab = ref<'intro' | 'config' | 'footer' | 'legal' | 'registration'>('intro')
+const tab = ref<'intro' | 'config' | 'footer' | 'legal' | 'registration' | 'oauth'>('intro')
 const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
@@ -47,6 +47,11 @@ const registration = reactive({
   registration_enabled: true,
   require_email_verification: true,
   require_phone_verification: true,
+})
+
+const oauth = reactive({
+  enabled: false,
+  qq_enabled: false,
 })
 
 const allSettings = ref<SiteSettingRecord[]>([])
@@ -89,6 +94,11 @@ async function load() {
       registration.registration_enabled = reg.registration_enabled ?? true
       registration.require_email_verification = reg.require_email_verification ?? true
       registration.require_phone_verification = reg.require_phone_verification ?? true
+    }
+    const oauthCfg = settingsData.items.find((s) => s.key === 'oauth_config')?.value as Record<string, boolean> | undefined
+    if (oauthCfg) {
+      oauth.enabled = oauthCfg.enabled ?? false
+      oauth.qq_enabled = oauthCfg.qq_enabled ?? false
     }
   } catch (e) {
     error.value = e instanceof Error ? e.message : '加载失败'
@@ -189,13 +199,32 @@ async function saveRegistration() {
   }
 }
 
+async function saveOauth() {
+  saving.value = true
+  error.value = ''
+  try {
+    await upsertSetting({
+      key: 'oauth_config',
+      value: { ...oauth },
+      category: 'site',
+      is_public: true,
+    })
+    showSuccess('第三方登录设置已保存')
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : '保存失败'
+  } finally {
+    saving.value = false
+  }
+}
+
 const tabs = [
   { key: 'intro', label: '社团介绍' },
   { key: 'config', label: '公开配置' },
   { key: 'footer', label: '页脚信息' },
   { key: 'legal', label: '法律信息' },
   { key: 'registration', label: '注册设置' },
-] as const
+  { key: 'oauth', label: '第三方登录' },
+] as { key: typeof tab.value; label: string }[]
 </script>
 
 <template>
@@ -360,6 +389,42 @@ const tabs = [
 
         <button class="btn-primary" :disabled="saving" @click="saveRegistration">
           {{ saving ? '保存中…' : '保存注册设置' }}
+        </button>
+      </div>
+
+      <!-- 第三方登录 -->
+      <div v-else-if="tab === 'oauth'" class="glass-card p-6 space-y-6">
+        <div>
+          <h2 class="text-lg font-semibold text-ink">第三方登录开关</h2>
+          <p class="text-sm text-sub mt-1">控制登录页是否展示第三方登录入口；App ID / App Key 仍从后端环境变量读取。</p>
+        </div>
+
+        <label class="flex items-center justify-between p-4 rounded-xl bg-white/60 border border-white/60 cursor-pointer hover:bg-white/80 transition">
+          <div>
+            <p class="font-medium text-ink">开启第三方登录</p>
+            <p class="text-sm text-sub">总开关，关闭后前端登录页隐藏全部第三方入口</p>
+          </div>
+          <input
+            v-model="oauth.enabled"
+            type="checkbox"
+            class="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+          />
+        </label>
+
+        <label class="flex items-center justify-between p-4 rounded-xl bg-white/60 border border-white/60 cursor-pointer hover:bg-white/80 transition">
+          <div>
+            <p class="font-medium text-ink">QQ 登录</p>
+            <p class="text-sm text-sub">在登录页显示「QQ 登录」按钮；登录与绑定均要求先通过拼图验证</p>
+          </div>
+          <input
+            v-model="oauth.qq_enabled"
+            type="checkbox"
+            class="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+          />
+        </label>
+
+        <button class="btn-primary" :disabled="saving" @click="saveOauth">
+          {{ saving ? '保存中…' : '保存第三方登录设置' }}
         </button>
       </div>
     </div>

@@ -43,6 +43,11 @@ class User(TimestampMixin, Base):
     applied_role: Mapped[str | None] = mapped_column(String(32), nullable=True)
     application_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     application_portfolio: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    terms_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    privacy_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    legal_accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

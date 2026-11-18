@@ -7,6 +7,12 @@ import type { FooterConfig } from '@/types'
 const { siteName, siteSubtitle } = useSiteConfig()
 const year = new Date().getFullYear()
 const footer = ref<FooterConfig | null>(null)
+const fallbackLinks = [
+  { label: '用户协议', href: '/legal/terms' },
+  { label: '隐私政策', href: '/legal/privacy' },
+  { label: '版权声明', href: '/legal/copyright' },
+  { label: '联系我们', href: '/legal/contact' },
+]
 
 onMounted(async () => {
   try {
@@ -36,7 +42,7 @@ onMounted(async () => {
         </div>
         <div class="flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-sub">
           <a
-            v-for="link in (footer?.links ?? [])"
+            v-for="link in (footer?.links?.length ? footer.links : fallbackLinks)"
             :key="link.label"
             class="hover:text-primary-700 transition"
             :href="link.href"

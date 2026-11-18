@@ -268,16 +268,10 @@ async def _media_item(
 ) -> dict[str, Any]:
     thumb_url = None
     if stored.processing_status == "ready":
-        thumb_url = await storage.presign_download(
-            stored.bucket,
-            derive_profile_thumb_key(stored.object_key),
-            expires_in=settings.private_url_ttl_seconds,
+        thumb_url = storage.public_url(
+            stored.bucket, derive_profile_thumb_key(stored.object_key)
         )
-    display_url = await storage.presign_download(
-        stored.bucket,
-        stored.object_key,
-        expires_in=settings.private_url_ttl_seconds,
-    )
+    display_url = storage.public_url(stored.bucket, stored.object_key)
     return {
         "thumb_url": thumb_url,
         "display_url": display_url,

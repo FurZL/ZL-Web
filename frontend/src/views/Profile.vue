@@ -8,7 +8,9 @@ import UploadPrivateDialog from '@/components/profile/UploadPrivateDialog.vue'
 import EditProfileDialog from '@/components/profile/EditProfileDialog.vue'
 import ProfileRenderer from '@/components/profile/ProfileRenderer.vue'
 import ProfileMediaPickerDialog from '@/components/profile/ProfileMediaPickerDialog.vue'
+import SliderCaptcha from '@/components/SliderCaptcha.vue'
 import { getMyLayout, getProfilePage } from '@/api/profile'
+import { deleteMyThirdPartyBinding, getMyThirdPartyBindings, startQqBind } from '@/api/oauth'
 import { request } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { useDialog } from '@/composables/useDialog'
@@ -18,6 +20,7 @@ import type {
   ProfileMedia,
   ProfileStats,
   ProfileTheme,
+  ThirdPartyBinding,
 } from '@/types'
 import { DEFAULT_THEME } from '@/components/profile/theme'
 
@@ -163,6 +166,58 @@ async function loadPhotos() {
 const showUpload = ref(false)
 const showEdit = ref(false)
 const showMediaPicker = ref(false)
+const showBindCaptcha = ref(false)
+const qqPending = ref(false)
+const thirdPartyBindings = ref<ThirdPartyBinding[]>([])
+const thirdPartyLoading = ref(false)
+
+async function loadThirdPartyBindings() {
+  if (!isSelf.value) return
+  thirdPartyLoading.value = true
+  try {
+    const data = await getMyThirdPartyBindings()
+    thirdPartyBindings.value = data.items
+  } catch {
+    thirdPartyBindings.value = []
+  } finally {
+    thirdPartyLoading.value = false
+  }
+}
+
+function triggerQqBind() {
+  qqPending.value = true
+  showBindCaptcha.value = true
+}
+
+async function onBindCaptchaVerified(token: string) {
+  showBindCaptcha.value = false
+  try {
+    const data = await startQqBind(token, '/profile')
+    window.location.href = data.authorize_url
+  } catch (e) {
+    showToast(e instanceof Error ? e.message : '绑定 QQ 失败')
+    qqPending.value = false
+  }
+}
+
+function closeBindCaptcha() {
+  showBindCaptcha.value = false
+  qqPending.value = false
+}
+
+async function unbindQq() {
+  if (!(await showConfirm('确定解绑 QQ 登录吗？'))) return
+  qqPending.value = true
+  try {
+    await deleteMyThirdPartyBinding('qq')
+    await loadThirdPartyBindings()
+    showToast('QQ 已解绑')
+  } catch (e) {
+    showToast(e instanceof Error ? e.message : '解绑失败')
+  } finally {
+    qqPending.value = false
+  }
+}
 
 const previewing = ref<ProfileImage | null>(null)
 const previewUrl = ref('')
@@ -230,7 +285,7 @@ async function deletePhoto(img: ProfileImage) {
 }
 
 async function refreshAll() {
-  await Promise.all([loadPage(), loadPhotos()])
+  await Promise.all([loadPage(), loadPhotos(), loadThirdPartyBindings()])
 }
 
 // ---------- 展示信息 ----------
@@ -347,6 +402,22 @@ watch(
 
     <!-- 自己的视角：私有相册 -->
     <template v-if="isSelf">
+      <div class="mt-10 glass-card p-6">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-semibold text-ink">账号绑定</h2>
+            <p class="mt-1 text-xs text-faint">绑定第三方登录后，可用它快速登录本账号</p>
+          </div>
+          <span v-if="thirdPartyBindings.some((b) => b.provider === 'qq')" class="flex items-center gap-2">
+            <span class="text-sm text-sub">已绑定 QQ</span>
+            <button class="btn-ghost !px-3 !py-1.5 text-sm" :disabled="qqPending" @click="unbindQq">解绑</button>
+          </span>
+          <button v-else class="btn-primary !px-4 !py-2 text-sm" :disabled="qqPending" @click="triggerQqBind">
+            {{ qqPending ? '处理中…' : '绑定 QQ 登录' }}
+          </button>
+        </div>
+      </div>
+
       <div class="mt-10 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 class="text-lg font-semibold text-ink">我的私有相册</h2>
@@ -398,6 +469,7 @@ watch(
     <UploadPrivateDialog :show="showUpload" @close="showUpload = false" @uploaded="refreshAll" />
     <EditProfileDialog :show="showEdit" @close="showEdit = false" />
     <ProfileMediaPickerDialog :show="showMediaPicker" @close="showMediaPicker = false" @changed="refreshAll" />
+    <SliderCaptcha :show="showBindCaptcha" @close="closeBindCaptcha" @verified="onBindCaptchaVerified" />
 
     <!-- 预览 lightbox -->
     <ImageLightbox

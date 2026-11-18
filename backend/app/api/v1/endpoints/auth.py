@@ -6,13 +6,14 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, rate_limit
 from app.api.response import error_to_http, ok
 from app.api.v1.endpoints.captcha import check_verification_token
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.auth import (
@@ -31,6 +32,32 @@ from app.services.otp import OtpError, send_otp, verify_otp
 from app.services import site_setting
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _refresh_cookie_opts() -> dict:
+    return {
+        "key": settings.auth_cookie_name,
+        "max_age": settings.refresh_token_ttl_days * 24 * 3600,
+        "path": f"{settings.api_v1_prefix}/auth",
+        "httponly": True,
+        "secure": settings.auth_cookie_secure or settings.is_production,
+        "samesite": settings.auth_cookie_samesite,
+    }
+
+
+def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
+    opts = _refresh_cookie_opts()
+    response.set_cookie(value=refresh_token, **opts)
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=settings.auth_cookie_name,
+        path=f"{settings.api_v1_prefix}/auth",
+        secure=settings.auth_cookie_secure or settings.is_production,
+        httponly=True,
+        samesite=settings.auth_cookie_samesite,
+    )
 
 
 @router.post("/verify/email")
@@ -71,6 +98,12 @@ async def send_phone_code(
 async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     reg_cfg = await site_setting.get_registration_config(db)
 
+    if not body.terms_accepted or not body.privacy_accepted:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "LEGAL_CONSENT_REQUIRED", "message": "请先阅读并同意用户协议和隐私政策"},
+        )
+
     if body.password != body.password_confirm:
         raise HTTPException(
             status_code=422,
@@ -109,6 +142,8 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
             applied_role=body.applied_role,
             application_reason=body.application_reason,
             application_portfolio=body.application_portfolio,
+            terms_version=body.terms_version,
+            privacy_version=body.privacy_version,
         )
     except AuthError as exc:
         raise error_to_http(exc)
@@ -120,6 +155,7 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
 async def login(
     body: LoginRequest,
     request: Request,
+    response: Response,
     db: AsyncSession = Depends(get_db),
     _: None = Depends(rate_limit("login", 10, 60)),
 ):
@@ -134,31 +170,54 @@ async def login(
         )
     except AuthError as exc:
         raise error_to_http(exc)
+    _set_refresh_cookie(response, result["refresh_token"])
     return ok(result)
 
 
 @router.post("/refresh")
 async def refresh(
     body: RefreshRequest,
+    request: Request,
+    response: Response,
     db: AsyncSession = Depends(get_db),
     _: None = Depends(rate_limit("refresh", 30, 60)),
 ):
+    refresh_token = body.refresh_token or request.cookies.get(settings.auth_cookie_name)
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "INVALID_REFRESH", "message": "刷新令牌无效"},
+        )
     try:
-        result = await auth_service.refresh_tokens(db, body.refresh_token)
+        result = await auth_service.refresh_tokens(db, refresh_token)
     except AuthError as exc:
         raise error_to_http(exc)
+    _set_refresh_cookie(response, result["refresh_token"])
     return ok(result)
 
 
 @router.post("/logout")
-async def logout(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
-    await auth_service.revoke_session(db, body.refresh_token)
+async def logout(
+    body: RefreshRequest,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    refresh_token = body.refresh_token or request.cookies.get(settings.auth_cookie_name)
+    if refresh_token:
+        await auth_service.revoke_session(db, refresh_token)
+    _clear_refresh_cookie(response)
     return ok({"message": "已退出登录"})
 
 
 @router.post("/logout-all")
-async def logout_all(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def logout_all(
+    response: Response,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     await auth_service.revoke_all_sessions(db, user.id)
+    _clear_refresh_cookie(response)
     return ok({"message": "已退出所有设备"})
 
 

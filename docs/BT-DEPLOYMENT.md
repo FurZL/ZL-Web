@@ -176,8 +176,16 @@ CAPTCHA_PROVIDER=
 HUMAN_VERIFICATION_PROVIDER=
 
 ACCESS_TOKEN_TTL_MINUTES=15
-REFRESH_TOKEN_TTL_DAYS=14
+REFRESH_TOKEN_TTL_DAYS=7
+AUTH_COOKIE_NAME=refresh_token
+AUTH_COOKIE_SECURE=true
+AUTH_COOKIE_SAMESITE=lax
 PASSWORD_HASH_SCHEME=argon2
+
+OAUTH_FRONTEND_BASE_URL=https://www.furzl.cn
+QQ_APP_ID=<QQ_APP_ID>
+QQ_APP_KEY=<QQ_APP_KEY>
+QQ_REDIRECT_URI=https://www.furzl.cn/oauth/qq
 
 OTP_TTL_SECONDS=600
 OTP_MAX_ATTEMPTS=5
@@ -310,7 +318,7 @@ python scripts/setup_cos_cors.py
 python scripts/setup_cos_public_read.py
 ```
 
-COS 桶默认私有，仅 `public/` 前缀通过公开域名读取；`private/` 内容只通过后端短时效签名 URL 下发。
+COS 桶默认私有，公开内容走 `PUBLIC_ASSET_BASE_URL` 代理域。应用返回的私有缩略图/下载 URL 也使用代理域但不带 COS 签名，因此在代理/CDN 层必须限制 `private/` 的访问；不要把 COS 桶改为整桶公有读来“修复”私有图。
 
 ## 13. 上线验证清单
 
@@ -412,6 +420,8 @@ systemctl restart furry-zjut-api
 
 - `/ready` 返回 `degraded`：检查 Redis 是否监听 `127.0.0.1` 且密码配置正确。
 - 前端请求跨域失败：确认后端 `FRONTEND_ORIGINS` 只包含真实前端来源，逗号分隔，无 `*`，无末尾斜杠。
-- 私有图片打不开：生产环境私有图片使用短时效签名 URL，过期时间是 `PRIVATE_URL_TTL_SECONDS`；不要只缓存 URL。
+- 私有图片打不开：先核对 `PUBLIC_ASSET_BASE_URL`、代理域回源和 EdgeOne/COS 路径映射；当前应用返回代理域 URL，不带 COS 签名。`PRIVATE_URL_TTL_SECONDS` 仍用于上传凭证等兼容字段，不要把它当作私有展示 URL 的签名期限。
+- QQ 登录失败：核对 `QQ_APP_ID`/`QQ_APP_KEY`、QQ 互联登记的回调地址 `https://www.furzl.cn/oauth/qq`、`OAUTH_FRONTEND_BASE_URL`，以及 `FRONTEND_ORIGINS` 是否包含 `https://www.furzl.cn`；后台「第三方登录」总开关和 QQ 子开关也必须打开。
+- 登录后新标签页掉线：确认浏览器允许 `api.furzl.cn` 的 `HttpOnly` Cookie，生产使用 HTTPS、`AUTH_COOKIE_SAMESITE=lax`，并检查 CORS 是否允许正式前端来源携带凭据。
 - `/docs` 能打开：说明 `APP_ENV` 不是 `production`，重启服务前先修正环境文件。
 - 报 Python 事件循环错误：检查是否误用了 Windows 的 `run.py`，Linux 生产按本手册直接用 `uvicorn`。

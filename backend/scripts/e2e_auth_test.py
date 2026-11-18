@@ -21,23 +21,45 @@ def log(msg: str) -> None:
     print(f"[{step}] {msg}")
 
 
+def pass_captcha() -> str:
+    r = client.get(f"{BASE}/captcha/challenge")
+    assert r.status_code == 200, f"captcha challenge: {r.text}"
+    challenge = r.json()["data"]
+    r = client.post(f"{BASE}/captcha/verify", json={"token": challenge["token"], "x": challenge["gap_x"]})
+    assert r.status_code == 200, f"captcha verify: {r.text}"
+    return r.json()["data"]["verification_token"]
+
+
 def main() -> None:
     # 1. 管理员登录
-    r = client.post(f"{BASE}/auth/login", json={"account": "admin", "password": "admin123456"})
+    r = client.post(
+        f"{BASE}/auth/login",
+        json={
+            "account": "admin",
+            "password": "admin123456",
+            "verification_token": pass_captcha(),
+        },
+    )
     assert r.status_code == 200, f"admin login: {r.text}"
     admin_token = r.json()["data"]["access_token"]
     log("管理员登录成功")
 
     # 2. 发邮箱验证码（dev 模式返回 dev_code）
     email = "testuser@zjut.edu.cn"
-    r = client.post(f"{BASE}/auth/verify/email", json={"target": email, "purpose": "register"})
+    r = client.post(
+        f"{BASE}/auth/verify/email",
+        json={"target": email, "purpose": "register", "verification_token": pass_captcha()},
+    )
     assert r.status_code == 200, f"send email otp: {r.text}"
     email_code = r.json()["data"]["dev_code"]
     log(f"邮箱验证码已发（dev_code={email_code}）")
 
     # 3. 发手机验证码
     phone = "+86 13800138000"
-    r = client.post(f"{BASE}/auth/verify/phone", json={"target": phone, "purpose": "register"})
+    r = client.post(
+        f"{BASE}/auth/verify/phone",
+        json={"target": phone, "purpose": "register", "verification_token": pass_captcha()},
+    )
     assert r.status_code == 200, f"send phone otp: {r.text}"
     phone_code = r.json()["data"]["dev_code"]
     log(f"手机验证码已发（dev_code={phone_code}）")
@@ -51,8 +73,13 @@ def main() -> None:
             "email": email,
             "phone": phone,
             "password": "testpassword123",
+            "password_confirm": "testpassword123",
             "email_code": email_code,
             "phone_code": phone_code,
+            "terms_accepted": True,
+            "privacy_accepted": True,
+            "terms_version": "2026-11-19",
+            "privacy_version": "2026-11-19",
         },
     )
     assert r.status_code == 200, f"register: {r.text}"
@@ -66,7 +93,14 @@ def main() -> None:
     log(f"pending 列表查到 testuser（id={user['id']}）")
 
     # 6. 未审批时登录应被拒
-    r = client.post(f"{BASE}/auth/login", json={"account": "testuser", "password": "testpassword123"})
+    r = client.post(
+        f"{BASE}/auth/login",
+        json={
+            "account": "testuser",
+            "password": "testpassword123",
+            "verification_token": pass_captcha(),
+        },
+    )
     assert r.status_code == 403, f"pending login should be 403, got {r.status_code}"
     log("未审批登录被正确拒绝（403 PENDING_APPROVAL）")
 
@@ -79,7 +113,14 @@ def main() -> None:
     log("管理员审批通过")
 
     # 8. 新用户登录
-    r = client.post(f"{BASE}/auth/login", json={"account": "testuser", "password": "testpassword123"})
+    r = client.post(
+        f"{BASE}/auth/login",
+        json={
+            "account": "testuser",
+            "password": "testpassword123",
+            "verification_token": pass_captcha(),
+        },
+    )
     assert r.status_code == 200, f"user login: {r.text}"
     data = r.json()["data"]
     user_token = data["access_token"]

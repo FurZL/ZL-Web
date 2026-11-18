@@ -53,3 +53,6 @@ Thumbs.db
 .local-dev/
 _err.py
 temp_fp_patch.py
+
+# 本地后端发布包（不提交 Git）
+/main/

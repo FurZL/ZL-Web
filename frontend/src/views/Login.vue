@@ -4,18 +4,21 @@ import SliderCaptcha from '@/components/SliderCaptcha.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useSiteConfig } from '@/composables/useSiteConfig'
+import { startQqLogin } from '@/api/oauth'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
-const { siteName, registrationConfig } = useSiteConfig()
+const { siteName, registrationConfig, oauthConfig } = useSiteConfig()
 
 const account = ref('')
 const password = ref('')
 const error = ref('')
 const submitting = ref(false)
 const captchaShow = ref(false)
+const oauthPending = ref(false)
 let captchaToken = ''
+let oauthMode: 'login' | null = null
 
 function triggerLogin() {
   if (!account.value || !password.value) {
@@ -29,7 +32,36 @@ function triggerLogin() {
 async function onCaptchaVerified(token: string) {
   captchaShow.value = false
   captchaToken = token
+  if (oauthMode === 'login') {
+    oauthMode = null
+    await doQqLogin(token)
+    return
+  }
   await doLogin()
+}
+
+function triggerQqLogin() {
+  oauthPending.value = true
+  error.value = ''
+  oauthMode = 'login'
+  captchaShow.value = true
+}
+
+function closeCaptcha() {
+  captchaShow.value = false
+  oauthMode = null
+  oauthPending.value = false
+}
+
+async function doQqLogin(token: string) {
+  try {
+    const redirect = (route.query.redirect as string) || ''
+    const data = await startQqLogin(token, redirect)
+    window.location.href = data.authorize_url
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'QQ 登录失败'
+    oauthPending.value = false
+  }
 }
 
 async function doLogin() {
@@ -80,7 +112,18 @@ async function doLogin() {
         <p><RouterLink to="/forgot-password" class="text-primary-700 hover:underline">忘记密码？</RouterLink></p>
         <p v-if="registrationConfig.registration_enabled">还没有账号？<RouterLink to="/register" class="text-primary-700 hover:underline">去注册</RouterLink></p>
       </div>
+
+      <div v-if="oauthConfig.enabled && oauthConfig.qq_enabled" class="mt-6 pt-6 border-t border-ink/10">
+        <button
+          type="button"
+          class="btn-ghost w-full"
+          :disabled="oauthPending"
+          @click="triggerQqLogin"
+        >
+          {{ oauthPending ? '正在跳转…' : 'QQ 登录' }}
+        </button>
+      </div>
     </div>
   </div>
-  <SliderCaptcha :show="captchaShow" @close="captchaShow = false" @verified="onCaptchaVerified" />
+  <SliderCaptcha :show="captchaShow" @close="closeCaptcha" @verified="onCaptchaVerified" />
 </template>

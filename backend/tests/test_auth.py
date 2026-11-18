@@ -23,6 +23,8 @@ def test_access_token_roundtrip():
 
 
 def test_phone_normalize():
+    assert auth_service._normalize_phone("") == ""
+    assert auth_service._normalize_phone("   ") == ""
     assert auth_service._normalize_phone("13800138000") == "+8613800138000"
     assert auth_service._normalize_phone("+86 138-0013-8000") == "+8613800138000"
     assert auth_service._normalize_phone("008613800138000") == "+8613800138000"

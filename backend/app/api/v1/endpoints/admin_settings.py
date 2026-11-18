@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_permission_dep
 from app.api.response import ok
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.user import User
 from app.providers.factory import (
@@ -17,6 +18,7 @@ from app.providers.factory import (
     get_storage_provider,
 )
 from app.services import site_setting
+from app.providers.qq import QqOAuthProvider
 
 router = APIRouter(
     prefix="/admin/settings",
@@ -87,3 +89,17 @@ async def test_captcha():
 
     provider = get_captcha_provider()
     return ok({"provider": type(provider).__name__})
+
+
+@router.post("/oauth-provider/{provider}/test")
+async def test_oauth_provider(provider: str):
+    if provider != "qq":
+        return ok({"provider": provider, "configured": False})
+    p = QqOAuthProvider()
+    return ok(
+        {
+            "provider": provider,
+            "configured": p.configured,
+            "redirect_uri": settings.qq_redirect_uri,
+        }
+    )

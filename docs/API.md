@@ -1,6 +1,6 @@
 # Furry ZJUT API 文档
 
-> 当前代码的 OpenAPI 注册 **86 个 API 路径（101 个方法端点）**。本数量包含人机验证、个人主页发布/丢弃/主题/素材和匿名公开页接口。
+> 当前代码的 OpenAPI 注册 **94 个 API 路径（109 个方法端点）**。本数量包含人机验证、个人主页发布/丢弃/主题/素材、匿名公开页、QQ OAuth 登录/绑定及 OAuth Provider 测试接口。
 > 统一前缀：`/api/v1`，统一响应格式：`{"success": bool, "data": ..., "error": {"code", "message"}, "request_id": str}`
 
 ## 通用约定
@@ -32,9 +32,10 @@
 - 写操作使用权限校验；报名等关键操作用幂等键。
 - API 文档仅在开发环境或管理员授权后公开；生产禁用。
 - 登录、OTP 发送、刷新令牌与密码重置按客户端 IP 做应用层限流，超限返回 HTTP 429 `RATE_LIMITED`。
-- 私有图片、私有课表等资源通过后端鉴权后签发短时效签名 URL，不走 `public_url` 公网直读。
+- 图片展示、私有缩略图、下载和头像通过 `PUBLIC_ASSET_BASE_URL` 代理域返回；URL 本身不带 COS 签名，访问控制依赖代理域回源策略。COS 原生预签名 URL 只用于浏览器上传直传，不返回给展示/下载接口。
 - 用户角色与状态变更仅管理员可操作；授予/修改 `admin`、`super_admin`、`moderator` 角色仅 `super_admin` 可执行。
 - 生产环境同时关闭 `/docs`、`/redoc`、`/openapi.json`。
+- QQ 登录与绑定：`POST /auth/oauth/qq/start`、`POST /auth/oauth/qq/bind-start`、`GET /auth/oauth/qq/callback`、`POST /auth/oauth/qq/bind`、`GET /auth/oauth/providers`；`state`/授权码经 Redis 短时效保存并一次性消费，前端回调页只负责完成登录态。
 
 ## 接口清单（模块 → 文件对照）
 
@@ -42,6 +43,7 @@
 |---|---|---|
 | 健康检查 | `/health` `/ready` | `endpoints/health.py` |
 | 认证 | `/auth` | `endpoints/auth.py` |
+| 第三方登录 | `/auth/oauth` | `endpoints/oauth.py` |
 | 人机验证 | `/captcha` | `endpoints/captcha.py` |
 | 图片 | `/images` | `endpoints/images.py` |
 | 图片管理 | `/admin/images` | `endpoints/admin_images.py` |
@@ -66,7 +68,7 @@
 | **Bearer Token** | 请求头 `Authorization: Bearer <access_token>`，登录后获取 |
 | **管理权限** | 需管理员/超管角色，端点内做逐请求 RBAC 校验 |
 
-**Token 机制**：短时效 Access Token（15 分钟）+ Refresh Token（14 天，HttpOnly Cookie / sessionStorage）。前端 `client.ts` 拦截 401 自动刷新重试。
+**Token 机制**：短时效 Access Token（15 分钟，仅前端内存）+ Refresh Token（默认 7 天，后端 `HttpOnly` Cookie 跨标签页共享）。浏览器请求携带 Cookie；前端 `client.ts` 拦截 401 自动刷新重试，7 天滑动续期。
 
 ---
 
@@ -83,13 +85,13 @@
 
 | 方法 | 路径 | 认证 | 说明 |
 |---|---|---|---|
-| POST | `/auth/register` | 无 | 注册（受 registration_config 门控，关闭返回 403；密码须含大小写字母和数字；前端须传 password_confirm） |
+| POST | `/auth/register` | 无 | 注册（受 registration_config 门控，关闭返回 403；密码须含大小写字母和数字；前端须传 password_confirm；须同意用户协议与隐私政策） |
 | POST | `/auth/verify/email` | 无 | 邮箱 OTP 验证（120s 冷却，须先通过人机验证，传入 verification_token） |
 | POST | `/auth/verify/phone` | 无 | 手机 OTP 验证（120s 冷却，须先通过人机验证，传入 verification_token） |
 | POST | `/auth/login` | 无 | 登录（须先通过人机验证，传入 verification_token），返回 `{access_token, refresh_token, user}` |
-| POST | `/auth/refresh` | Refresh Token | 刷新 Access Token（轮换 Refresh Token） |
-| POST | `/auth/logout` | Bearer | 登出（撤销当前 Refresh Token） |
-| POST | `/auth/logout-all` | Bearer | 登出所有设备（撤销全部会话） |
+| POST | `/auth/refresh` | Refresh Cookie | 刷新 Access Token（轮换 Refresh Token；Cookie 缺失时也可传 body.refresh_token） |
+| POST | `/auth/logout` | Refresh Cookie | 登出（撤销当前 Refresh Token Cookie） |
+| POST | `/auth/logout-all` | Bearer | 登出所有设备（撤销全部会话并清除 Refresh Cookie） |
 | POST | `/auth/password/forgot` | 无 | 找回密码（发送验证码） |
 | POST | `/auth/password/reset` | 无 | 重置密码（验证码 + 新密码；真实更新密码 + 撤销全部会话） |
 | GET | `/auth/me` | Bearer | 获取当前用户信息（含 bio/avatar_url） |
@@ -104,6 +106,7 @@
 
 - `POST /auth/register` 先读取 `registration_config`：`registration_enabled=false` 时返回 403；`require_email_verification` / `require_phone_verification` 为 false 时跳过对应 OTP 校验。
 - 注册和找回密码请求体新增 `password_confirm` / `new_password_confirm`，前后端都校验两次密码一致，且密码必须同时包含大小写字母和数字。
+- 注册请求新增 `terms_accepted`、`privacy_accepted`（均须为 `true`，否则返回 422 `LEGAL_CONSENT_REQUIRED`）以及 `terms_version`、`privacy_version`；服务端在 `users` 表记录协议版本和 `legal_accepted_at` 同意时间。注册页提供两个独立勾选框，并链接到 `/legal/terms`、`/legal/privacy`。
 - 注册请求还校验用户名 3–64 字符、昵称 1–64 字符、密码 8–128 字符；前端同步检查必填项、邮箱格式及验证码格式。FastAPI 422 字段错误会由前端客户端映射为带字段名的中文提示；具体注册失败原因仍以该次响应为准。
 - `POST /auth/verify/email`、`POST /auth/verify/phone` 对同一目标、同一用途执行 120 秒发送冷却，未到期返回业务错误码 `COOLDOWN`；前端按钮同时倒计时禁用。
 - 注册成功后异步发送「等待审批」邮件；管理员审批通过/拒绝时也会发送对应结果邮件，邮件发送失败不阻塞主流程。
@@ -118,6 +121,26 @@
 | POST | `/captcha/verify` | 无 | 校验滑块位置 `{token, x}`，±6px 容差，通过返回 `{verification_token}`（300s 有效，一次性消耗） |
 
 `LoginRequest`、`OtpRequest` 均新增可选字段 `verification_token`；登录和获取验证码都须先通过人机验证，否则返回 400 `CAPTCHA_REQUIRED`。
+
+---
+
+## 第三方登录 `/auth/oauth`
+
+QQ 的 App ID / App Key 只从后端环境变量读取；`state` 与未绑定账号的临时授权凭证都保存在 Redis，默认 10 分钟过期且一次性消费。前端回调页固定为 `/oauth/qq`。
+
+| 方法 | 路径 | 认证 | 说明 |
+|---|---|---|---|
+| GET | `/auth/oauth/providers` | 无 | 返回可用的第三方登录方式及 `frontend_base_url` |
+| POST | `/auth/oauth/{provider}/start` | 无 + 人机验证 | 发起第三方登录，返回 `{authorize_url}`；`provider` 目前仅支持 `qq` |
+| POST | `/auth/oauth/{provider}/bind-start` | Bearer + 人机验证 | 已登录用户发起账号绑定，返回 `{authorize_url}` |
+| GET | `/auth/oauth/{provider}/callback` | 无 | QQ 回调：消费 `state`，换取 QQ 身份。已绑定时返回 `{bound:true,user,access_token,refresh_token}` 并写入 Refresh Cookie；未绑定时返回 `{bound:false,oauth_token,nickname,return_to}` |
+| POST | `/auth/oauth/{provider}/bind` | 人机验证 | 未绑定 QQ 用本站账号密码完成绑定并登录；请求 `{oauth_token,account,password,verification_token}` |
+
+`start` / `bind-start` 请求体为 `{verification_token, return_to?}`。`return_to` 只允许站内绝对路径（必须以 `/` 开头且不能是 `//`），否则返回 400 `INVALID_RETURN_TO`。回调参数为 `code` 与 `state`。
+
+服务端当前响应仍保留 `refresh_token` 字段用于兼容；浏览器端只使用后端设置的 `HttpOnly` Cookie，前端 `OauthResolveResult` 虽保留该字段类型，但不会写入 `sessionStorage`。
+
+常见错误：`CAPTCHA_REQUIRED`（未完成拼图验证）、`OAUTH_DISABLED`（后台关闭该方式）、`OAUTH_QQ_UNAVAILABLE`（App ID/Key 未配置）、`OAUTH_STATE_INVALID`（state 过期/已消费）、`OAUTH_ALREADY_BOUND`（该 QQ 已绑定其他账号）、`OAUTH_PENDING_EXPIRED`（未绑定临时凭证过期）、`PENDING_APPROVAL` / `ACCOUNT_DISABLED`。
 
 ---
 
@@ -143,7 +166,7 @@
 | GET | `/images/{image_id}` | 无 | 图片详情（含 URL/描述/标签/拍摄者） |
 | POST | `/images/upload-intent` | 摄影师+ | 申请上传凭证（返回预签名上传 URL） |
 | POST | `/images/upload-complete` | 摄影师+ | 上传完成（后端 HEAD 复核 + 落库） |
-| GET | `/images/{image_id}/download` | Bearer | 签发原图下载签名 URL |
+| GET | `/images/{image_id}/download` | Bearer | 返回原图代理域下载 URL（不暴露 COS 原生预签名地址） |
 | DELETE | `/images/{image_id}` | Bearer | 删除图片（仅上传者本人或有 gallery.image.delete.any 权限；含派生图清理） |
 | POST | `/images/{image_id}/report` | Bearer | 举报图片（不能举报自己的图片；同一图片仅一条未处理举报） |
 
@@ -163,18 +186,20 @@
 | POST | `/profile/me/layout/publish` | Bearer | 校验草稿后发布，返回带时区的 published_at |
 | POST | `/profile/me/layout/discard` | Bearer | 丢弃草稿并恢复到已发布版本，返回完整布局 |
 | PUT | `/profile/me/theme` | Bearer | 严格校验并保存主题，返回完整布局 |
-| GET | `/profile/me/media` | Bearer | 本人所有私有图片素材及短时签名 URL（含展示授权状态） |
+| GET | `/profile/me/media` | Bearer | 本人所有私有图片素材及代理域 URL（含展示授权状态） |
 | PATCH | `/profile/me/images/{image_id}` | Bearer | 更新本人私有图的展示授权 is_displayable（已实现） |
 | GET | `/profile/{username}/page` | 无 | 匿名读取已发布且公开的个人主页 |
 | POST | `/profile/me/images/upload-intent` | Bearer | 私有图片上传凭证 |
 | POST | `/profile/me/images/upload-complete` | Bearer | 私有图片上传完成 |
-| GET | `/profile/me/images/{image_id}/url` | Bearer | 签发短时效签名 URL（私有图下载） |
+| GET | `/profile/me/images/{image_id}/url` | Bearer | 返回私有图代理域 URL（后端先校验本人归属） |
 | DELETE | `/profile/me/images/{image_id}` | Bearer | 删除私有图片 |
 | POST | `/profile/me/avatar/upload-intent` | Bearer | 头像上传凭证（返回 COS 预签名 URL，限 5MB） |
 | POST | `/profile/me/avatar/upload-complete` | Bearer | 头像上传完成（验证对象存在，自动清理旧头像） |
 | DELETE | `/profile/me/avatar` | Bearer | 删除头像 |
 | GET | `/profile/members` | 无 | 公开成员列表（active 用户昵称/简介/头像，不含隐私） |
 | GET | `/profile/{user_id}` | 无 | 公开用户资料（昵称/角色，不含隐私） |
+| GET | `/profile/me/third-party` | Bearer | 查询本人已绑定的第三方账号（provider / provider_user_id / created_at） |
+| DELETE | `/profile/me/third-party/{provider}` | Bearer | 解绑本人第三方账号；目前 `provider` 仅支持 `qq` |
 
 ### 头像上传流程（2026-11-15）
 
@@ -237,7 +262,7 @@
 | `stats` | 3 / 4 / 6 / 12 | items 最多 2 项，仅 joined_days / gallery_image_count |
 | `html_block` | 12 | html ≤ 24576 字符；height 仅 200 / 400 / 600；前端使用隔离 iframe 渲染 |
 
-照片和背景素材必须是本人的 `ProfileImage`、已开启 `is_displayable`，且对象 Key 位于 `private/profiles/{当前用户 id}/` 前缀下。`media` 按 object_key 映射 `{thumb_url, display_url, width, height}`，仅包含符合这些条件的引用素材；处理就绪时返回缩略图签名，展示图暂使用原图的短时签名 URL。`stats` 在每次布局/公开主页读取时重新计算：`joined_days` 为账号创建后经过的完整 24 小时数；`gallery_image_count` 只统计本人 `approved` 且 `is_public=true` 的公开图库图片，不包含个人空间私有相册。
+照片和背景素材必须是本人的 `ProfileImage`、已开启 `is_displayable`，且对象 Key 位于 `private/profiles/{当前用户 id}/` 前缀下。`media` 按 object_key 映射 `{thumb_url, display_url, width, height}`，仅包含符合这些条件的引用素材；缩略图与展示图都通过 `PUBLIC_ASSET_BASE_URL` 代理域返回，URL 不带 COS 签名，访问控制依赖代理域回源策略。`stats` 在每次布局/公开主页读取时重新计算：`joined_days` 为账号创建后经过的完整 24 小时数；`gallery_image_count` 只统计本人 `approved` 且 `is_public=true` 的公开图库图片，不包含个人空间私有相册。
 
 `PATCH /profile/me/images/{image_id}` 接受严格请求体 `{"is_displayable": true}`，拒绝额外字段和字符串/整数布尔值，成功返回 `{"id": "图片 UUID", "is_displayable": true}`。此标记默认 `false`，不会自动发布主页或把私有相册整体公开。
 
@@ -246,7 +271,7 @@
 - `POST /profile/me/layout/publish` 不接受请求体。草稿为空时返回 422 `PROFILE_LAYOUT_EMPTY`；成功时把通过结构与素材授权复核的草稿复制到已发布版本，并返回 `{ "published_at": "ISO-8601 with timezone" }`。
 - `POST /profile/me/layout/discard` 不接受请求体。草稿恢复为已发布块；尚无已发布版本时恢复为空数组。响应与 `GET /profile/me/layout` 同形。
 - `PUT /profile/me/theme` 请求体为 `ProfileTheme` 对象本身，包含 `primary`、`accent`、`background_type`、`background_key`、`background_blur`、`card_style`。颜色必须为 `#RRGGBB`，类型/卡片样式只能取已定义枚举，模糊度为整数 `0–20`，额外字段拒绝。非空 `background_key` 必须是本人可展示的私有图片。成功响应与 `GET /profile/me/layout` 同形。
-- `GET /profile/me/media` 返回 `{ "items": [...] }`。列表包括本人所有私有图片（无论 `is_displayable` 状态），字段为 `id`、`object_key`、`title`、`created_at`、`is_displayable`、`thumb_url`、`display_url`、`width`、`height`。对象 Key 必须位于本人 `private/profiles/{user_id}/` 前缀；签名 URL 使用 `PRIVATE_URL_TTL_SECONDS`。
+- `GET /profile/me/media` 返回 `{ "items": [...] }`。列表包括本人所有私有图片（无论 `is_displayable` 状态），字段为 `id`、`object_key`、`title`、`created_at`、`is_displayable`、`thumb_url`、`display_url`、`width`、`height`。对象 Key 必须位于本人 `private/profiles/{user_id}/` 前缀；URL 使用代理域生成，响应中的 `media_expires_in` 仍保留为兼容值。
 - `GET /profile/{username}/page` 无需登录。仅当用户为 active、存在布局、`is_public=true` 且 `published_blocks` 非 `null` 时返回主页。用户不存在、未发布、设为私有或未启用都统一返回 404 `PROFILE_PAGE_NOT_FOUND` / `该用户还没有公开主页`。响应中的 `user` 只含 `username`、`display_name`、`avatar_url`；公开素材仅返回已发布内容引用且仍为本人授权展示的图片，不返回邮箱、手机号或用户 UUID 字段。
 
 对应服务函数：`publish_layout()`（发布及素材复核）、`discard_layout()`（恢复草稿）、`put_theme()`（主题持久化）、`get_media_options()`（本人素材清单）、`get_public_page_payload()`（公开主页与隐私过滤）。
@@ -371,9 +396,11 @@
 
 | 方法 | 路径 | 认证 | 说明 |
 |---|---|---|---|
-| GET | `/site/public-config` | 无 | 公开配置（网站名称/Logo/备案号/注册门控等，含 registration_config） |
+| GET | `/site/public-config` | 无 | 公开配置（网站名称/Logo/备案号/注册门控等，含 `registration_config` 与 `oauth_config`） |
 | GET | `/site/footer` | 无 | 页脚配置（版权/链接/备案号） |
 | GET | `/site/legal` | 无 | 法律信息（协议/隐私/版权/联系方式） |
+
+法律页面前端路由：`/legal/terms`（用户协议）、`/legal/privacy`（隐私政策）、`/legal/copyright`（版权声明）、`/legal/contact`（联系我们）。隐私政策列出 EdgeOne、腾讯云 COS、QQ 互联、阿里云短信、飞书企业邮箱、Microsoft Bing、Google Fonts 的处理目的与官方隐私政策链接；用户协议包含第三方登录、违法违规信息处置和依法配合有权机关的条款。
 
 `GET /site/public-config` 的 `registration_config` 结构：
 
@@ -387,6 +414,17 @@
 
 后台「网站设置 → 注册设置」保存同一组字段；前端 `useSiteConfig()` 和 `AppHeader/Login/Register` 依据此配置同步隐藏或显示注册、邮箱验证、手机验证区域。
 
+`oauth_config` 结构：
+
+```json
+{
+  "enabled": false,
+  "qq_enabled": false
+}
+```
+
+后台「网站设置 → 第三方登录」把同一组字段写入 `SiteSetting(key="oauth_config", is_public=true)`。前端仅在 `enabled=true && qq_enabled=true` 时展示 QQ 登录按钮；后端还会在 `/auth/oauth/*` 再次校验，不能仅靠隐藏按钮保护接口。
+
 ---
 
 ## 十四、网站设置管理 `/admin/settings`
@@ -399,6 +437,7 @@
 | POST | `/admin/settings/email/test` | 管理员 | 测试邮件 Provider |
 | POST | `/admin/settings/sms/test` | 管理员 | 测试短信 Provider |
 | POST | `/admin/settings/captcha/test` | 管理员 | 测试验证码 Provider |
+| POST | `/admin/settings/oauth-provider/{provider}/test` | 管理员 | 检查 QQ Provider 是否已配置，返回 `configured` 与 `redirect_uri`（不回显 App Key） |
 
 ---
 
@@ -411,8 +450,9 @@
 | 上传公开图片 | — | — | ✓ | ✓ |
 | 上传私有图片/课表 | — | ✓ | ✓ | ✓ |
 | 读取/保存本人布局、设置本人图片展示授权 | — | ✓ | ✓ | ✓ |
+| 绑定/解绑本人第三方登录 | — | ✓ | ✓ | ✓ |
 | 报名活动/签到 | — | ✓ | ✓ | ✓ |
-| 审批用户/管理内容/网站设置 | — | — | — | ✓ |
+| 审批用户/管理内容/网站设置/第三方登录开关 | — | — | — | ✓ |
 
 ---
 
@@ -421,8 +461,9 @@
 | 前端文件 | 对应后端模块 |
 |---|---|
 | `src/api/client.ts` | 通用请求封装（Bearer 注入、401 刷新、统一解包） |
-| `src/api/token.ts` | Token 管理（内存 + sessionStorage） |
+| `src/api/token.ts` | Token 管理（access_token 仅内存；refresh_token 由后端 HttpOnly Cookie 承载） |
 | `src/api/bootstrap.ts` | 共享登录态恢复，供首屏与受保护路由调用 |
+| `src/api/oauth.ts` | QQ 登录/绑定、回调换会话、本人第三方绑定查询/解绑 |
 | `src/api/profile.ts` | 个人主页布局、发布/丢弃、主题、素材、公开页与展示授权 API 封装；另含头像上传/删除 |
 | `src/api/schedule.ts` | 课表 API（7 个接口） |
 | `src/api/site.ts` | 站点/公告 API（11 个接口） |
@@ -455,15 +496,29 @@
 | 函数 | 签名 | 说明 |
 |---|---|---|
 | `getAccessToken()` | `(): string \| null` | 获取内存中的 access token |
-| `setTokens(access, refresh)` | `(access: string, refresh: string): void` | 同时保存 access（内存）和 refresh（sessionStorage） |
-| `getRefreshToken()` | `(): string \| null` | 获取 refresh token |
-| `clearTokens()` | `(): void` | 清除全部 token（登出/刷新失败） |
+| `setAccessToken(access)` | `(access: string): void` | 保存内存 access token，并写入 `localStorage.auth_session` 会话标记 |
+| `hasSessionMarker()` | `(): boolean` | 是否存在本地会话标记（避免游客触发无意义的刷新请求） |
+| `clearTokens()` | `(): void` | 清除内存 token 与本地会话标记（登出/刷新失败） |
+
+浏览器 Cookie 由后端设置：`key=AUTH_COOKIE_NAME`（默认 `refresh_token`）、`HttpOnly`、`Path=/api/v1/auth`、有效期 `REFRESH_TOKEN_TTL_DAYS`（默认 7 天）、生产环境 `Secure`、`SameSite=AUTH_COOKIE_SAMESITE`（默认 `lax`）。前端保存的 `localStorage.auth_session` 只是“可能已登录”的标记，不包含访问令牌或刷新令牌。
 
 ## 前端 `src/api/bootstrap.ts` — 登录态恢复
 
 | 函数 | 签名 | 说明 |
 |---|---|---|
 | `bootstrapAuth()` | `(): Promise<void>` | 同一次页面生命周期仅初始化一次，并发调用共享 Promise；存在 Refresh Token 时先 ensureAccessToken 再 fetchMe，失败保持未登录。App 首屏与 requiresAuth 守卫共用 |
+
+## 前端 `src/api/oauth.ts` — QQ 登录与绑定
+
+| 函数 | 签名 | 对应接口 |
+|---|---|---|
+| `getOauthProviders()` | `(): Promise<{providers, frontend_base_url}>` | `GET /auth/oauth/providers` |
+| `startQqLogin(verificationToken, returnTo?)` | `(string, string?) => Promise<{authorize_url}>` | `POST /auth/oauth/qq/start` |
+| `startQqBind(verificationToken, returnTo?)` | `(string, string?) => Promise<{authorize_url}>` | `POST /auth/oauth/qq/bind-start` |
+| `exchangeQqCallback(code, state)` | `(string, string) => Promise<OauthResolveResult>` | `GET /auth/oauth/qq/callback` |
+| `bindQqWithAccount(oauthToken, account, password, verificationToken)` | `(string, string, string, string) => Promise<OauthResolveResult>` | `POST /auth/oauth/qq/bind` |
+| `getMyThirdPartyBindings()` | `(): Promise<{items: ThirdPartyBinding[]}>` | `GET /profile/me/third-party` |
+| `deleteMyThirdPartyBinding(provider)` | `(string) => Promise<{message}>` | `DELETE /profile/me/third-party/{provider}` |
 
 ## 前端 `src/api/profile.ts` — 个人主页 API
 
@@ -577,7 +632,7 @@
 |---|---|
 | `create_access_token(user_id, role) -> str` | 生成短时效 JWT Access Token |
 | `decode_access_token(token) -> dict` | 解码并验证 JWT |
-| `register_user(db, ...) -> User` | 注册用户（创建 pending 状态，含摄影师申请） |
+| `register_user(db, ...) -> User` | 注册用户（创建 pending 状态，含摄影师申请；写入协议版本与 `legal_accepted_at`） |
 | `login(db, account, password) -> dict` | 登录（校验密码 → 生成 token 对 → 记录会话） |
 | `refresh_tokens(db, refresh_token) -> dict` | 刷新令牌（轮换 + 旧令牌复用检测 → 撤销会话族） |
 | `revoke_session(db, refresh_token)` | 撤销单个会话（登出） |
@@ -585,6 +640,31 @@
 | `approve_user(db, user_id) -> User` | 审批通过（激活账号） |
 | `reject_user(db, user_id) -> User` | 拒绝注册 |
 | `_send_email_notification(to, subject, template, username)` | 注册/审批邮件通知（fire-and-forget，发送失败仅记录日志） |
+
+### `services/third_party_auth.py` — QQ OAuth 与绑定
+
+| 函数 / 常量 | 说明 |
+|---|---|
+| `OAUTH_STATE_TTL_SECONDS` / `OAUTH_PENDING_TTL_SECONDS` | OAuth state 与未绑定临时凭证的 Redis TTL，均为 600 秒 |
+| `SUPPORTED_PROVIDERS` | 当前支持的第三方 Provider 集合，仅 `{"qq"}` |
+| `build_authorize_url(provider, mode, user, return_to)` | 生成 QQ 授权地址并把登录/绑定上下文写入 Redis |
+| `exchange_and_resolve(db, provider, code, state)` | 消费 state、换取 QQ 身份；已绑定发登录态，未绑定返回短时 `oauth_token` |
+| `bind_with_credentials(db, oauth_token, account, password)` | 未绑定 QQ 通过本站账号密码完成绑定并签发会话 |
+| `list_bindings(db, user)` | 返回本人第三方绑定列表 |
+| `unbind_provider(db, user, provider)` | 删除本人指定 Provider 的全部绑定 |
+| `is_oauth_public_enabled(db, provider)` | 读取后台总开关与对应 Provider 子开关 |
+
+Redis Key：`oauth:state:{token}`、`oauth:pending:{token}`，读取后立即删除，避免重放。`UserThirdParty` 保存 `provider`、`provider_user_id`、`unionid`、QQ 令牌及原始资料；数据库只记录绑定关系。
+
+### `providers/qq.py` — QQ 互联 Provider
+
+| 方法 / 属性 | 说明 |
+|---|---|
+| `configured` | 是否配置 `QQ_APP_ID` 与 `QQ_APP_KEY` |
+| `build_authorize_url(state)` | 生成 `graph.qq.com/oauth2.0/authorize` 地址，scope 为 `get_user_info` |
+| `exchange_code(code)` | 换取 Access Token、OpenID / UnionID、昵称和头像；失败抛 `QqOAuthError` |
+
+QQ 接口入口：`https://graph.qq.com/oauth2.0/authorize`、`/token`、`/me`、`/user/get_user_info`。前端固定回调 `/oauth/qq`，生产完整地址为 `https://www.furzl.cn/oauth/qq`。
 
 ### `services/image.py` — 公开图片服务
 
@@ -602,8 +682,8 @@
 |---|---|
 | `create_profile_upload_intent(...) -> dict` | 私有图片上传凭证 |
 | `complete_profile_upload(db, ...) -> ProfileImage` | 私有图上传完成（含缩略图 worker 入队） |
-| `list_my_profile_images(db, user) -> dict` | 私有相册列表（含签名缩略图 URL） |
-| `get_profile_image_signed_url(db, *, user, image_id) -> dict` | 签发短时效下载签名 URL |
+| `list_my_profile_images(db, user) -> dict` | 私有相册列表（缩略图走代理域 URL） |
+| `get_profile_image_signed_url(db, *, user, image_id) -> dict` | 校验本人后返回私有图代理域 URL（函数名保留兼容） |
 | `delete_profile_image(db, *, user, image_id)` | 删除私有图片 |
 
 ### `services/profile_layout.py` — 布局草稿与展示授权
@@ -611,7 +691,7 @@
 | 函数 / 常量 | 说明 |
 |---|---|
 | `validate_blocks(raw) -> list[dict[str, Any]]` | 校验模块数组、数量、唯一 id、类型、span、props；按白名单重新序列化，丢弃未知字段 |
-| `get_layout_payload(db, user) -> dict[str, Any]` | 组装主题/草稿/已发布块/公开开关/上限/已授权素材/签名 TTL/统计；GET 与 PUT 共用 |
+| `get_layout_payload(db, user) -> dict[str, Any]` | 组装主题/草稿/已发布块/公开开关/上限/已授权素材/兼容 TTL/统计；GET 与 PUT 共用 |
 | `put_layout(db, user, body) -> dict[str, Any]` | 校验大小、结构、素材本人归属和展示权限；创建或替换草稿及可选 is_public，提交后返回同形布局 |
 | `set_image_displayable(db, user, image_id, is_displayable) -> dict[str, Any]` | 仅更新本人私有图展示标记；非法目标返回 404 |
 | `ProfileLayoutError(code, message, status_code=422)` | 业务错误，经 error_to_http 转为 HTTPException detail 响应 |
@@ -710,6 +790,7 @@
 | `get_legal_config(db) -> dict` | 法律信息聚合 |
 | `get_club_intro(db) -> dict` | 社团介绍聚合 |
 | `get_registration_config(db) -> dict` | 注册门控聚合（开启注册/邮箱验证/手机验证，含默认值） |
+| `get_oauth_config(db) -> dict` | 第三方登录聚合（`enabled` 总开关 / `qq_enabled` 子开关，含默认值） |
 
 ### `services/admin_image.py` — 图片管理服务
 
@@ -811,7 +892,10 @@
 | `ProfileBlockType` / `ProfileSpan` | 8 种主页模块，栅格宽度联合类型（具体允许值按模块白名单限制） |
 | `ProfileBlock` / `ProfileLinkItem` | 模块 id/type/span/props、链接 label/url |
 | `ProfileStatsKey` / `ProfileStats` | joined_days / gallery_image_count 及统计值 |
-| `ProfileMedia` / `ProfileMediaOption` | 已解析签名 URL 的素材、带归属标识与展示授权的可选图片 |
+| `ProfileMedia` / `ProfileMediaOption` | 已解析代理域 URL 的素材、带归属标识与展示授权的可选图片 |
 | `ProfileBackgroundType` / `ProfileCardStyle` / `ProfileTheme` | 背景/卡片类型及主题颜色、图片背景、模糊等字段 |
-| `ProfilePageUser` / `ProfilePageResponse` | 访客主页预留响应契约（真实后端待实现） |
+| `ProfilePageUser` / `ProfilePageResponse` | 匿名公开主页响应契约（已在真实后端实现） |
 | `ProfileLayoutResponse` | 已实现 GET/PUT 布局的同形响应（theme/draft_blocks/published_blocks/is_public/max_blocks/media/media_expires_in/stats） |
+| `OauthConfig` / `OauthProviderInfo` | 第三方登录公开开关与 Provider 列表项 |
+| `OauthProvidedUser` / `OauthResolveResult` | OAuth 回调返回的本站用户、绑定状态、临时 `oauth_token` 与会话字段 |
+| `ThirdPartyBinding` | 本人第三方绑定记录（provider / provider_user_id / created_at） |

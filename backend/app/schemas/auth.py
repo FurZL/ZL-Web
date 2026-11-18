@@ -21,6 +21,10 @@ class RegisterRequest(BaseModel):
     applied_role: str | None = Field(default=None, description="申请角色，例如 photographer")
     application_reason: str | None = None
     application_portfolio: str | None = None
+    terms_accepted: bool = Field(default=False, description="是否同意用户协议")
+    privacy_accepted: bool = Field(default=False, description="是否同意隐私政策")
+    terms_version: str = Field(default="", max_length=32)
+    privacy_version: str = Field(default="", max_length=32)
 
     @field_validator("password")
     @classmethod
@@ -56,7 +60,7 @@ class VerifyOtpRequest(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    refresh_token: str = Field(default="")
 
 
 class PasswordForgotRequest(BaseModel):

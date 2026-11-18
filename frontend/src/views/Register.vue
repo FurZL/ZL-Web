@@ -6,6 +6,8 @@ import { useSiteConfig } from '@/composables/useSiteConfig'
 import type { RegistrationConfig } from '@/types'
 import SliderCaptcha from '@/components/SliderCaptcha.vue'
 
+const LEGAL_VERSION = '2026-11-19'
+
 const router = useRouter()
 const { registrationConfig } = useSiteConfig()
 
@@ -31,6 +33,8 @@ const emailCooldown = ref(0)
 const phoneCooldown = ref(0)
 const captchaShow = ref(false)
 const captchaKind = ref<"email" | "phone">("email")
+const agreementAccepted = ref(false)
+const privacyAccepted = ref(false)
 
 const regCfg = ref<RegistrationConfig>(registrationConfig.value)
 
@@ -85,6 +89,10 @@ async function onCaptchaVerified(verificationToken: string) {
 }
 async function submit() {
   error.value = ''
+  if (!agreementAccepted.value || !privacyAccepted.value) {
+    error.value = '请先阅读并勾选同意用户协议和隐私政策'
+    return
+  }
   if (form.value.password !== form.value.passwordConfirm) {
     error.value = '两次输入的密码不一致'
     return
@@ -110,6 +118,10 @@ async function submit() {
         applied_role: type.value === 'photographer' ? 'photographer' : null,
         application_reason: type.value === 'photographer' ? form.value.reason : null,
         application_portfolio: type.value === 'photographer' ? form.value.portfolio : null,
+        terms_accepted: agreementAccepted.value,
+        privacy_accepted: privacyAccepted.value,
+        terms_version: LEGAL_VERSION,
+        privacy_version: LEGAL_VERSION,
       },
     })
     router.push('/register/pending')
@@ -148,7 +160,7 @@ async function submit() {
         </button>
       </div>
 
-      <form class="mt-8 space-y-4" @submit.prevent="submit">
+      <form class="mt-8 space-y-4" novalidate @submit.prevent="submit">
         <div>
           <label class="label">用户名</label>
           <input v-model="form.username" class="input" placeholder="用于登录的唯一用户名" minlength="3" maxlength="64" required />
@@ -213,12 +225,37 @@ async function submit() {
           </div>
         </template>
 
+        <div class="space-y-2.5 rounded-lg bg-white/40 px-4 py-3.5">
+          <label class="flex items-start gap-2.5 text-xs leading-5 text-sub cursor-pointer">
+            <input
+              v-model="agreementAccepted"
+              type="checkbox"
+              class="mt-0.5 h-4 w-4 shrink-0 rounded border-ink/20 text-primary focus:ring-primary/30"
+            />
+            <span>
+              我已阅读并同意
+              <RouterLink to="/legal/terms" target="_blank" class="text-primary-700 hover:underline">《用户协议》</RouterLink>
+            </span>
+          </label>
+          <label class="flex items-start gap-2.5 text-xs leading-5 text-sub cursor-pointer">
+            <input
+              v-model="privacyAccepted"
+              type="checkbox"
+              class="mt-0.5 h-4 w-4 shrink-0 rounded border-ink/20 text-primary focus:ring-primary/30"
+            />
+            <span>
+              我已阅读并同意
+              <RouterLink to="/legal/privacy" target="_blank" class="text-primary-700 hover:underline">《隐私政策》</RouterLink>
+              ，包括其中的第三方服务说明
+            </span>
+          </label>
+        </div>
+
         <div v-if="error" class="text-sm text-blush bg-blush/10 rounded-lg px-4 py-2.5">{{ error }}</div>
 
         <button type="submit" class="btn-primary w-full" :disabled="submitting">
           {{ submitting ? '提交中…' : '提交注册' }}
         </button>
-        <p class="text-xs text-faint text-center">提交即表示同意用户协议与隐私政策</p>
       </form>
     </div>
   </div>

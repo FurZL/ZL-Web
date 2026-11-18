@@ -105,10 +105,10 @@ _DEFAULT_FOOTER = {
 }
 
 _DEFAULT_LEGAL = {
-    "terms_url": None,
-    "privacy_url": None,
-    "copyright_notice": None,
-    "contact_email": None,
+    "terms_url": "/legal/terms",
+    "privacy_url": "/legal/privacy",
+    "copyright_notice": "本站图片与文字内容由对应作者授权展示，转载请联系站点运营团队并注明来源。",
+    "contact_email": "contact@furzl.cn",
 }
 
 _DEFAULT_CLUB_INTRO = {
@@ -120,6 +120,11 @@ _DEFAULT_REGISTRATION_CONFIG = {
     "registration_enabled": True,
     "require_email_verification": True,
     "require_phone_verification": True,
+}
+
+_DEFAULT_OAUTH_CONFIG = {
+    "enabled": False,
+    "qq_enabled": False,
 }
 
 
@@ -148,3 +153,8 @@ async def get_club_intro(db: AsyncSession) -> dict:
 async def get_registration_config(db: AsyncSession) -> dict:
     val = await get_public_setting(db, "registration_config")
     return {**_DEFAULT_REGISTRATION_CONFIG, **(val or {})}
+
+
+async def get_oauth_config(db: AsyncSession) -> dict:
+    val = await get_public_setting(db, "oauth_config")
+    return {**_DEFAULT_OAUTH_CONFIG, **(val or {})}

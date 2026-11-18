@@ -14,11 +14,13 @@ const router = createRouter({
     { path: '/profile/me/edit', name: 'profile-edit', component: () => import('@/views/ProfileEditor.vue'), meta: { requiresAuth: true } },
     { path: '/profile/:username', name: 'user-profile', component: () => import('@/views/Profile.vue') },
     { path: '/login', name: 'login', component: () => import('@/views/Login.vue') },
+    { path: '/oauth/qq', name: 'oauth-qq', component: () => import('@/views/OAuthCallback.vue') },
     { path: '/register', name: 'register', component: () => import('@/views/Register.vue') },
     { path: '/register/pending', name: 'register-pending', component: () => import('@/views/RegisterPending.vue') },
     { path: '/forgot-password', name: 'forgot-password', component: () => import('@/views/ForgotPassword.vue') },
     { path: '/events', name: 'events', component: () => import('@/views/Events.vue') },
     { path: '/p/:slug', name: 'dynamic', component: () => import('@/views/DynamicPage.vue') },
+    { path: '/legal/:slug', name: 'legal', component: () => import('@/views/LegalPage.vue') },
 
     // 管理后台
     {

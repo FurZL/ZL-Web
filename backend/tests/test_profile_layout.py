@@ -77,6 +77,9 @@ class FakeDatabase:
 
 
 class FakeStorage:
+    def public_url(self, bucket, object_key):
+        return f"https://assets.example.test/{object_key}"
+
     async def presign_download(self, bucket, object_key, expires_in=900):
         return f"signed://{bucket}/{object_key}?ttl={expires_in}"
 
@@ -230,7 +233,7 @@ def test_seed_layout_put_get_and_media_permissions(profile_api, seed_blocks):
     }
     assert payload["media_expires_in"] == settings.private_url_ttl_seconds
     assert all(
-        item["display_url"].endswith(f"ttl={settings.private_url_ttl_seconds}")
+        item["display_url"].startswith("https://assets.example.test/")
         for item in payload["media"].values()
     )
 
@@ -377,8 +380,8 @@ def test_theme_update_validates_assets_and_returns_layout_payload(profile_api):
     payload = response.json()["data"]
     assert payload["theme"] == theme
     assert payload["draft_blocks"] == []
-    assert payload["media"][theme["background_key"]]["display_url"].endswith(
-        f"ttl={settings.private_url_ttl_seconds}"
+    assert payload["media"][theme["background_key"]]["display_url"].startswith(
+        "https://assets.example.test/"
     )
 
 
@@ -443,7 +446,7 @@ def test_my_media_lists_all_own_images_with_visibility_state(profile_api):
     }
     hidden = next(item for item in items if item["object_key"].endswith("/a3"))
     assert hidden["is_displayable"] is False
-    assert hidden["display_url"].startswith("signed://private-bucket/")
+    assert hidden["display_url"].startswith("https://assets.example.test/")
     assert all("id" in item and "created_at" in item for item in items)
 
 

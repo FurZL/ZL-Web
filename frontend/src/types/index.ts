@@ -167,12 +167,51 @@ export interface PublicConfig {
   icp_number: string | null
   police_number: string | null
   registration_config?: RegistrationConfig
+  oauth_config?: OauthConfig
 }
 
 export interface RegistrationConfig {
   registration_enabled: boolean
   require_email_verification: boolean
   require_phone_verification: boolean
+}
+
+export interface OauthConfig {
+  enabled: boolean
+  qq_enabled: boolean
+}
+
+export interface OauthProviderInfo {
+  id: string
+  enabled: boolean
+}
+
+export interface OauthProvidedUser {
+  id: string
+  username: string
+  display_name: string
+  role: string
+  avatar_url: string | null
+  bio: string
+}
+
+export interface OauthResolveResult {
+  bound: boolean
+  user?: OauthProvidedUser
+  oauth_token?: string
+  provider?: string
+  nickname?: string
+  return_to?: string
+  access_token?: string
+  token_type?: string
+  expires_in?: number
+  refresh_token?: string
+}
+
+export interface ThirdPartyBinding {
+  provider: string
+  provider_user_id: string
+  created_at: string | null
 }
 
 export interface FooterLink {

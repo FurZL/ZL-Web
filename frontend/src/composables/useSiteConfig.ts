@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { getPublicConfig } from '@/api/site'
-import type { RegistrationConfig } from '@/types'
+import type { OauthConfig, RegistrationConfig } from '@/types'
 
 const siteName = ref('啫喱小站')
 const siteSubtitle = ref('温暖、可爱、有社群感的同好之家')
@@ -9,6 +9,7 @@ const registrationConfig = ref<RegistrationConfig>({
   require_email_verification: true,
   require_phone_verification: true,
 })
+const oauthConfig = ref<OauthConfig>({ enabled: false, qq_enabled: false })
 let fetched = false
 
 export async function fetchSiteConfig() {
@@ -23,6 +24,7 @@ export async function fetchSiteConfig() {
       siteSubtitle.value = cfg.site_subtitle
     }
     if (cfg.registration_config) registrationConfig.value = cfg.registration_config
+    if (cfg.oauth_config) oauthConfig.value = cfg.oauth_config
   } catch {
     // 保持默认值
   }
@@ -30,5 +32,5 @@ export async function fetchSiteConfig() {
 }
 
 export function useSiteConfig() {
-  return { siteName, siteSubtitle, registrationConfig }
+  return { siteName, siteSubtitle, registrationConfig, oauthConfig }
 }

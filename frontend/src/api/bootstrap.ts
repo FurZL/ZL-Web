@@ -4,7 +4,7 @@
  * 只执行一次：并发调用共享同一个 Promise。
  */
 import { ensureAccessToken } from './client'
-import { getRefreshToken } from './token'
+import { hasSessionMarker } from './token'
 import { useAuthStore } from '@/stores/auth'
 
 let pending: Promise<void> | null = null
@@ -15,10 +15,10 @@ export function bootstrapAuth(): Promise<void> {
   if (pending) return pending
 
   pending = (async () => {
-    if (!getRefreshToken()) return
+    if (!hasSessionMarker()) return
     try {
-      // 先静默换 access token，避免首次 fetchMe 因缺少凭证产生 401 噪音
-      await ensureAccessToken()
+      const token = await ensureAccessToken()
+      if (!token) return
       await useAuthStore().fetchMe()
     } catch {
       // 刷新失败则保持未登录

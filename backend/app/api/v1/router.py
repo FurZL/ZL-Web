@@ -16,6 +16,7 @@ from app.api.v1.endpoints import (
     events,
     health,
     images,
+    oauth,
     pages,
     profile,
     schedule,
@@ -26,6 +27,7 @@ api_router = APIRouter()
 
 api_router.include_router(health.router, tags=["health"])
 api_router.include_router(auth.router)
+api_router.include_router(oauth.router)
 api_router.include_router(images.router)
 api_router.include_router(profile.router)
 api_router.include_router(schedule.router)

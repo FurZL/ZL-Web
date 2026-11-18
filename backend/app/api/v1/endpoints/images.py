@@ -5,8 +5,6 @@
 
 from __future__ import annotations
 
-import uuid
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -106,8 +104,13 @@ async def delete_image(
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "图片不存在"})
 
     # 仅上传者本人或有任意删除权限的角色可删除
-    if image.uploader_id != user.id and not has_permission(user.role, "gallery.image.delete.any"):
-        raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": "无权删除该图片"})
+    if image.uploader_id != user.id and not has_permission(
+        user.role, "gallery.image.delete.any"
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "FORBIDDEN", "message": "无权删除该图片"},
+        )
 
 
 
@@ -135,7 +138,10 @@ async def report_image(
 
     # 不能举报自己的图片
     if image.uploader_id == user.id:
-        raise HTTPException(status_code=400, detail={"code": "SELF_REPORT", "message": "不能举报自己的图片"})
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "SELF_REPORT", "message": "不能举报自己的图片"},
+        )
 
     # 同一用户对同一图片只能有一条未处理的举报
 
@@ -153,7 +159,10 @@ async def report_image(
         )
     ).first()
     if existing:
-        raise HTTPException(status_code=409, detail={"code": "ALREADY_REPORTED", "message": "已提交过举报，请等待处理"})
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "ALREADY_REPORTED", "message": "已提交过举报，请等待处理"},
+        )
 
     report = Report(
         reporter_id=user.id,
@@ -184,5 +193,6 @@ async def download_image(
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "对象不存在"})
 
     storage = get_storage_provider()
-    url = await storage.presign_download(stored.bucket, stored.object_key)
+    # 展示/下载 URL 必须走代理域名；COS 原生预签名地址只用于上传直传，不返回前端。
+    url = storage.public_url(stored.bucket, stored.object_key)
     return ok({"url": url})

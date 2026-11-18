@@ -2,7 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { MeResponse, Role, User } from '@/types'
 import { request, setUnauthorizedHandler } from '@/api/client'
-import { clearTokens, getRefreshToken, setTokens } from '@/api/token'
+import { clearTokens, setAccessToken } from '@/api/token'
 
 interface LoginResult {
   access_token: string
@@ -48,7 +48,7 @@ export const useAuthStore = defineStore('auth', () => {
         url: '/auth/login',
         data: { account, password, verification_token: captchaToken || undefined },
       })
-      setTokens(data.access_token, data.refresh_token)
+      setAccessToken(data.access_token)
       user.value = toUser(data.user)
       return true
     } finally {
@@ -62,14 +62,16 @@ export const useAuthStore = defineStore('auth', () => {
     return user.value
   }
 
+  function setSession(accessToken: string, sessionUser: LoginResult['user']) {
+    setAccessToken(accessToken)
+    user.value = toUser(sessionUser)
+  }
+
   async function logout() {
-    const refresh = getRefreshToken()
-    if (refresh) {
-      try {
-        await request({ method: 'POST', url: '/auth/logout', data: { refresh_token: refresh } })
-      } catch {
-        // 忽略登出错误
-      }
+    try {
+      await request({ method: 'POST', url: '/auth/logout', data: {} })
+    } catch {
+      // 忽略登出错误，本地登录态仍然清除
     }
     clearTokens()
     user.value = null
@@ -84,6 +86,7 @@ export const useAuthStore = defineStore('auth', () => {
     isPhotographer,
     login,
     fetchMe,
+    setSession,
     logout,
   }
 })

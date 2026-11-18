@@ -10,16 +10,19 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.image import ProfileImage, StoredObject
 from app.models.user import User
 from app.providers.factory import get_storage_provider
-from app.services.image import ImageError, complete_upload, create_upload_intent, sanitize_filename
+from app.services.image import (
+    ImageError,
+    create_upload_intent,
+    sanitize_filename,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +113,7 @@ async def list_my_profile_images(
                 from app.services.image_processing import derive_profile_thumb_key
 
                 thumb_key = derive_profile_thumb_key(stored.object_key)
-                thumb_url = await storage.presign_download(stored.bucket, thumb_key)
+                thumb_url = storage.public_url(stored.bucket, thumb_key)
             except Exception:
                 logger.warning("生成缩略图签名 URL 失败 key=%s", stored.object_key, exc_info=True)
                 thumb_url = None
@@ -141,7 +144,8 @@ async def get_profile_image_signed_url(
         raise ImageError("NOT_FOUND", "对象不存在", 404)
 
     storage = get_storage_provider()
-    url = await storage.presign_download(stored.bucket, stored.object_key)
+    # 私有文件展示走代理域名，由 CDN/EdgeOne 回源鉴权限定访问，不暴露 COS 原生域名。
+    url = storage.public_url(stored.bucket, stored.object_key)
     return {"url": url, "expires_in": settings.private_url_ttl_seconds}
 
 
