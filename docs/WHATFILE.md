@@ -134,7 +134,7 @@
 |---|---|
 | `SliderCaptcha.vue` | 滑块拼图人机验证组件（Bing 壁纸背景 + Pointer Events 拖拽 + CSS background-image 拼图块） |
 | `AppDialog.vue` | 全局对话框 UI（Toast 滑入提示 + Confirm 玻璃卡片弹窗，挂载于 App.vue） |
-| `AppHeader.vue` | 顶部导航栏（Logo、导航链接、登录/注册按钮[注册关闭时隐藏]、角色动态菜单、窄屏横滑适配） |
+| `AppHeader.vue` | 顶部导航栏（桌面横向导航与账号下拉菜单；`lg` 以下右侧抽屉导航，含主导航、账号入口、登录/注册/退出，支持遮罩/Esc/路由切换关闭与滚动锁定） |
 | `AppFooter.vue` | 页脚（从 /site/footer API 拉取版权/备案/协议链接；请求失败或链接为空时回退到四个法律页面） |
 | `UserAvatar.vue` | 用户头像组件（支持真实头像图片 + 首字母圆形回退、可调尺寸、渐变背景、加载失败自动回退） |
 | `ImageLightbox.vue` | 图片详情弹窗（大图展示、描述、拍摄者、下载按钮，Gallery 与私有相册共用） |
