@@ -88,13 +88,28 @@ async def set_role(
     if target is None:
         raise HTTPException(status_code=404, detail={"code": "USER_NOT_FOUND", "message": "用户不存在"})
 
+    # 只有管理员能调整角色；审核员不能借此自我提权或管理其他审核员/管理员
+    if current_user.role not in ("admin", "super_admin"):
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "FORBIDDEN", "message": "只有管理员可以修改用户角色"},
+        )
+
     # 不能修改自己（防止误操作锁定自己）
     if target.id == current_user.id:
         raise HTTPException(status_code=400, detail={"code": "SELF_CHANGE", "message": "不能修改自己的角色"})
 
-    # 只有 super_admin 能授予 admin/super_admin
-    if body.role in ("admin", "super_admin") and current_user.role != "super_admin":
-        raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": "只有超级管理员可以授予管理员角色"})
+    protected_roles = {"admin", "super_admin", "moderator"}
+    if body.role in protected_roles and current_user.role != "super_admin":
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "FORBIDDEN", "message": "只有超级管理员可以授予管理员或审核员角色"},
+        )
+    if target.role in protected_roles and current_user.role != "super_admin":
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "FORBIDDEN", "message": "只有超级管理员可以修改管理员或审核员角色"},
+        )
 
     target.role = body.role
     await db.commit()
@@ -113,6 +128,12 @@ async def set_status(
     if target is None:
         raise HTTPException(status_code=404, detail={"code": "USER_NOT_FOUND", "message": "用户不存在"})
 
+    if current_user.role not in ("admin", "super_admin"):
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "FORBIDDEN", "message": "只有管理员可以修改用户状态"},
+        )
+
     # 不能禁用自己
     if target.id == current_user.id:
         raise HTTPException(status_code=400, detail={"code": "SELF_CHANGE", "message": "不能修改自己的状态"})
@@ -120,6 +141,11 @@ async def set_status(
     # 不能禁用 super_admin
     if target.role == "super_admin" and body.status == "disabled":
         raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": "不能禁用超级管理员"})
+    if target.role == "admin" and current_user.role != "super_admin" and body.status == "disabled":
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "FORBIDDEN", "message": "只有超级管理员可以禁用管理员账号"},
+        )
 
     target.status = body.status
     target.is_active = body.status == "active"

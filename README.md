@@ -55,6 +55,8 @@ python run.py                       # Windows 下必须用 run.py（避免 psyco
 
 API 文档（仅开发环境）：http://127.0.0.1:8000/docs
 
+生产环境将 `APP_ENV=production`：后端会同时关闭 `/docs`、`/redoc`、`/openapi.json`。
+
 ### 3. 前端
 
 ```bash
@@ -266,7 +268,7 @@ UI 组件在 `components/AppDialog.vue`，挂载在 `App.vue` 根部，无需每
 - 对象存储：腾讯云 COS 单桶（ap-shanghai，`public/`/`private/` 前缀隔离），CORS + public 读策略已配置，预签名上传/下载全链路实测通过。
 - 认证：注册（邮箱/手机 OTP）→ 待审批 → 管理员审批 → 登录/刷新令牌轮换，完整闭环已打通。
 - 图片处理：后台 worker 生成缩略图（800px）/展示图（2000px）WebP，含防解压炸弹。
-- API：当前代码 OpenAPI 注册 84 个路径 / 99 个方法端点，包含个人主页发布、丢弃、主题、素材清单和匿名公开页接口。
+- API：当前代码 OpenAPI 注册 86 个路径 / 101 个方法端点，包含人机验证滑块、个人主页发布/丢弃、主题、素材清单和匿名公开页接口。
 - 测试：`pytest -q -p no:cacheprovider` 48 个用例通过（含个人主页发布/丢弃、主题校验、素材授权与匿名公开页隐私测试）。
 - 管理后台：用户审批、仪表盘、公告管理、网站设置、活动管理、页面管理、图片管理已接真实接口。
 - 管理员初始化：`backend/scripts/create_admin.py` 已合并到 `main`；账号已存在时默认不覆盖密码，使用 `--reset-password` 才会显式重置，并自动确保管理员角色和启用状态。
@@ -275,6 +277,7 @@ UI 组件在 `components/AppDialog.vue`，挂载在 `App.vue` 根部，无需每
 
 ## 变更记录
 
+- **2026-11-18：安全加固 + 私有图片访问回归**：修复注册角色注入（`applied_role` 仅允许 `photographer`，注册始终落为 `member`）；修复审核员可越权修改用户角色/状态（改角色/状态仅管理员可操作，管理员与审核员仅超级管理员可修改）；修复未公开图片可匿名读取的 IDOR（仅公开且审核通过的图片可访问/下载）。登录、OTP 发送、刷新、密码重置增加 Redis 应用层限流，触发返回 429。个人主页/私有相册图片改回后端鉴权后的短时效签名 URL，不再通过 `public_url` 直读。修复 `backend/pyproject.toml` 依赖列表误写入 `` `r`n `` 导致 pip 解析失败的 TOML 语法问题。生产环境关闭 `/docs`、`/redoc`、`/openapi.json`。
 - **2026-11-15：注册配置、邮件通知、密码强度与验证码冷却**：后台新增「注册设置」Tab（开启注册/要求邮箱验证/要求手机验证），前端顶栏/登录页/注册页联动隐藏注册入口，后端 /auth/register 强制门控。新增 SmtpEmailProvider 接入飞书企业邮箱 SMTP，HTML 卡片模板，发件名跟随 APP_NAME；注册提交后发「等待审批」通知，审批通过/拒绝各发通知，fire-and-forget 异步不阻塞。注册和找回密码均要求密码含大小写字母和数字，前后端双重校验；注册表单新增确认密码字段。OTP 发送新增 60 秒冷却（OTP_COOLDOWN_SECONDS），前端按钮倒计时禁用。社团介绍页成员头像修复（补传 `avatar_url`）。新增 COS_DEV_PREFIX 多人开发隔离前缀。`run.py` 支持 --host 参数。
 - **2026-11-16：人机验证 + 阿里云短信 + 图片域名隐藏 + 头像同步 + OTP 风控**：新增滑块拼图人机验证（GET /captcha/challenge + POST /captcha/verify，Canvas 拼图 + Bing 壁纸背景，±6px 容差，验证 token 一次性消耗），验证通过后才可获取邮箱/手机验证码。接入阿里云短信服务（AliyunSmsProvider，签名"杭州轻绒文化"，模板 SMS_512658529）。所有图片/文件 URL 统一走 EdgeOne 代理域名 zl.test.tiking.top（公有读、私有缩略图、下载、头像），仅上传预签名 URL 保留 COS 原生域名（桶私有读写，签名保障安全）。OTP 发送冷却从 60s 提升到 120s，邮箱/手机号格式前端强校验（+86 锁死 + 11 位数字 / 邮箱正则），格式不符不可获取验证码。修复 Profile 页面自己视角头像不显示问题，UserAvatar 组件 src 更新时重置 imgError 状态。新增 COS 代理域名客户端（后因 EdgeOne 不支持 PUT 回退），presign_download 全部改为 public_url 走代理域名。
 

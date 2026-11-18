@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, rate_limit
 from app.api.response import error_to_http, ok
 from app.api.v1.endpoints.captcha import check_verification_token
 from app.core.database import get_db
@@ -34,7 +34,11 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/verify/email")
-async def send_email_code(body: OtpRequest, db: AsyncSession = Depends(get_db)):
+async def send_email_code(
+    body: OtpRequest,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("otp", 10, 60)),
+):
     if not await check_verification_token(body.verification_token or ""):
         raise HTTPException(status_code=400, detail={"code": "CAPTCHA_REQUIRED", "message": "请先完成人机验证"})
     try:
@@ -47,7 +51,11 @@ async def send_email_code(body: OtpRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/verify/phone")
-async def send_phone_code(body: OtpRequest, db: AsyncSession = Depends(get_db)):
+async def send_phone_code(
+    body: OtpRequest,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("otp", 10, 60)),
+):
     if not await check_verification_token(body.verification_token or ""):
         raise HTTPException(status_code=400, detail={"code": "CAPTCHA_REQUIRED", "message": "请先完成人机验证"})
     try:
@@ -113,6 +121,7 @@ async def login(
     body: LoginRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("login", 10, 60)),
 ):
     if not await check_verification_token(body.verification_token or ""):
         raise HTTPException(status_code=400, detail={"code": "CAPTCHA_REQUIRED", "message": "请先完成人机验证"})
@@ -129,7 +138,11 @@ async def login(
 
 
 @router.post("/refresh")
-async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
+async def refresh(
+    body: RefreshRequest,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("refresh", 30, 60)),
+):
     try:
         result = await auth_service.refresh_tokens(db, body.refresh_token)
     except AuthError as exc:
@@ -150,7 +163,11 @@ async def logout_all(user: User = Depends(get_current_user), db: AsyncSession = 
 
 
 @router.post("/password/forgot")
-async def forgot_password(body: PasswordForgotRequest, db: AsyncSession = Depends(get_db)):
+async def forgot_password(
+    body: PasswordForgotRequest,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("otp", 10, 60)),
+):
     try:
         result = await send_otp(db, target=body.target, purpose="reset")
     except Exception:
@@ -159,7 +176,11 @@ async def forgot_password(body: PasswordForgotRequest, db: AsyncSession = Depend
 
 
 @router.post("/password/reset")
-async def reset_password(body: PasswordResetRequest, db: AsyncSession = Depends(get_db)):
+async def reset_password(
+    body: PasswordResetRequest,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("reset", 10, 60)),
+):
     try:
         await verify_otp(db, target=body.target, purpose="reset", code=body.code)
     except OtpError as exc:

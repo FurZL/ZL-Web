@@ -42,12 +42,10 @@ async def list_images(
 
 @router.get("/{image_id}")
 async def get_image(image_id: str, db: AsyncSession = Depends(get_db)):
-    # 简化：直接查库返回单图
     uid = parse_uuid(image_id, "图片 ID")
 
-
     image = await db.get(Image, uid)
-    if image is None:
+    if image is None or not image.is_public or image.moderation_status != "approved":
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "图片不存在"})
     return ok(await image_service._image_to_dict(db, image))
 
@@ -175,21 +173,16 @@ async def download_image(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # 私有/公开原图下载：签发短时效签名 URL
     uid = parse_uuid(image_id, "图片 ID")
 
-
-
     image = await db.get(Image, uid)
-    if image is None:
+    if image is None or not image.is_public or image.moderation_status != "approved":
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "图片不存在"})
 
     stored = await db.get(StoredObject, image.stored_object_id)
     if stored is None:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "对象不存在"})
 
-
-
     storage = get_storage_provider()
-    url = storage.public_url(stored.bucket, stored.object_key)
+    url = await storage.presign_download(stored.bucket, stored.object_key)
     return ok({"url": url})

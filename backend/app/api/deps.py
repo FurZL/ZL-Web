@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 import uuid
 
 from fastapi import Depends, HTTPException, Request, status
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.permissions import require_permission
+from app.core.redis import redis
 from app.models.user import User
 from app.services.auth import decode_access_token
 
@@ -70,5 +72,30 @@ def require_permission_dep(permission: str):
                 detail={"code": "FORBIDDEN", "message": f"缺少权限: {permission}"},
             )
         return user
+
+    return _dep
+
+
+def rate_limit(scope: str, limit: int, window_seconds: int):
+    """基于 Redis 固定窗口的轻量应用层限流（作为 WAF/网关之外的第二道闸）。"""
+
+    async def _dep(request: Request):
+        client_ip = request.client.host if request.client else "unknown"
+        bucket = int(time.time() // window_seconds)
+        key = f"ratelimit:{scope}:{client_ip}:{bucket}"
+        try:
+            async with redis.pipeline(transaction=True) as pipe:
+                pipe.incr(key)
+                pipe.expire(key, window_seconds * 2)
+                count, _ = await pipe.execute()
+        except Exception:
+            # Redis 故障时失败开放，避免把正常用户一起挡在门外；由网关联限流兜底
+            return
+        if int(count) > limit:
+            raise HTTPException(
+                status_code=429,
+                detail={"code": "RATE_LIMITED", "message": "请求过于频繁，请稍后再试"},
+                headers={"Retry-After": str(window_seconds)},
+            )
 
     return _dep

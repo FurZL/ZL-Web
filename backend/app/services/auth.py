@@ -108,7 +108,7 @@ async def register_user(
         email=email,
         phone_e164=phone,
         hashed_password=hash_password(password),
-        role=applied_role or "member",
+        role="member",
         applied_role=applied_role,
         application_reason=application_reason,
         application_portfolio=application_portfolio,

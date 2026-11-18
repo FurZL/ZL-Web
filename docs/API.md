@@ -1,6 +1,6 @@
 # Furry ZJUT API 文档
 
-> 当前代码的 OpenAPI 注册 **87 个 API 路径（102 个方法端点）**。本数量包含已补齐的个人主页发布、丢弃、主题、素材和匿名公开页接口。
+> 当前代码的 OpenAPI 注册 **86 个 API 路径（101 个方法端点）**。本数量包含人机验证、个人主页发布/丢弃/主题/素材和匿名公开页接口。
 > 统一前缀：`/api/v1`，统一响应格式：`{"success": bool, "data": ..., "error": {"code", "message"}, "request_id": str}`
 
 ## 通用约定
@@ -31,6 +31,10 @@
 - 所有列表接口支持分页，限制最大 page size。
 - 写操作使用权限校验；报名等关键操作用幂等键。
 - API 文档仅在开发环境或管理员授权后公开；生产禁用。
+- 登录、OTP 发送、刷新令牌与密码重置按客户端 IP 做应用层限流，超限返回 HTTP 429 `RATE_LIMITED`。
+- 私有图片、私有课表等资源通过后端鉴权后签发短时效签名 URL，不走 `public_url` 公网直读。
+- 用户角色与状态变更仅管理员可操作；授予/修改 `admin`、`super_admin`、`moderator` 角色仅 `super_admin` 可执行。
+- 生产环境同时关闭 `/docs`、`/redoc`、`/openapi.json`。
 
 ## 接口清单（模块 → 文件对照）
 
@@ -90,8 +94,6 @@
 | POST | `/auth/password/reset` | 无 | 重置密码（验证码 + 新密码；真实更新密码 + 撤销全部会话） |
 | GET | `/auth/me` | Bearer | 获取当前用户信息（含 bio/avatar_url） |
 
-SMS_PROVIDER=aliyun
-
 ### 阿里云短信（2026-11-16）
 
 - `SMS_PROVIDER=aliyun` 时启用 `AliyunSmsProvider`，封装 `alibabacloud_dysmsapi20170525` SDK
@@ -115,7 +117,7 @@ SMS_PROVIDER=aliyun
 | GET | `/captcha/challenge` | 无 | 获取滑块验证挑战，返回 `{token, gap_x, gap_y, expires_in}`（120s 有效），坐标存 Redis |
 | POST | `/captcha/verify` | 无 | 校验滑块位置 `{token, x}`，±6px 容差，通过返回 `{verification_token}`（300s 有效，一次性消耗） |
 
-`LoginRequest`、`OtpRequest` 均新增可选字段 `verification_token`，登录和获取验证码都须先通过人机验证，须先通过人机验证，否则返回 400 `CAPTCHA_REQUIRED`。
+`LoginRequest`、`OtpRequest` 均新增可选字段 `verification_token`；登录和获取验证码都须先通过人机验证，否则返回 400 `CAPTCHA_REQUIRED`。
 
 ---
 

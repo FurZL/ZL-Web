@@ -26,6 +26,8 @@ VITE_API_BASE_URL=https://api.example.com/api/v1
 
 `VITE_*` 只会进入浏览器构建产物，禁止放数据库密码、JWT Secret、COS Secret 等敏感信息。
 
+后端生产环境设置 `APP_ENV=production` 后，`/docs`、`/redoc`、`/openapi.json` 会一并关闭，避免暴露接口清单。
+
 ## 发布流程
 
 1. `npm ci`

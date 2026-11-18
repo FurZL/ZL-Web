@@ -29,6 +29,13 @@ class RegisterRequest(BaseModel):
             raise ValueError("密码必须包含大写字母、小写字母和数字")
         return v
 
+    @field_validator("applied_role")
+    @classmethod
+    def _validate_applied_role(cls, v: str | None) -> str | None:
+        if v is not None and v != "photographer":
+            raise ValueError("申请角色仅支持 photographer")
+        return v
+
 
 class LoginRequest(BaseModel):
     account: str = Field(description="用户名/邮箱/手机号")
