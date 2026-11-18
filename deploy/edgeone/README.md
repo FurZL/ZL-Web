@@ -16,6 +16,25 @@ Vue Router 使用 `createWebHistory()`，需将未知前端路由回退到 `inde
 
 不要将 API 域名配置成 SPA fallback。
 
+### sitemap.xml 与 robots.txt
+
+`npm run build` 会在 `dist/` 生成 `sitemap.xml` 和 `robots.txt`，无需单独维护。它们只收录公开静态页面，不包含 `/login`、`/admin`、`/profile/me/edit`、`/oauth/qq` 等需要登录或隐私相关的路由。
+
+默认站点地址为 `https://www.furzl.cn`。如果使用其他域名，构建前设置：
+
+```dotenv
+SITE_URL=https://www.furzl.cn
+```
+
+EdgeOne 上必须确保这两个文件按静态文件原样返回，不能被 SPA fallback 覆盖成 `index.html`。部署后检查：
+
+```bash
+curl -I https://www.furzl.cn/sitemap.xml
+curl -I https://www.furzl.cn/robots.txt
+```
+
+两者应返回 `200`，`Content-Type` 分别为 `application/xml`（或 `text/xml`）和 `text/plain`；若返回 `text/html`，说明命中了 SPA 回退规则。
+
 ## 环境变量
 
 生产构建前在控制台或 `.env.production` 配置：

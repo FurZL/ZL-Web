@@ -170,6 +170,8 @@ mock 会拦截个人主页及会话恢复接口，数据仅驻留 Vite 进程内
 - 管理后台界面：侧边栏布局 + 用户审批 + 仪表盘 + 公告管理 + 网站设置 + 活动管理 + 页面管理 + 图片管理（均已接真实接口）。
 - 公共组件：`ImageLightbox`（图片详情弹窗，Gallery 与私有相册共用）、`UserAvatar`、`ImagePlaceholder`、`AppDialog`（全局 Toast/Confirm 对话框）。
 - 导航栏按角色动态变化；桌面显示横向导航，移动端与窄屏使用右侧抽屉菜单（含主导航、账号入口、登录/注册或退出登录）；顶栏、页脚与登录页品牌位使用 M 形 logo。
+- 移动端表单控件统一使用至少 16px 字号，避免 iOS Safari 聚焦输入框时自动放大页面；滑块验证码弹窗自适应窄屏、打开时主动收起软键盘，并支持触摸拖动。
+- SEO 基础设施：构建时生成 `/sitemap.xml` 与 `/robots.txt`，只收录公开静态页面；站点地址可用 `SITE_URL` 覆盖，EdgeOne 需确保这两个文件不被 SPA fallback 覆盖。
 - 站点图标：浏览器 favicon / iOS 主屏 / PWA 使用蓝绿 M 形 logo 生成的一套静态资源（见 `frontend/public/favicon.ico` 等）。
 - 顶栏账号菜单：`Teleport to body` + `fixed` 定位，CSS 三角箭头旋转动画，点击外部自动关闭；`lg` 以下切换为右侧抽屉，支持遮罩关闭、Esc 关闭、路由切换自动关闭和背景滚动锁定。
 - 首页 Hero：流动渐变背景（12s 往返动画）+ 双按钮（已登录隐藏「加入我们」）。

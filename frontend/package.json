@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:mock": "vite --mode profile-mock",
-    "build": "vue-tsc --noEmit && vite build",
+    "build": "vue-tsc --noEmit && vite build && node scripts/generate-sitemap.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -136,6 +136,16 @@
   }
 }
 
+/* iOS Safari 会在聚焦小于 16px 的表单控件时自动放大页面。
+   移动端统一到 16px，保留页面缩放能力，不用 user-scalable=no 关闭无障碍缩放。 */
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 @keyframes hero-flow {
   0% {
     background-position: 0% 50%;

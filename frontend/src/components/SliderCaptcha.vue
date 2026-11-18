@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from "vue"
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { request } from "@/api/client"
 
 const props = defineProps<{ show: boolean }>()
@@ -22,6 +22,18 @@ const startPos = ref(0)
 const imgSrc = ref("")
 
 const W = 320; const H = 180; const PW = 42
+const viewportWidth = ref(typeof window === "undefined" ? W : window.innerWidth)
+const imageWidth = computed(() => Math.min(W, Math.max(240, viewportWidth.value - 88)))
+
+function syncViewportWidth() {
+  viewportWidth.value = window.innerWidth
+}
+
+function close() {
+  dragging.value = false
+  pointId.value = -1
+  emit("close")
+}
 
 const BGS = [
   "https://bing.com/th?id=OHR.SanMiguelAllende_ZH-CN1840507091_640x360.jpg",
@@ -43,6 +55,10 @@ async function loadChallenge() {
   gapX.value = 0
   gapY.value = 0
   imgSrc.value = BGS[Math.floor(Math.random() * BGS.length)]
+  // 主动收起软键盘，避免 iOS 弹窗出现后仍保留输入控件焦点。
+  if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur()
+  }
   try {
     const data = await request<{ token: string; gap_x: number; gap_y: number }>({ method: "GET", url: "/captcha/challenge" })
     token.value = data.token
@@ -50,7 +66,12 @@ async function loadChallenge() {
     gapY.value = data.gap_y || Math.round((H - PW) / 2)
     phase.value = "ready"
     await nextTick()
-    if (trackEl.value) max.value = trackEl.value.clientWidth - 36
+    syncViewportWidth()
+    const measureTrack = () => {
+      if (trackEl.value) max.value = trackEl.value.clientWidth - 36
+    }
+    measureTrack()
+    requestAnimationFrame(measureTrack)
   } catch (e) {
     errMsg.value = e instanceof Error ? e.message : "加载失败"
     phase.value = "error"
@@ -69,6 +90,7 @@ const pieceStyle = () => ({
 
 function onPointerDown(e: PointerEvent) {
   if (phase.value !== "ready" && phase.value !== "sliding") return
+  e.preventDefault()
   dragging.value = true
   phase.value = "sliding"
   startX.value = e.clientX
@@ -79,6 +101,7 @@ function onPointerDown(e: PointerEvent) {
 
 function onPointerMove(e: PointerEvent) {
   if (!dragging.value || e.pointerId !== pointId.value) return
+  e.preventDefault()
   pos.value = Math.max(0, Math.min(startPos.value + (e.clientX - startX.value), max.value))
 }
 
@@ -104,15 +127,25 @@ async function onPointerUp(e: PointerEvent) {
 }
 
 watch(() => props.show, (v) => { if (v) loadChallenge() })
+
+onMounted(() => window.addEventListener("resize", syncViewportWidth))
+onBeforeUnmount(() => window.removeEventListener("resize", syncViewportWidth))
 </script>
 
 <template>
   <Teleport to="body">
-    <div v-if="show" class="dialog-overlay" @click.self="emit('close')">
-      <div class="glass-card p-6 w-full max-w-sm">
+    <div
+      v-if="show"
+      class="fixed inset-0 z-[260] flex items-center justify-center overflow-y-auto bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="安全验证"
+      @click.self="close"
+    >
+      <div class="glass-card w-full max-w-sm p-5 sm:p-6">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-base font-bold text-ink">安全验证</h3>
-          <button class="text-faint hover:text-ink text-lg leading-none" @click="emit('close')">&times;</button>
+          <button class="min-h-10 min-w-10 text-xl leading-none text-faint hover:text-ink" aria-label="关闭验证" @click="close">&times;</button>
         </div>
 
         <div v-if="phase === 'loading'" class="flex items-center justify-center" :style="{ height: H + 'px' }">
@@ -125,28 +158,39 @@ watch(() => props.show, (v) => { if (v) loadChallenge() })
         </div>
 
         <template v-else>
-          <div class="relative mb-3 select-none rounded-lg" :style="{ width: W + 'px', height: H + 'px' }">
-            <img v-if="imgSrc" :src="imgSrc" class="absolute inset-0 w-full h-full object-cover rounded-lg" alt="" />
-            <div class="absolute inset-0 bg-black/25 rounded-lg" />
-            <div class="absolute z-10" :style="{ top: gapY + 'px' }">
-              <div :style="pieceStyle() as any" />
-            </div>
+          <div
+            class="relative mb-3 select-none overflow-hidden rounded-lg"
+            :style="{ width: imageWidth + 'px', height: (H * imageWidth) / W + 'px' }"
+          >
             <div
-              v-if="gapX > 0"
-              class="absolute w-[42px] h-[42px] rounded border-2 border-dashed border-white/70 shadow-[0_0_0_6px_rgba(255,255,255,0.1)]"
-              :style="{ left: gapX + 'px', top: gapY + 'px' }"
-            />
+              class="absolute left-0 top-0"
+              :style="{ width: W + 'px', height: H + 'px', transform: `scale(${imageWidth / W})`, transformOrigin: 'top left' }"
+            >
+              <img v-if="imgSrc" :src="imgSrc" class="absolute inset-0 h-full w-full rounded-lg object-cover" alt="" />
+              <div class="absolute inset-0 rounded-lg bg-black/25" />
+              <div class="absolute z-10" :style="{ top: gapY + 'px' }">
+                <div :style="pieceStyle() as any" />
+              </div>
+              <div
+                v-if="gapX > 0"
+                class="absolute h-[42px] w-[42px] rounded border-2 border-dashed border-white/70 shadow-[0_0_0_6px_rgba(255,255,255,0.1)]"
+                :style="{ left: gapX + 'px', top: gapY + 'px' }"
+              />
+            </div>
           </div>
 
           <div
             ref="trackEl"
-            class="relative h-10 bg-ink/5 rounded-lg cursor-pointer select-none overflow-hidden touch-none"
+            class="relative h-11 touch-none select-none overflow-hidden rounded-lg bg-ink/5"
             @pointerdown.prevent="onPointerDown"
-            @pointermove="onPointerMove"
+            @pointermove.prevent="onPointerMove"
             @pointerup="onPointerUp"
+            @pointercancel="onPointerUp"
+            @touchstart.prevent
+            @touchmove.prevent
           >
             <div class="absolute inset-y-0 left-0 bg-primary/20 rounded-lg" :style="{ width: pos + 18 + 'px', transition: dragging ? 'none' : 'width 0.1s ease' }" />
-            <div class="absolute inset-0 flex items-center justify-center text-xs text-faint pointer-events-none">
+            <div class="pointer-events-none absolute inset-0 flex items-center justify-center truncate px-12 text-[11px] leading-none text-faint sm:text-xs">
               向右拖动滑块填充拼图
             </div>
             <div

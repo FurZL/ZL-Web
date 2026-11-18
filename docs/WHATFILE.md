@@ -24,7 +24,7 @@
 
 | 文件 | 用途 |
 |---|---|
-| `package.json` | npm 依赖声明与脚本（dev 真实 API、dev:mock 个人主页演示模式；build = vue-tsc 类型检查 + vite 打包） |
+| `package.json` | npm 依赖声明与脚本（dev 真实 API、dev:mock 个人主页演示模式；build = vue-tsc 类型检查 + vite 打包 + 生成 sitemap/robots） |
 | `package-lock.json` | npm 依赖版本锁定文件 |
 | `vite.config.ts` | Vite 配置（strictPort: 5173、别名 @ → src/、`/api` 代理到 `127.0.0.1:8000`；显式 VITE_PROFILE_MOCK=1 时启用开发 mock） |
 | `tsconfig.json` | TypeScript 编译选项（路径别名、严格模式） |
@@ -37,6 +37,7 @@
 | `.gitignore` | 前端 Git 忽略规则（dist、node_modules 等） |
 | `vite-server.log` | Vite 开发服务器运行日志（临时文件，可安全删除） |
 | `vite-server.err` | Vite 开发服务器错误日志（临时文件，可安全删除） |
+| `scripts/generate-sitemap.mjs` | 构建后生成 `dist/sitemap.xml` 与 `dist/robots.txt`；只收录首页、社团介绍、图片展示、活动和四个法律页面，排除登录、管理后台、个人主页等私密路由 |
 
 ### frontend/public/ — 静态资源（原样输出到 dist/）
 
@@ -132,7 +133,7 @@
 
 | 文件 | 用途 |
 |---|---|
-| `SliderCaptcha.vue` | 滑块拼图人机验证组件（Bing 壁纸背景 + Pointer Events 拖拽 + CSS background-image 拼图块） |
+| `SliderCaptcha.vue` | 滑块拼图人机验证组件（Bing 壁纸背景、自适应窄屏尺寸、Pointer Events + 触摸拖拽、打开时收起软键盘、CSS background-image 拼图块） |
 | `AppDialog.vue` | 全局对话框 UI（Toast 滑入提示 + Confirm 玻璃卡片弹窗，挂载于 App.vue） |
 | `AppHeader.vue` | 顶部导航栏（桌面横向导航与账号下拉菜单；`lg` 以下右侧抽屉导航，含主导航、账号入口、登录/注册/退出，支持遮罩/Esc/路由切换关闭与滚动锁定） |
 | `AppFooter.vue` | 页脚（从 /site/footer API 拉取版权/备案/协议链接；请求失败或链接为空时回退到四个法律页面） |
