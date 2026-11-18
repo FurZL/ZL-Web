@@ -10,6 +10,7 @@ const registrationConfig = ref<RegistrationConfig>({
   require_phone_verification: true,
 })
 const oauthConfig = ref<OauthConfig>({ enabled: false, qq_enabled: false })
+const configLoaded = ref(false)
 let fetched = false
 
 export async function fetchSiteConfig() {
@@ -27,10 +28,12 @@ export async function fetchSiteConfig() {
     if (cfg.oauth_config) oauthConfig.value = cfg.oauth_config
   } catch {
     // 保持默认值
+  } finally {
+    configLoaded.value = true
+    fetched = true
   }
-  fetched = true
 }
 
 export function useSiteConfig() {
-  return { siteName, siteSubtitle, registrationConfig, oauthConfig }
+  return { siteName, siteSubtitle, registrationConfig, oauthConfig, configLoaded }
 }

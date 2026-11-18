@@ -9,7 +9,7 @@ import { startQqLogin } from '@/api/oauth'
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
-const { siteName, registrationConfig, oauthConfig } = useSiteConfig()
+const { siteName, registrationConfig, oauthConfig, configLoaded } = useSiteConfig()
 
 const account = ref('')
 const password = ref('')
@@ -113,7 +113,7 @@ async function doLogin() {
         <p v-if="registrationConfig.registration_enabled">还没有账号？<RouterLink to="/register" class="text-primary-700 hover:underline">去注册</RouterLink></p>
       </div>
 
-      <div v-if="oauthConfig.enabled && oauthConfig.qq_enabled" class="mt-6 pt-6 border-t border-ink/10">
+      <div v-if="configLoaded && oauthConfig.enabled && oauthConfig.qq_enabled" class="mt-6 pt-6 border-t border-ink/10">
         <button
           type="button"
           class="btn-ghost w-full"

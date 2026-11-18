@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { bootstrapAuth } from '@/api/bootstrap'
+import { fetchSiteConfig } from '@/composables/useSiteConfig'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -44,6 +45,7 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   // 导航守卫只负责体验，真正的权限由后端判定
+  await fetchSiteConfig()
   const auth = useAuthStore()
   if (to.meta.requiresAuth && !auth.isLoggedIn) {
     // 直链/刷新进入时 token 还没恢复，先等一次（无 refresh token 会立刻返回）
