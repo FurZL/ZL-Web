@@ -18,10 +18,11 @@ class CourseSlot:
     name: str
     location: str
     weekday: int  # 0=周一 … 6=周日
-    lesson_start: int  # 开始节次（1-12）
+    lesson_start: int  # 开始节次（1-24）
     lesson_end: int  # 结束节次
     weeks: list[int]  # [1, 2, 3, ...]
     campus: str | None = None
+    kind: str = "course"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -81,17 +82,26 @@ def parse_zjut_cell(cell: str, weekday: int) -> list[CourseSlot]:
 
 
 def _weeks_overlap(a: list[int], b: list[int]) -> bool:
-    return bool(set(a) & set(b))
+    # 历史数据未记录周次时保守地视为每周占用，与前端网格一致。
+    return not a or not b or bool(set(a) & set(b))
 
 
-def compare(slots_a: list[CourseSlot], slots_b: list[CourseSlot]) -> dict:
+def compare(
+    slots_a: list[CourseSlot], slots_b: list[CourseSlot], week: int | None = None
+) -> dict:
     """对比两份课表。
 
     返回：
       same_classroom: 同教室同时间（考虑周次交集）
-      both_free:      A 与 B 都空闲的时段
+      both_free:      课程及日程均未占用的连续节次
       overlaps:       行课时段冲突（周次真正重叠才算）
+    week 为空时计算全学期保守空闲；指定周时仅计算该周。空周次为历史未知周次，
+    保守视为每周占用。个人日程不参与同教室判定，但参与忙闲和冲突计算。
     """
+    if week is not None:
+        slots_a = [s for s in slots_a if not s.weeks or week in s.weeks]
+        slots_b = [s for s in slots_b if not s.weeks or week in s.weeks]
+
     same_classroom: list[dict] = []
     both_free: list[dict] = []
     overlaps: list[dict] = []
@@ -104,7 +114,12 @@ def compare(slots_a: list[CourseSlot], slots_b: list[CourseSlot]) -> dict:
                 continue
             # 节次有交叠
             if max(a.lesson_start, b.lesson_start) <= min(a.lesson_end, b.lesson_end):
-                if a.location and a.location == b.location:
+                if (
+                    a.kind == b.kind == "course"
+                    and a.location.strip()
+                    and a.location.strip() == b.location.strip()
+                    and (not a.campus or not b.campus or a.campus.strip() == b.campus.strip())
+                ):
                     same_classroom.append(
                         {"a": a.to_dict(), "b": b.to_dict(), "weekday": a.weekday}
                     )
@@ -117,6 +132,7 @@ def compare(slots_a: list[CourseSlot], slots_b: list[CourseSlot]) -> dict:
     free = _free_slots(slots_a, slots_b)
     both_free = free
     return {
+        "week": week,
         "same_classroom": same_classroom,
         "both_free": both_free,
         "overlaps": overlaps,
@@ -124,7 +140,8 @@ def compare(slots_a: list[CourseSlot], slots_b: list[CourseSlot]) -> dict:
 
 
 _DAYS = 7
-_MAX_LESSON = 12
+_DEFAULT_LESSON = 12
+_MAX_LESSON = 24
 
 
 def _occupied_intervals(slots: list[CourseSlot], weekday: int) -> list[tuple[int, int]]:
@@ -137,6 +154,13 @@ def _occupied_intervals(slots: list[CourseSlot], weekday: int) -> list[tuple[int
 
 def _free_slots(slots_a: list[CourseSlot], slots_b: list[CourseSlot]) -> list[dict]:
     """返回 A、B 都空闲的时间段（按天、按连续节次）。"""
+    max_lesson = min(
+        _MAX_LESSON,
+        max([
+            _DEFAULT_LESSON,
+            *(slot.lesson_end for slot in [*slots_a, *slots_b]),
+        ]),
+    )
     result: list[dict] = []
     for day in range(_DAYS):
         occupied = sorted(
@@ -154,8 +178,8 @@ def _free_slots(slots_a: list[CourseSlot], slots_b: list[CourseSlot]) -> list[di
             if cursor <= s - 1:
                 free_intervals.append((cursor, s - 1))
             cursor = max(cursor, e + 1)
-        if cursor <= _MAX_LESSON:
-            free_intervals.append((cursor, _MAX_LESSON))
+        if cursor <= max_lesson:
+            free_intervals.append((cursor, max_lesson))
         for s, e in free_intervals:
             result.append(
                 {"weekday": day, "lesson_start": s, "lesson_end": e}
@@ -185,7 +209,7 @@ def parse_schedule(data: bytes, filename: str) -> dict:
     if name.endswith(".pdf"):
         raise ScheduleParseError(
             "PDF_UNSUPPORTED",
-            "PDF 课表解析尚未实现，请改用 ICS 或 TXT 导出格式",
+            "PDF 请使用课表页的 PDF 预览导入，不会保存原文件",
         )
     raise ScheduleParseError(
         "UNSUPPORTED_FORMAT", "仅支持 .ics / .txt 文件（PDF 暂未支持）"
@@ -221,7 +245,7 @@ def parse_ics(data: bytes) -> list[CourseSlot]:
         # weekday: 0=周一
         weekday = start.weekday()
 
-        # 节次：按时间近似映射到 1-12 节（假设 8:00 起，每节 45min + 10min 休息）
+        # 节次：按时间近似映射到 1-24 节（假设 8:00 起，每节 45min + 10min 休息）
         lesson_start = _time_to_lesson(start)
         lesson_end = _time_to_lesson(end, is_end=True)
 
@@ -251,7 +275,7 @@ def _time_to_lesson(dt, is_end: bool = False) -> int:
         # 结束时间：减 1 分钟再映射，避免边界
         minutes -= 1
     lesson = (minutes - start_min) // 55 + 1
-    return max(1, min(12, lesson))
+    return max(1, min(_MAX_LESSON, lesson))
 
 
 def _extract_weeks(component, start) -> list[int]:

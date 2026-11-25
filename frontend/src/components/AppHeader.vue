@@ -3,7 +3,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useSiteConfig } from '@/composables/useSiteConfig'
+import { getAppointments } from '@/api/schedule'
+import { getPublishedAnnouncements } from '@/api/site'
 import UserAvatar from '@/components/UserAvatar.vue'
+import type { AnnouncementRecord } from '@/types'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -11,12 +14,74 @@ const { siteName, siteSubtitle, registrationConfig } = useSiteConfig()
 
 const accountOpen = ref(false)
 const mobileOpen = ref(false)
+const noticeOpen = ref(false)
 const triggerRef = ref<HTMLElement | null>(null)
+const noticeTriggerRef = ref<HTMLElement | null>(null)
+const noticePanelRef = ref<HTMLElement | null>(null)
 const headerRef = ref<HTMLElement | null>(null)
 const mobileCloseRef = ref<HTMLElement | null>(null)
 const accountMenuStyle = ref<Record<string, string>>({})
+const noticeMenuStyle = ref<Record<string, string>>({})
 let previousBodyOverflow = ''
 
+const invitationCount = ref(0)
+const announcements = ref<AnnouncementRecord[]>([])
+const announcementSeenAt = ref<string | null>(null)
+const unreadAnnouncements = computed(() => announcements.value.filter((item) => {
+  const at = item.published_at || item.created_at
+  if (!at) return false
+  return !announcementSeenAt.value || at > announcementSeenAt.value
+}))
+const noticeTotal = computed(() => invitationCount.value + unreadAnnouncements.value.length)
+
+function announcementSeenKey() {
+  return `zl-announcements-seen-${auth.user?.id ?? 'guest'}`
+}
+
+function loadAnnouncementSeen() {
+  try {
+    announcementSeenAt.value = localStorage.getItem(announcementSeenKey())
+  } catch {
+    announcementSeenAt.value = null
+  }
+}
+
+let noticeTimer: ReturnType<typeof setInterval>
+async function refreshNotices() {
+  const uid = auth.user?.id
+  if (!uid || document.hidden) {
+    if (!uid) { invitationCount.value = 0; announcements.value = [] }
+    return
+  }
+  try {
+    const [appointmentList, latest] = await Promise.all([getAppointments(), getPublishedAnnouncements()])
+    if (auth.user?.id !== uid) return
+    invitationCount.value = appointmentList.items.filter((item) => (
+      item.mode === 'fixed'
+      && item.status === 'pending'
+      && item.viewer_participant.role === 'invitee'
+    )).length
+    announcements.value = latest.items.slice(0, 5)
+  } catch {
+    /* 下一次轮询重试，不打断导航 */
+  }
+}
+
+function markAnnouncementsSeen() {
+  const latest = announcements.value
+    .map((item) => item.published_at || item.created_at)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+  const newest = latest[latest.length - 1]
+  if (!newest) return
+  announcementSeenAt.value = newest
+  try { localStorage.setItem(announcementSeenKey(), newest) } catch { /* ignore */ }
+}
+
+watch(() => auth.user?.id, () => {
+  loadAnnouncementSeen()
+  void refreshNotices()
+})
 const navLinks = computed(() => [
   { to: '/', label: '首页' },
   { to: '/about', label: '社团介绍' },
@@ -34,6 +99,7 @@ const mobileAccountLinks = computed(() => {
 })
 
 function toggleAccount() {
+  closeNotices()
   accountOpen.value = !accountOpen.value
   if (accountOpen.value) {
     nextTick(updateAccountMenuPos)
@@ -54,6 +120,43 @@ function onAccountClickOutside(event: MouseEvent) {
   }
 }
 
+function toggleNotices() {
+  closeAccount()
+  noticeOpen.value = !noticeOpen.value
+  if (noticeOpen.value) {
+    nextTick(updateNoticeMenuPos)
+    markAnnouncementsSeen()
+    setTimeout(() => document.addEventListener('click', onNoticeClickOutside), 0)
+  } else {
+    document.removeEventListener('click', onNoticeClickOutside)
+  }
+}
+
+function closeNotices() {
+  noticeOpen.value = false
+  document.removeEventListener('click', onNoticeClickOutside)
+}
+
+function onNoticeClickOutside(event: MouseEvent) {
+  const target = event.target as Node
+  if (noticeTriggerRef.value?.contains(target)) return
+  if (noticePanelRef.value?.contains(target)) return
+  closeNotices()
+}
+
+function updateNoticeMenuPos() {
+  const button = noticeTriggerRef.value
+  if (!button) return
+  const buttonRect = button.getBoundingClientRect()
+  const headerBottom = headerRef.value?.getBoundingClientRect().bottom ?? buttonRect.bottom
+  noticeMenuStyle.value = {
+    position: 'fixed',
+    top: `${headerBottom}px`,
+    right: `${Math.max(12, window.innerWidth - buttonRect.right - 12)}px`,
+    zIndex: '210',
+  }
+}
+
 function updateAccountMenuPos() {
   const button = triggerRef.value
   if (!button) return
@@ -69,6 +172,7 @@ function updateAccountMenuPos() {
 
 function openMobileMenu() {
   closeAccount()
+  closeNotices()
   mobileOpen.value = true
 }
 
@@ -80,10 +184,12 @@ function onKeydown(event: KeyboardEvent) {
   if (event.key !== 'Escape') return
   if (mobileOpen.value) closeMobileMenu()
   if (accountOpen.value) closeAccount()
+  if (noticeOpen.value) closeNotices()
 }
 
 function onScrollOrResize() {
   if (accountOpen.value) updateAccountMenuPos()
+  if (noticeOpen.value) updateNoticeMenuPos()
   if (window.innerWidth >= 1024 && mobileOpen.value) closeMobileMenu()
 }
 
@@ -109,18 +215,26 @@ watch(
   () => {
     closeMobileMenu()
     closeAccount()
+    closeNotices()
   },
 )
 
 onMounted(() => {
+  loadAnnouncementSeen()
+  void refreshNotices()
+  noticeTimer = setInterval(refreshNotices, 60000)
+  window.addEventListener('schedule-notices-changed', refreshNotices)
   document.addEventListener('keydown', onKeydown)
   window.addEventListener('scroll', onScrollOrResize, true)
   window.addEventListener('resize', onScrollOrResize)
 })
 
 onBeforeUnmount(() => {
+  clearInterval(noticeTimer)
+  window.removeEventListener('schedule-notices-changed', refreshNotices)
   document.removeEventListener('keydown', onKeydown)
   document.removeEventListener('click', onAccountClickOutside)
+  document.removeEventListener('click', onNoticeClickOutside)
   window.removeEventListener('scroll', onScrollOrResize, true)
   window.removeEventListener('resize', onScrollOrResize)
   document.body.style.overflow = previousBodyOverflow
@@ -154,6 +268,23 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="ml-auto flex items-center gap-2">
+        <button
+          v-if="auth.isLoggedIn"
+          ref="noticeTriggerRef"
+          type="button"
+          class="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-primary/15 bg-white/65 text-primary-700 transition hover:bg-primary-50 active:scale-95"
+          :aria-expanded="noticeOpen"
+          aria-haspopup="dialog"
+          :aria-label="noticeTotal ? `消息通知，${noticeTotal} 条未读` : '消息通知'"
+          @click.stop="toggleNotices"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5" aria-hidden="true">
+            <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M10 21h4" stroke-linecap="round" />
+          </svg>
+          <span v-if="noticeTotal" class="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" aria-hidden="true"></span>
+        </button>
+
         <div class="hidden lg:flex items-center gap-3.5">
           <template v-if="!auth.isLoggedIn">
             <RouterLink
@@ -234,6 +365,54 @@ onBeforeUnmount(() => {
         >
           退出
         </button>
+      </div>
+    </transition>
+  </Teleport>
+
+  <!-- 消息通知面板 -->
+  <Teleport to="body">
+    <transition name="menu">
+      <div
+        v-if="noticeOpen"
+        ref="noticePanelRef"
+        class="w-[20rem] max-w-[calc(100vw-1.5rem)] rounded-xl2 border border-white/60 shadow-glass p-3"
+        :style="{ ...noticeMenuStyle, background: 'rgba(255, 255, 255, 0.84)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }"
+        role="dialog"
+        aria-label="消息通知"
+      >
+        <div class="flex items-center justify-between px-1">
+          <p class="text-sm font-bold text-ink">消息通知</p>
+          <span v-if="noticeTotal" class="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600">{{ noticeTotal }} 条未读</span>
+        </div>
+
+        <RouterLink
+          v-if="invitationCount"
+          to="/schedule"
+          class="mt-2 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-900 transition hover:bg-amber-100"
+          @click="closeNotices"
+        >
+          <span class="mt-0.5 text-base" aria-hidden="true">🔔</span>
+          <span class="min-w-0">
+            <span class="block font-semibold">课表里有 {{ invitationCount }} 条待处理邀请</span>
+            <span class="mt-0.5 block text-[11px] text-amber-700">在课表表格里点开邀请卡片即可接受或婉拒</span>
+          </span>
+        </RouterLink>
+
+        <template v-if="announcements.length">
+          <p class="mt-3 px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-faint">最新公告</p>
+          <RouterLink
+            v-for="announcement in announcements.slice(0, 3)"
+            :key="announcement.id"
+            to="/events"
+            class="mt-1 block rounded-xl px-3 py-2 transition hover:bg-primary-50"
+            @click="closeNotices"
+          >
+            <span class="block truncate text-xs font-medium text-ink">{{ announcement.title }}</span>
+            <span class="mt-0.5 block text-[10px] text-faint">{{ (announcement.published_at || announcement.created_at || '').slice(0, 10) }}</span>
+          </RouterLink>
+        </template>
+
+        <p v-if="!invitationCount && !announcements.length" class="px-3 py-5 text-center text-xs text-faint">暂时没有新消息</p>
       </div>
     </transition>
   </Teleport>

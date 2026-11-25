@@ -76,3 +76,18 @@ def test_compare_weeks_no_overlap():
     # 同名同位置同时间但周次不重叠 => 不算冲突
     assert result["same_classroom"] == []
     assert result["overlaps"] == []
+
+
+def test_different_campuses_are_not_same_classroom():
+    a = CourseSlot("A", "101", 0, 1, 2, [1], campus="下沙")
+    b = CourseSlot("B", "101", 0, 1, 2, [1], campus="临平")
+    result = compare([a], [b], week=1)
+    assert result["same_classroom"] == []
+    assert len(result["overlaps"]) == 1
+
+
+def test_unknown_weeks_remain_busy_and_events_cover_empty_partner():
+    event = CourseSlot("安排", "", 0, 1, 12, [], kind="event")
+    assert not [slot for slot in compare([event], [], week=8)["both_free"] if slot["weekday"] == 0]
+    course = CourseSlot("课程", "", 0, 1, 2, [8])
+    assert len(compare([event], [course], week=8)["overlaps"]) == 1

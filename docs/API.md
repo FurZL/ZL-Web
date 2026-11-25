@@ -1,6 +1,6 @@
 # Furry ZJUT API 文档
 
-> 当前代码的 OpenAPI 注册 **94 个 API 路径（109 个方法端点）**。本数量包含人机验证、个人主页发布/丢弃/主题/素材、匿名公开页、QQ OAuth 登录/绑定及 OAuth Provider 测试接口。
+> 当前代码的 OpenAPI 注册 **117 个 API 路径（139 个方法端点）**。本数量包含约饭和日期日程、课表对比页直接约时间、课表架重命名/存档/拖动排序、PDF 课表预览、课表群组、人机验证、个人主页发布/丢弃/主题/素材、匿名公开页、QQ OAuth 登录/绑定及 OAuth Provider 测试接口。
 > 统一前缀：`/api/v1`，统一响应格式：`{"success": bool, "data": ..., "error": {"code", "message"}, "request_id": str}`
 
 ## 通用约定
@@ -297,18 +297,88 @@ QQ 的 App ID / App Key 只从后端环境变量读取；`state` 与未绑定账
 
 | 方法 | 路径 | 认证 | 说明 |
 |---|---|---|---|
-| GET | `/schedule/mine` | Bearer | 我的课表列表 |
+| GET | `/schedule/mine` | Bearer | 我的课表列表（按拖动顺序，含 `is_archived`） |
+| PUT | `/schedule/order` | Bearer，本人 | 课表架拖动排序（提交本人全部课表完整顺序） |
+| POST | `/schedule/manual` | Bearer | 创建手工课表（默认私有，返回 201） |
+| POST | `/schedule/pdf-preview` | Bearer | 解析 PDF 课表并返回预览（multipart，内存解析，不保存原文件） |
+| PUT | `/schedule/{schedule_id}/slots` | Bearer，本人 | 保存课程及个人日程；版本冲突返回 409 |
+| PUT | `/schedule/{schedule_id}/timing` | Bearer，本人 | 保存当前课表的节次作息；与 slots 共用 revision |
 | POST | `/schedule/upload-intent` | Bearer | 课表上传凭证 |
 | POST | `/schedule/upload-complete` | Bearer | 上传完成（后端下载+解析 ICS/TXT） |
 | GET | `/schedule/{schedule_id}` | Bearer | 课表详情（含解析后的课程列表） |
 | POST | `/schedule/compare` | Bearer | 两人课表对比（空闲/同教室/冲突） |
 | GET | `/schedule/shared/{username}` | Bearer | 获取对方公开的课表 |
 | PATCH | `/schedule/{schedule_id}/visibility` | Bearer | 课表公开/私有开关 |
+| PATCH | `/schedule/{schedule_id}` | Bearer，本人 | 课表架：重命名，或存档/恢复到历史 |
 | DELETE | `/schedule/{schedule_id}` | Bearer | 删除课表 |
 
-**对比结果**：返回 `same_classroom`（同教室）、`both_free`（共同空闲）、`overlaps`（时间冲突），均按周次交集计算。
+**编辑与日程（2026-11-18）**：
+
+- `POST /schedule/manual` 接受 `{ "name": "我的学期课表", "slots": [], "timing": null }`；名称去首尾空白后 1–255 字符，slots 和 timing 可省略。提供 timing 时按完整作息规则校验，并确认其节数覆盖所有课程；省略时根据课程节次生成默认作息。返回完整 `ScheduleRecord`，`format="manual"`、`is_public=false`、`is_archived=false`、`revision=0`，无需上传文件。
+- 课表架（2026-11-23）：`PATCH /schedule/{schedule_id}` 接受 `{ "original_name": "2026 秋 · 大三上" }` 和/或 `{ "is_archived": true }`，至少提供一项；名称去空白后 1–255。存档后课表仍出现在 `GET /schedule/mine` 中并带 `is_archived=true`，但不会再被按用户名/owner 的公开查询返回，也不能设为公开（先恢复，否则 422 `ARCHIVED_SCHEDULE`）；存档会自动撤销 `is_public`。恢复只改变 `is_archived`，公开状态需要重新开启。该状态是新增列 `schedules.is_archived`（Alembic `c4a91e7d2b60`），旧记录默认 false；重命名与存档不递增 revision。
+- 课表架拖动排序（2026-11-23）：`PUT /schedule/order` 接受 `{ "ids": ["…", "…"] }`，必须是本人全部课表的完整顺序；遗漏、重复或包含他人课表返回 409 `ORDER_MISMATCH`。服务端按数组位置写入 `schedules.sort_order`（Alembic `e9b2f7c4a1d0`），`GET /schedule/mine` 按 `sort_order ASC, created_at DESC` 返回。新建课表 `sort_order=0`，会排在同为 0 的旧课表之前；排序不递增 revision，也不改变存档或公开状态。
+- PDF 课表导入（2026-11-24）：`POST /schedule/pdf-preview` 接收 multipart 字段 `file`（仅 PDF，≤10 MB、≤5 页，需登录），在内存中用 `pdfplumber` 解析教务文字层表格，返回 `{suggested_name, slots, warnings}`。支持同一格多门课、合并节次和跨页续接（第 2 页 10–12 节详情与上一页课程名拼接）；页眉姓名/学号等个人信息不返回。原 PDF 不落库、不写对象存储、不记录原文。解析失败返回 422：`PDF_NO_TEXT`（疑似扫描件）、`PDF_LAYOUT_UNSUPPORTED`、`PDF_NO_COURSE`、`PDF_TOO_LARGE` 等。PDF 只提供节次、没有具体上下课时间，确认预览时仍使用默认作息；保存仍走 `POST /schedule/manual`。
+- 教务浏览器扩展不新增后端端点：扩展只把用户确认发送的规范化课程交给本站课表页，本站预览后以 `POST /schedule/manual` 一次保存 `name`、`slots` 和 `timing`。扩展不读取 SSO 凭据；数据在本站确认前不写入账号。
+- `PUT /schedule/{schedule_id}/slots` 接受 `{ "revision": 0, "slots": [...] }`，整体替换当前课表的条目，包括导入的课程。允许空数组以删除全部条目。必须本人操作，其他用户返回 404；服务端锁行后比较版本，过期版本返回 409 `SCHEDULE_CONFLICT`，不写入；成功返回完整记录和递增后的 revision。原始导入文件不被覆盖。
+- 每条 slots 字段：`name`（非空 ≤255）、`location`（可空 ≤255）、`campus`（可空 ≤128）、`weekday`（0–6）、`lesson_start/lesson_end`（1–24，结束不早于开始）、`weeks`（1–53 的整数列表，保存时至少一周、去重排序）、`kind`（`course` 或 `event`，默认 course）。单条请求最多 500 个条目，编辑请求拒绝未知字段。
+- 新增字段保存在现有 `Schedule.parsed_json`，无需为课表编辑单独迁移。课表架的 `is_archived` / `sort_order` 是独立列，迁移见 2026-11-23 两条。旧记录缺失 revision 时按 0、缺失 kind 时按 course、缺失 timing 时返回默认 08:00 起始/45 分钟课程/10 分钟间隔。新建课程和个人日程均参与占用计算。日程属于当前课表，不自动跨学期共享。
+- `timing` 包含 `term_start`（学期第一周周一，可空）、`first_start`、`lesson_minutes`、`break_minutes`、`segments` 与 1–24 组 `periods`，默认生成 12 节。`segments` 为 `{ "noon": "12:00", "afternoon": "14:00", "evening": "18:00" }`，分别表示“上午→中午、中午→下午、下午→晚上”的边界，必须严格递增；旧课表缺少时返回默认值。设置窗格可以添加或删除最后一节，逐节修改午休等特殊间隔，并调整时段边界；课表网格的行数、节次时间、上午/中午/下午/晚上分段和约饭匹配均读取同一配置。已有课程使用的最大节次不能被删除。
+- 新建或导入课表时，如果课程节次高于默认作息可容纳的当天时间范围，接口返回 `TIMING_REQUIRED`（422），提示先调整开始时间、课时或节间隔；ICS 节次解析上限为 24，不会在第 12 节截断。
+- 本人列表、详情和保存响应包含日程详情。其他用户读取公开课表的 ID 端点、按用户名/owner 查询均将 event 名称替换为“已有安排”、location 置空、campus 置 null，仅保留 kind、星期、节次、周次。公开权限可随时撤销，原始文件仍私有。
+- `POST /schedule/compare` 接受原有 `slots_a/slots_b`，新增可选 `week`（1–53 或 null）。指定周时只计算该周的课程与日程；省略/null 时 `both_free` 是扣除任意周占用后的**整学期保守空闲**，并非周次交集。历史条目 weeks 为空时保守视为每周占用。
+- 响应仍为 `same_classroom`、`both_free`、`overlaps`，新增 `week` 回显。同教室与冲突须星期、节次、周次重叠；只有两个 course 且非空地点一致、已知校区不矛盾时归入同教室。event 即使地点相同也归入冲突，不作为同教室课程。
+- 前端切换对比周次会重读双方最新课表，避免使用旧日程。此接口只对比周次与节次；日期日程、路程缓冲与学期映射由下方约饭服务处理。
+
+### 课表群组 `/schedule/groups`（2026-11-25）
+
+| 方法 | 路径 | 认证 | 说明 |
+|---|---|---|---|
+| GET | `/schedule/groups` | Bearer | 我的群组列表（含待审批状态） |
+| POST | `/schedule/groups` | Bearer | 创建群组 `{name, join_mode}`，返回邀请码 |
+| POST | `/schedule/groups/join` | Bearer | 用邀请码加入 `{code}`；open 直接进，approval 转待审批 |
+| GET | `/schedule/groups/{group_id}` | 群成员 | 群组详情；可选 `week=1–53`，返回成员与逐人忙闲统计 |
+| PATCH | `/schedule/groups/{group_id}` | 群主 | 改名或切换 `join_mode` |
+| DELETE | `/schedule/groups/{group_id}` | 群主 | 解散群组 |
+| PUT | `/schedule/groups/{group_id}/schedule` | 群成员 | 设置本人共享给群的课表 `{schedule_id}`，`null` 取消 |
+| POST | `/schedule/groups/{group_id}/members/{user_id}/approve` | 群主 | 同意待审批成员 |
+| POST | `/schedule/groups/{group_id}/members/{user_id}/reject` | 群主 | 拒绝待审批成员 |
+| DELETE | `/schedule/groups/{group_id}/members/{user_id}` | 群主/本人 | 移除成员或自己退群 |
+
+- 群组名 1–50 字；邀请码 8 位大写字母/数字（去掉易混淆字符），不区分大小写；`join_mode` 为 `open` / `approval`。每个用户最多同时加入 20 个群组，群组最多 50 名有效成员。
+- 成员只能共享自己**未存档**的课表；仅 active 成员可设置共享课表。其他成员看到课程名称/地点/校区，但 event（个人日程）统一脱敏为“已有安排”、地点为空；待审批成员看不到邀请码、成员课表或统计。非成员访问统一 404。
+- 群组详情以“我”为基准，逐人返回 `stats`：`both_free`（双方都空闲的 7×节次格数）、`both_busy`、`my_busy_only`、`their_busy_only`、`same_classroom`，以及 `lesson_count`。指定 `week` 时只统计该周；不提供全组共同空闲。点击成员后前端复用 `POST /schedule/compare` 进入双人周课表对比。
+- 群主不能直接退群（避免无主群）；可解散群组。当前版本没有邀请链接有效期、二维码、群内备注/显示名和成员上传文件，邀请码即入口；这些可作为后续迭代。
+
+例如仅第 8 周周三第 5–6 节的个人日程：
+
+```json
+{"name":"社团拍摄","kind":"event","weekday":2,"lesson_start":5,"lesson_end":6,"weeks":[8],"location":"活动室","campus":null}
+```
 
 ---
+
+### 具体日期日程与一对一约饭
+
+以下路径以 `/api/v1/schedule` 为前缀，均需登录。日期按北京时间；起止时间使用含偏移的 ISO 8601。旧的 `/compare` 仍使用节次，时间匹配只在服务端读取参与者自己选定的课表和账号下的日期日程。当前前端已移除“约饭与约定邀请”面板；多候选约饭接口保留，现有课表页只创建/接收固定时间约定，并在课表网格内处理邀请。
+
+| 方法与相对路径 | 客户端函数 | 行为 |
+|---|---|---|
+| GET /calendar | getCalendar | 本人所有一次性日程，包括已确认约饭 |
+| POST /calendar · PUT/DELETE /calendar/{id} | saveCalendarEntry / deleteCalendarEntry | 新增（201）、更新、删除私人日程；写入字段 title、可选 location、starts_at、ends_at。约饭产生的条目不能单方改写 |
+| POST /appointments | createAppointment | 201；保存邀请，不查看受邀者课表。字段 invitee_username、title、location（选填）、schedule_id、window；作息从发起人选定课表读取 |
+| POST /appointments/fixed | createFixedAppointment | 201；从对比页空闲时段直接约具体时间。字段 invitee_username、title、location、schedule_id、week、weekday、lesson_start、lesson_end；后端按发起人作息换算北京时间，创建待接受的固定时间邀请，不新增表 |
+| GET /appointments · GET /appointments/{id} | getAppointments / getAppointment | 参与者自己的列表/详情，包括人名、状态、共同选择及自己的提醒；不返回别人的课程、私事、作息或教室。`mode="fixed"` 时另有 `fixed.starts_at/ends_at/week/weekday/lesson_start/lesson_end` |
+| POST /appointments/{id}/response | respondAppointment | 接受发 `{accepted:true,schedule_id}`，自选私有或公开课表；作息从该课表读取；拒绝只需 `{accepted:false}` |
+| POST /appointments/{id}/choices | chooseAppointmentTimes | candidate_ids 为当前 0–5 个 ID，可撤回自己的选择；变更选项会清除旧确认 |
+| POST /appointments/{id}/confirm | confirmAppointment | candidate_id 必须是双方共同选择；只有双方最终确认同一 ID 才写两份日程。重复确认同一已订时段不重复写入 |
+| POST /appointments/{id}/cancel | cancelAppointment | 任一参与者取消，已订日程同时从两人账号删除，不动其他安排。改期请取消后重新邀请 |
+| GET /meal-notices · POST /appointments/{id}/read | getMealNotices / markMealRead | 查询本人有新消息的邀请数；仅标记本人这一条为已读 |
+
+- 作息不再在约饭表单中重复填写：双方先在各自课表的“作息设置”二级窗格中填写学期第一周周一、课程开始时间、统一课时/间隔，并按需要逐节调整；约饭只传 `schedule_id`，后端读取该课表的 `timing`。现有 ICS 转节次的近似结果可在本人课表中校正。
+- `window`：`date_from/date_to` 闭区间（最多 31 天，最晚一年内）；`daily_start/daily_end` 为每天可用范围；`duration_minutes` 为时段长度（15–1440；约饭表单 UI 仍限制 240，对比页固定约定按节次时长）；`buffer_minutes` 为前后各留路程（0–90）。可用时优先覆盖不同日期，靠近窗口中点的优先；最多 5 个，不用冲突时段凑数。候选只含 id、starts_at、ends_at。
+- `POST /appointments/fixed`：`week`（1–53）、`weekday`（0–6）、`lesson_start/lesson_end`（1–24）按发起人课表 `timing` 换算为具体日期和北京时间；`date_from=date_to=当天`，`daily_start/daily_end` 为节次起止。创建后状态 `pending`，不立即写日程；受邀者接受时必须带自己的 `schedule_id`，后端重新检查双方占用和该时段，通过后在**同一事务**为双方写 `CalendarEvent` 并置 `confirmed`；冲突返回 409 `APPOINTMENT_STALE`，不会单方写入。同一发起人向同一受邀人重复发送相同 `fixed_start` 且已有 pending/confirmed 邀请时返回 409 `INVITATION_EXISTS`。取消已确认约定会删除双方由该邀请产生的日程。固定约定不经过候选/共同选择，`mode="fixed"`、`selected_candidate_id="fixed"`。
+- `pending → choosing → confirming → confirmed`。未成约的邀请三天后过期；拒绝、取消均结束邀请。固定时间约定为 `pending → confirmed`（接受即写入）。最终确认锁住预约、参与账号和选定课表，并重新检查冲突。若碰撞则返回 409 `APPOINTMENT_STALE`，重新获取详情可见新候选。没有候选时可取消并扩大范围重约。
+- 后端：`meal_times.busy_intervals/recommend/available` 负责教学周换算、排名和复核；`schedule_appointment.create_appointment/create_fixed_appointment/respond/choose/confirm/cancel` 管理流程；`my_events/edit_event` 管理一次性日程。已确认约饭/约定按 (appointment_id, owner_id) 唯一，与课程 JSON 分开保存。
 
 ## 七、公告 `/announcements`
 
@@ -465,7 +535,7 @@ QQ 的 App ID / App Key 只从后端环境变量读取；`state` 与未绑定账
 | `src/api/bootstrap.ts` | 共享登录态恢复，供首屏与受保护路由调用 |
 | `src/api/oauth.ts` | QQ 登录/绑定、回调换会话、本人第三方绑定查询/解绑 |
 | `src/api/profile.ts` | 个人主页布局、发布/丢弃、主题、素材、公开页与展示授权 API 封装；另含头像上传/删除 |
-| `src/api/schedule.ts` | 课表 API（7 个接口） |
+| `src/api/schedule.ts` | 课表、日程与约饭 API（见下文） |
 | `src/api/site.ts` | 站点/公告 API（11 个接口） |
 | `src/api/events.ts` | 活动 API（10 个接口） |
 | `src/api/pages.ts` | 动态页面 API（9 个接口） |
@@ -557,9 +627,28 @@ QQ 的 App ID / App Key 只从后端环境变量读取；`state` 与未绑定账
 | `createScheduleUploadIntent(filename, sizeBytes)` | `(filename: string, sizeBytes: number): Promise<ScheduleUploadIntent>` | `POST /schedule/upload-intent` |
 | `completeScheduleUpload(intent, originalName)` | `(intent: ScheduleUploadIntent, originalName: string): Promise<ScheduleRecord>` | `POST /schedule/upload-complete` |
 | `getSharedSchedule(username)` | `(username: string): Promise<ScheduleRecord>` | `GET /schedule/shared/{username}` |
-| `compareSchedules(slotsA, slotsB)` | `(slotsA: ScheduleSlot[], slotsB: ScheduleSlot[]): Promise<ScheduleCompareResult>` | `POST /schedule/compare` |
+| `compareSchedules(slotsA, slotsB, week?)` | `week: number \| null = null`，返回 `Promise<ScheduleCompareResult>` | `POST /schedule/compare` |
+| `createManualSchedule(name, slots?, timing?)` | `(name: string, slots?: ScheduleSlot[], timing?: ScheduleTiming): Promise<ScheduleRecord>` | `POST /schedule/manual` |
+| `previewSchedulePdf(file)` | `(file: File): Promise<{ suggested_name: string; slots: ScheduleSlot[]; warnings: string[] }>` | `POST /schedule/pdf-preview` |
+| `createFixedAppointment(data)` | `(data: FixedMeetupInvite): Promise<AppointmentDetail>`；`FixedMeetupInvite` 含 schedule_id、invitee_username、title、location?、week、weekday、lesson_start、lesson_end | `POST /schedule/appointments/fixed` |
+| `getScheduleGroups()` | `(): Promise<{items: ScheduleGroupSummary[]}>` | `GET /schedule/groups` |
+| `createScheduleGroup(name, joinMode?)` | `(name: string, joinMode?: 'open' \| 'approval'): Promise<ScheduleGroupSummary>` | `POST /schedule/groups` |
+| `joinScheduleGroup(code)` | `(code: string): Promise<ScheduleGroupSummary>` | `POST /schedule/groups/join` |
+| `getScheduleGroup(groupId, week?)` | `(groupId: string, week?: number \| null): Promise<ScheduleGroupDetail>` | `GET /schedule/groups/{id}` |
+| `updateScheduleGroup(groupId, data)` | `(groupId: string, data: {name?: string; join_mode?: 'open' \| 'approval'}): Promise<ScheduleGroupSummary>` | `PATCH /schedule/groups/{id}` |
+| `deleteScheduleGroup(groupId)` | `(groupId: string): Promise<{message: string}>` | `DELETE /schedule/groups/{id}` |
+| `setScheduleGroupSchedule(groupId, scheduleId)` | `(groupId: string, scheduleId: string \| null): Promise<ScheduleGroupSummary>` | `PUT /schedule/groups/{id}/schedule` |
+| `approveScheduleGroupMember(groupId, userId)` | `(groupId: string, userId: string): Promise<ScheduleGroupSummary>` | `POST /schedule/groups/{id}/members/{uid}/approve` |
+| `rejectScheduleGroupMember(groupId, userId)` | `(groupId: string, userId: string): Promise<{message: string}>` | `POST /schedule/groups/{id}/members/{uid}/reject` |
+| `removeScheduleGroupMember(groupId, userId)` | `(groupId: string, userId: string): Promise<{message: string}>` | `DELETE /schedule/groups/{id}/members/{uid}` |
+| `saveScheduleSlots(scheduleId, slots, revision)` | `(string, ScheduleSlot[], number): Promise<ScheduleRecord>` | `PUT /schedule/{id}/slots` |
+| `saveScheduleTiming(scheduleId, timing, revision)` | `(string, ScheduleTiming, number): Promise<ScheduleRecord>` | `PUT /schedule/{id}/timing` |
 | `setScheduleVisibility(scheduleId, isPublic)` | `(scheduleId: string, isPublic: boolean): Promise<ScheduleRecord>` | `PATCH /schedule/{id}/visibility` |
+| `updateScheduleMeta(scheduleId, data)` | `(scheduleId: string, data: { original_name?: string; is_archived?: boolean }): Promise<ScheduleRecord>` | `PATCH /schedule/{id}` |
+| `saveScheduleOrder(ids)` | `(ids: string[]): Promise<{ items: ScheduleRecord[] }>` | `PUT /schedule/order` |
 | `deleteSchedule(scheduleId)` | `(scheduleId: string): Promise<{message: string}>` | `DELETE /schedule/{id}` |
+
+课表编辑组件辅助函数位于 `components/schedule/calendar.ts`：`defaultScheduleTiming(count)` 生成指定数量的作息（默认 12 节）；`normalizeScheduleTiming(value)` 补齐旧课表缺失字段；`defaultScheduleSegments()` / `normalizeScheduleSegments(value)` 生成或规范化时段边界；`periodSegment(timing, index)` / `periodSegmentLabel(segment)` 按 `segments` 和每节开始时间标记上午、中午、下午或晚上；`scheduleWeeks(slots)` 生成可浏览的连续周次；`parseWeekSelection(text)` 校验并解析 `1-16` / `1,3,5`；`formatWeeks(weeks)` 将周数组压缩为范围文本。它们只用于表单与显示，不承担服务端忙闲计算。
 
 ## 前端 `src/api/site.ts` — 站点/公告/设置 API
 
@@ -717,11 +806,19 @@ QQ 接口入口：`https://graph.qq.com/oauth2.0/authorize`、`/token`、`/me`�
 | `CourseSlot`（dataclass） | 统一课程数据结构（name/location/weekday/lesson_start/lesson_end/weeks/campus） |
 | `parse_weeks(text) -> list[int]` | 解析周次（`1-16周` 连续 / `1,3,5周` 指定） |
 | `parse_zjut_cell(cell, weekday) -> list[CourseSlot]` | 解析 ZJUT 课表单元格 |
-| `compare(slots_a, slots_b) -> dict` | 对比两人课表 → `{same_classroom, both_free, overlaps}` |
-| `parse_schedule(data, filename) -> dict` | 按文件名识别格式解析（ICS/TXT，PDF 占位报错） |
+| `compare(slots_a, slots_b, week=None) -> dict` | 后端按周对比课程+日程 → `{same_classroom, both_free, overlaps, week}` |
+| `parse_schedule(data, filename) -> dict` | 按文件名识别格式解析（ICS/TXT）；PDF 请使用 `schedule_pdf.py` 的预览导入，不经上传接口保存 |
 | `parse_ics(data) -> list[CourseSlot]` | ICS 课表解析（VEVENT → CourseSlot） |
 | `parse_txt(data) -> list[CourseSlot]` | ZJUT TXT 课表解析 |
 | `ScheduleParseError` | 解析异常（code + message） |
+
+### `services/schedule_pdf.py` — PDF 课表解析（2026-11-24）
+
+| 函数/类 | 说明 |
+|---|---|
+| `parse_pdf_schedule(data) -> PdfParseResult` | 解析教务文字层 PDF 表格；支持同格多课、合并节次、跨页课程名拼接；返回课程、警告与建议名称 |
+| `PdfParseResult` | `slots`、`warnings`、`suggested_name` |
+| `PdfParseError` | `code` + `message`（如 `PDF_NO_TEXT` 扫描件、`PDF_LAYOUT_UNSUPPORTED`、`PDF_NO_COURSE`） |
 
 ### `services/schedule_service.py` — 课表业务服务
 
@@ -730,6 +827,9 @@ QQ 接口入口：`https://graph.qq.com/oauth2.0/authorize`、`/token`、`/me`�
 | `create_schedule_upload_intent(...) -> dict` | 课表上传凭证 |
 | `complete_schedule_upload(db, ...) -> Schedule` | 上传完成（下载文件 + 解析 + 落库） |
 | `get_my_schedules(db, user) -> dict` | 我的课表列表 |
+| `create_manual_schedule(db, user, body) -> dict` | 创建私有手工课表 |
+| `update_schedule_slots(db, schedule_id, user, body) -> dict` | 本人编辑、行锁/版本校验和 JSONB 保存 |
+| `_schedule_to_dict(s, include_event_details=True) -> dict` | 序列化及历史字段默认值；公开读调用传 false 脱敏个人日程 |
 | `get_schedule(db, schedule_id, user) -> dict` | 课表详情（私有仅本人，公开任何人） |
 | `get_public_schedule_by_username(db, username) -> dict` | 按用户名获取公开课表（含公开用户信息） |
 | `set_schedule_visibility(db, schedule_id, is_public, user) -> dict` | 公开/私有开关 |

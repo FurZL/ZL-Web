@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, func
+from sqlalchemy import Boolean, DateTime, Integer, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,6 +27,10 @@ class Schedule(TimestampMixin, Base):
     format: Mapped[str | None] = mapped_column(String(16), nullable=True)  # ics / txt / pdf
     parsed_json: Mapped[dict] = mapped_column(JSONB, default=dict)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
+    # 课表架：存档后仍保留在历史列表，但从公开读取与约饭选择中移除。
+    is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # 课表架拖动顺序；相同值时按创建时间倒序，新表默认 0 排在最前。
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

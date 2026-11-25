@@ -153,4 +153,14 @@ export async function ensureAccessToken(): Promise<string | null> {
   return token
 }
 
+/** 以 multipart/form-data 提交固定路径（如 PDF 预览），复用统一错误解包。 */
+export function requestForm<T>(url: string, form: FormData): Promise<T> {
+  return request<T>({
+    method: 'POST',
+    url,
+    data: form,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
 export default api

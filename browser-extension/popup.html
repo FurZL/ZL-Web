@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>啫喱小站课表助手</title>
+    <link rel="stylesheet" href="popup.css" />
+    <script type="module" src="popup.js"></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="mark" aria-hidden="true">课</div>
+        <div>
+          <h1>课表导入</h1>
+          <p>浙江理工大学教务系统</p>
+        </div>
+      </header>
+
+      <section id="status" class="status" role="status"></section>
+      <section id="preview" class="preview" hidden>
+        <div class="preview-heading">
+          <strong id="course-count"></strong>
+          <span>门课程</span>
+        </div>
+        <ul id="course-list"></ul>
+        <p id="more-courses" class="muted"></p>
+      </section>
+
+      <label class="field">课表名称
+        <input id="schedule-name" maxlength="255" value="浙江理工课表" />
+      </label>
+      <label class="field">导入到
+        <select id="target-site">
+          <option value="https://www.furzl.cn/schedule">啫喱小站正式站</option>
+          <option value="http://127.0.0.1:8001/schedule">本地预览 127.0.0.1:8001</option>
+          <option value="http://localhost:5173/schedule">本地开发 localhost:5173</option>
+        </select>
+      </label>
+
+      <button id="reload" class="secondary" type="button" hidden>重新读取课表（刷新当前页）</button>
+      <button id="import" class="primary" type="button" hidden>预览并发送到本站</button>
+
+      <p class="privacy">只有点击发送后才会传输课程。扩展不读取或保存教务账号、密码和 Cookie；数据仅暂存在当前浏览器会话中。</p>
+    </main>
+  </body>
+</html>

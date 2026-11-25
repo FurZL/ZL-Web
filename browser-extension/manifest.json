@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "啫喱小站课表助手",
+  "version": "0.1.0",
+  "description": "在你登录教务系统后，预览并将个人课表导入啫喱小站。",
+  "action": {
+    "default_title": "读取并导入课表",
+    "default_popup": "popup.html"
+  },
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": [
+    "https://jwglxt-443.webvpn.zstu.edu.cn/jwglxt/kbcx/*",
+    "https://www.furzl.cn/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://jwglxt-443.webvpn.zstu.edu.cn/jwglxt/kbcx/*"],
+      "js": ["portal-parser.js", "portal-bridge.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://jwglxt-443.webvpn.zstu.edu.cn/jwglxt/kbcx/*"],
+      "js": ["portal-hook.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.furzl.cn/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": ["site-bridge.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

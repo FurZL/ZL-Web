@@ -1,0 +1,31 @@
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+  color: #25243a;
+  background: #fff;
+}
+
+* { box-sizing: border-box; }
+body { width: 360px; margin: 0; }
+main { display: grid; gap: 14px; padding: 18px; }
+header { display: flex; align-items: center; gap: 11px; }
+.mark { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 10px; background: #e9e7fc; color: #493db0; font-weight: 800; }
+h1 { margin: 0; font-size: 17px; }
+header p { margin: 3px 0 0; color: #77758b; font-size: 12px; }
+.status { border-left: 3px solid #8b7cf0; padding: 9px 10px; background: #f5f4fc; color: #4f4b6c; font-size: 12px; line-height: 1.55; }
+.status.error { border-color: #dc5d67; background: #fff2f2; color: #8f3037; }
+.preview { border: 1px solid #e5e3f2; border-radius: 8px; padding: 11px; }
+.preview-heading { display: flex; align-items: baseline; gap: 5px; color: #706d83; font-size: 12px; }
+.preview-heading strong { color: #25243a; font-size: 16px; }
+ul { display: grid; gap: 6px; max-height: 170px; overflow: auto; margin: 10px 0 0; padding: 0; list-style: none; }
+li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; font-size: 12px; }
+li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+li span:last-child { color: #77758b; }
+.muted { margin: 8px 0 0; color: #77758b; font-size: 11px; }
+.field { display: grid; gap: 5px; color: #55536a; font-size: 12px; font-weight: 600; }
+input, select { width: 100%; min-width: 0; height: 36px; border: 1px solid #d8d6e6; border-radius: 6px; padding: 0 9px; background: white; color: #25243a; font: inherit; font-weight: 400; }
+button { width: 100%; min-height: 38px; border: 0; border-radius: 6px; padding: 8px 12px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+button:disabled { cursor: wait; opacity: 0.65; }
+.primary { background: #5549c7; color: white; }
+.secondary { border: 1px solid #d8d6e6; background: white; color: #49465f; }
+.privacy { margin: 0; color: #77758b; font-size: 11px; line-height: 1.55; }

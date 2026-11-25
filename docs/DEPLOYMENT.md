@@ -16,7 +16,7 @@ PostgreSQL/Redis 本机、仅回环监听，文件走 COS。
 
 1. 数据库：本机装 PostgreSQL，`listen_addresses='127.0.0.1'`，建库 `furry_zjut` 与最小权限账号 `furry_app`。
 2. Redis：本机装 Redis，`bind 127.0.0.1`、认证、`maxmemory 64mb`。
-3. 后端：`python3 -m venv venv && ./venv/bin/pip install -r requirements.txt -r requirements-dev.txt` 或 `pip install -e .`；`alembic upgrade head`。
+3. 后端：`python3 -m venv venv && ./venv/bin/pip install -e .`（开发/测试环境再加 `.[dev]`）；`alembic upgrade head`。
 4. 服务：`deploy/systemd/furry-zjut-api.service` 复制到 `/etc/systemd/system/`，`systemctl enable --now furry-zjut-api`。
 5. Nginx：宝塔创建 `api.example.com` 站点，反代 `127.0.0.1:8000`，配 TLS。
 6. CORS：在 `.env` 的 `FRONTEND_ORIGINS` 配真实前端来源。

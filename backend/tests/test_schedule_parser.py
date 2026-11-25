@@ -30,6 +30,21 @@ END:VCALENDAR
     assert slots[0].weeks == list(range(1, 17))
 
 
+def test_parse_ics_keeps_lessons_after_default_twelve():
+    ics = """BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+SUMMARY:晚课
+DTSTART:20260907T190000Z
+DTEND:20260907T200000Z
+END:VEVENT
+END:VCALENDAR
+""".encode("utf-8")
+    slots = parse_ics(ics)
+    assert slots[0].lesson_start == 13
+    assert slots[0].lesson_end == 14
+
+
 def test_parse_txt_zjut():
     txt = "周一\t高等数学★ (3-5节)1-11周/校区:下沙校区/场地:2-N130/教师:xxx\n".encode("utf-8")
     slots = parse_txt(txt)

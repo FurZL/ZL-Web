@@ -11,6 +11,12 @@ from app.models.image import Image, ProfileImage, StoredObject  # noqa: F401
 from app.models.profile_layout import ProfileLayout  # noqa: F401
 from app.models.report import Report  # noqa: F401
 from app.models.schedule import Schedule  # noqa: F401
+from app.models.schedule_appointment import (  # noqa: F401
+    CalendarEvent,
+    ScheduleAppointment,
+    ScheduleAppointmentParticipant,
+)
+from app.models.schedule_group import ScheduleGroup, ScheduleGroupMember  # noqa: F401
 from app.models.setting import SiteSetting  # noqa: F401
 from app.models.third_party import UserThirdParty  # noqa: F401
 from app.models.user import User, UserSession, VerificationChallenge  # noqa: F401

@@ -20,6 +20,7 @@ from app.api.v1.endpoints import (
     pages,
     profile,
     schedule,
+    schedule_groups,
     site,
 )
 
@@ -30,6 +31,7 @@ api_router.include_router(auth.router)
 api_router.include_router(oauth.router)
 api_router.include_router(images.router)
 api_router.include_router(profile.router)
+api_router.include_router(schedule_groups.router)
 api_router.include_router(schedule.router)
 api_router.include_router(pages.router)
 api_router.include_router(events.router)

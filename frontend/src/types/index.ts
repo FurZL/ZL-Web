@@ -112,6 +112,7 @@ export interface CourseSlot {
 
 // ---------- 课表（真实 API 返回，snake_case） ----------
 export interface ScheduleSlot {
+  kind?: 'course' | 'event' // 未标记的历史条目视为课程
   name: string
   location: string
   weekday: number // 0=周一 … 6=周日
@@ -123,13 +124,155 @@ export interface ScheduleSlot {
 
 export interface ScheduleRecord {
   id: string
+  revision: number
   original_name: string | null
   format: string | null
   slots: ScheduleSlot[]
+  timing: ScheduleTiming
   is_public: boolean
+  is_archived: boolean
   created_at: string | null
   expires_at: string | null
   owner?: { id: string; username: string; display_name: string }
+}
+
+export interface ScheduleSegments {
+  noon: string
+  afternoon: string
+  evening: string
+}
+
+export interface ScheduleTiming {
+  term_start: string | null
+  first_start: string
+  lesson_minutes: number
+  break_minutes: number
+  segments: ScheduleSegments
+  periods: [string, string][]
+}
+
+export type ScheduleGroupJoinMode = 'open' | 'approval'
+export type ScheduleGroupStatus = 'active' | 'pending'
+
+export interface ScheduleGroupMine {
+  role: 'owner' | 'member'
+  status: ScheduleGroupStatus
+  schedule_id: string | null
+  can_manage: boolean
+}
+
+export interface ScheduleGroupSummary {
+  id: string
+  name: string
+  code: string | null
+  owner_id: string
+  join_mode: ScheduleGroupJoinMode
+  member_count: number
+  pending_count: number
+  my: ScheduleGroupMine
+}
+
+export interface ScheduleGroupStats {
+  lesson_count: number
+  both_free: number
+  both_busy: number
+  my_busy_only: number
+  their_busy_only: number
+  same_classroom: number
+}
+
+export interface ScheduleGroupMember {
+  user_id: string
+  username: string
+  display_name: string
+  role: 'owner' | 'member'
+  is_me: boolean
+  schedule_id: string | null
+  schedule_name: string | null
+  course_count: number
+  slots: ScheduleSlot[]
+  timing: ScheduleTiming | null
+  stats: ScheduleGroupStats | null
+}
+
+export interface ScheduleGroupPending {
+  user_id: string
+  username: string
+  display_name: string
+  created_at: string | null
+}
+
+export interface ScheduleGroupDetail extends ScheduleGroupSummary {
+  week: number | null
+  members: ScheduleGroupMember[]
+  pending: ScheduleGroupPending[]
+}
+
+export interface MealWindow {
+  date_from: string
+  date_to: string
+  daily_start: string
+  daily_end: string
+  duration_minutes: number
+  buffer_minutes: number
+}
+export interface MealInvite {
+  schedule_id: string
+  invitee_username: string
+  title: string
+  location?: string
+  window: MealWindow
+}
+export interface FixedMeetupInvite {
+  schedule_id: string
+  invitee_username: string
+  title: string
+  location?: string
+  week: number
+  weekday: number
+  lesson_start: number
+  lesson_end: number
+}
+export interface CalendarEntry {
+  id: string
+  title: string
+  location: string | null
+  starts_at: string
+  ends_at: string
+  appointment_id: string | null
+}
+export interface AppointmentCandidate {
+  id: string
+  starts_at: string
+  ends_at: string
+}
+export interface AppointmentDetail {
+  id: string
+  title: string
+  location: string | null
+  mode: 'meal' | 'fixed'
+  fixed: {
+    starts_at: string
+    ends_at: string
+    week: number | null
+    weekday: number | null
+    lesson_start: number | null
+    lesson_end: number | null
+  } | null
+  window: MealWindow
+  notice: string | null
+  status: 'pending' | 'choosing' | 'confirming' | 'confirmed' | 'declined' | 'cancelled' | 'expired'
+  candidates: AppointmentCandidate[]
+  common_candidate_ids: string[]
+  selected_candidate_id: string | null
+  expires_at: string
+  viewer_participant: {
+    role: 'organizer' | 'invitee'
+    status: 'invited' | 'accepted' | 'declined'
+    choices: string[]
+    confirmed_candidate_id: string | null
+  }
+  participants: {username: string; role: 'organizer' | 'invitee'; has_chosen: boolean; confirmed_candidate_id: string | null}[]
 }
 
 export interface ScheduleUploadIntent {
@@ -153,6 +296,7 @@ export interface CompareConflict {
 }
 
 export interface ScheduleCompareResult {
+  week: number | null
   same_classroom: CompareConflict[]
   both_free: CompareFreeSlot[]
   overlaps: CompareConflict[]

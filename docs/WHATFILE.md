@@ -9,7 +9,7 @@
 
 | 文件 | 用途 |
 |---|---|
-| `README.md` | 项目总览：部署边界、目录结构、快速开始、开发进度表 |
+| `README.md` | 项目总览：部署边界、目录结构、快速开始、开发进度表与变更记录 |
 | `AGENTS.md` | 项目架构与实施规范（完整技术约定、数据模型、API 清单、部署方案） |
 | `DESIGN-BRIEF.md` | 页面设计说明书（各页面布局、用户角色、导航规则、色彩语义、移动端要求） |
 | `.env.example` | 环境变量模板（DATABASE_URL、REDIS_URL、COS_*、SMTP_*、OTP_*、认证 Cookie、QQ OAuth、COS_DEV_PREFIX、SECRET_KEY、PROFILE_LAYOUT_MAX_BLOCKS 等占位值，不含真实密钥） |
@@ -82,7 +82,7 @@
 | `bootstrap.ts` | 登录态初始化（bootstrapAuth 共享 Promise，供 App 和路由守卫等待会话恢复） |
 | `oauth.ts` | QQ 登录/绑定、回调会话交换、本人第三方绑定查询/解绑 API 封装 |
 | `profile.ts` | 个人主页 API 封装（布局读写、发布/丢弃、主题、素材清单、匿名公开页、图片展示授权） |
-| `schedule.ts` | 课表 API（上传意图/上传完成/我的课表/公开课表/对比/可见性开关/删除） |
+| `schedule.ts` | 课表 API（上传、手工创建、编辑保存、课表架命名/存档/排序、PDF 预览、群组创建/加入/审批/共享/对比、对比页固定时间约定、读取、按周对比、可见性、删除） |
 | `site.ts` | 站点/公告 API（公开配置/页脚/法律/社团介绍/公告 CRUD/管理设置读写） |
 | `events.ts` | 活动 API（列表/详情/报名/取消/签到 + 管理 CRUD/报名列表/管理员签到） |
 | `index.ts` | API 模块统一导出（re-export client / token / schedule / site / events / pages / adminImages / profile / oauth） |
@@ -135,7 +135,7 @@
 |---|---|
 | `SliderCaptcha.vue` | 滑块拼图人机验证组件（Bing 壁纸背景、自适应窄屏尺寸、Pointer Events + 触摸拖拽、打开时收起软键盘、CSS background-image 拼图块） |
 | `AppDialog.vue` | 全局对话框 UI（Toast 滑入提示 + Confirm 玻璃卡片弹窗，挂载于 App.vue） |
-| `AppHeader.vue` | 顶部导航栏（桌面横向导航与账号下拉菜单；`lg` 以下右侧抽屉导航，含主导航、账号入口、登录/注册/退出，支持遮罩/Esc/路由切换关闭与滚动锁定） |
+| `AppHeader.vue` | 顶部导航栏（桌面横向导航与账号下拉菜单；`lg` 以下右侧抽屉导航，含主导航、账号入口、登录/注册/退出，支持遮罩/Esc/路由切换关闭与滚动锁定）；头像旁消息铃铛，公告/待处理邀请未读红点与通知面板 |
 | `AppFooter.vue` | 页脚（从 /site/footer API 拉取版权/备案/协议链接；请求失败或链接为空时回退到四个法律页面） |
 | `UserAvatar.vue` | 用户头像组件（支持真实头像图片 + 首字母圆形回退、可调尺寸、渐变背景、加载失败自动回退） |
 | `ImageLightbox.vue` | 图片详情弹窗（大图展示、描述、拍摄者、下载按钮，Gallery 与私有相册共用） |
@@ -145,9 +145,34 @@
 
 | 文件 | 用途 |
 |---|---|
-| `Step1Upload.vue` | Step 1：课表上传/已有课表列表/课程预览/分享开关/删除 |
+| `Step1Upload.vue` | Step 1：课表架容器、可编辑周网格、上传/分享/切换；支持 ICS/TXT/PDF 选择，把网格拖动、加节、课表架事件和课表内的约定邀请卡片转给页面处理 |
+| `ScheduleGroupPanel.vue` | 群组对比面板：创建群组/邀请码加入/审批/成员共享课表/逐人忙闲统计，点击成员进入双人对比 |
+| `ScheduleShelf.vue` | 课表架：卡片式列出在用课表与历史课表，支持内联命名、拖动/方向键排序、存档/恢复、公开开关、切换与删除；新建空白课表入口 |
+| `ScheduleMiniPreview.vue` | 课表架卡片的迷你周网格缩略图：按星期/节次比例绘制课程与日程色块 |
+| `ScheduleWeekPicker.vue` | 周次选择器；完整模式为学期总览 + 横向周次胶囊，`compact` 模式压缩为「‹ / 全学期下拉 / ›」单行 |
+| `ScheduleWeekGrid.vue` | 单人/双人周网格；表头在星期下显示对应日期（具体周取该周，全学期按当前教学周并标注第 N 周）；对比模式把双方课程合并成低饱和共享块（左紫/右粉侧条、同课只显示一次、不同课补 TA 行、同教室琥珀圆点），空闲格平面化，表头可选中整列并浮起绿框；绿色空闲格支持按住拖动选择连续节次（实时高亮、遇忙碌截断），松手抛 freePin；悬停抛 freeHover；同格条目分列，点击空白新增/卡片编辑，日程虚线样式；待处理约定以虚线邀请卡片显示在对应周/节次；按作息时间显示上午/中午/下午/晚上分段（边界来自 timing.segments）；底部内嵌“添加一节”，鼠标/触控笔拖动卡片换星期与节次、拖卡片底部调整结束节次（带落点幽灵与失败回滚） |
+| `ScheduleSlotEditor.vue` | 课程/日程编辑弹窗；星期、节次、单周/多周、地点、隐私提示、保存与删除确认 |
+| `ScheduleImportDialog.vue` | 课表导入二次预览（浏览器扩展 / PDF）：显示课程、警告与默认作息，编辑课表名/学期起始日后私有保存 |
+| `ScheduleTimingEditor.vue` | 课表作息二级窗格；1–24 节动态增删、第一节开始时间、统一课时/间隔、学期第一周、时段边界（中午/下午/晚上开始）、逐节时间预览与特殊间隔调整；追加一节与网格共用 `nextSchedulePeriod` 规则 |
+| `calendar.ts` | 默认/兼容课表作息、时段边界默认与规范化、下一节默认时间与追加规则、上午/中午/下午/晚上分段判断、周次范围、单双周用到的周列表、周次文本解析/格式化与节次常量 |
 | `Step2Partner.vue` | Step 2：搜索圈友用户名、查看对方课表预览 |
-| `Step3Result.vue` | Step 3：对比结果周课表网格、空闲时段、同教室/冲突列表 |
+| `Step3Result.vue` | Step 3：对比结果周课表网格；顶部用一行小标签显示共同空闲/同教室/冲突；课程按双方占用合并成共享块，推荐空闲/同教室/冲突全部在网格内呈现，表头可选中整列并浮起绿框；悬停空闲格出邀约二级浮窗，拖动连续空闲格选择多节、松手固定浮窗后发送（单击 1 节）；周次选择用紧凑模式，网格上方放约定周次与邀请状态 |
+| `ScheduleInvitationDialog.vue` | 课表网格邀请卡片的接受/婉拒弹窗：展示具体时间、选择参与课表、错误提示 |
+| `ScheduleInvitePopover.vue` | 对比页空闲格的二级邀约浮窗：显示邀约名称、参与人、拖动选择后的时间段、邀请按钮，支持悬停预览与点击固定 |
+#### browser-extension/ — Edge / Chrome 教务课表导入
+
+| 项目内路径 | 用途 |
+|---|---|
+| `browser-extension/manifest.json` | Manifest V3 扩展配置及教务、本站站点权限 |
+| `browser-extension/portal-hook.js` | 仅在用户显式授权后捕获一次教务课表 JSON 响应；不改写请求、不读取凭据 |
+| `browser-extension/portal-bridge.js` | 检查本次读取授权、解析响应并转发规范化课程 |
+| `browser-extension/portal-parser.js` | 教务返回字段到 `ScheduleSlot` 的映射和单双周解析 |
+| `browser-extension/service-worker.js` | 校验读取授权、管理会话暂存与有效期、投递本站标签页和清理确认数据 |
+| `browser-extension/site-bridge.js` | 扩展与本站课表页之间的消息桥接 |
+| `browser-extension/popup.html` / `popup.js` / `popup.css` | 扩展弹窗、读取结果预览、站点选择与发送 |
+| `browser-extension/tests/portal-parser.test.cjs` | 教务响应映射、单双周和无效数据拒绝测试 |
+| `browser-extension/tests/capture-consent.test.cjs` | 验证未授权不读取、扩展后台拒绝未授权捕获及授权只能使用一次 |
+| `browser-extension/README.md` | Edge / Chrome 本地安装、授权范围、使用步骤和格式兼容说明 |
 
 #### src/components/admin/ — 管理后台子组件
 
@@ -209,7 +234,7 @@
 | `Home.vue` | 首页（Hero 横幅、社团简介、最新公告卡片[真实 API]、精选图片瀑布流预览[真实 API]） |
 | `About.vue` | 社团介绍（社团故事[从 /club/intro API 拉取，可后台编辑]、成员展示网格[头像悬停放大并可进入成员公开主页]、加入方式） |
 | `Gallery.vue` | 公开图片展示（标签筛选、瀑布流图片列表、图片详情弹窗、上传入口 [摄影师/管理员]） |
-| `Schedule.vue` | 课表对比工具（三步流程：上传课表 → 选对比对象 → 网格可视化对比结果；走真实 API） |
+| `Schedule.vue` | 课表对比工具（三步流程：上传课表 → 选对比对象 → 网格可视化对比结果；走真实 API）；课表架命名/存档/排序、PDF 预览导入、群组逐人对比入口、对比页固定时间约定、课表网格内的约定邀请卡片与接受弹窗、网格内添加节次与拖动/拉伸课程在此统一持久化 |
 | `Profile.vue` | 个人空间（本人布局与私有相册、公开主页链接分享、QQ 账号绑定/解绑；访客可读取已发布主页，统计在前台每分钟刷新） |
 | `ProfileEditor.vue` | 个人主页编辑页（/profile/me/edit，模块库/画布/属性/主题/预览、快捷键、离开前未保存提示、统计在前台每分钟刷新） |
 | `Login.vue` | 登录页（用户名/密码、登录按钮[触发滑块人机验证]、注册关闭时隐藏去注册链接、第三方登录开关下显示 QQ 登录并先做拼图验证） |
@@ -243,7 +268,7 @@
 
 | 文件 | 用途 |
 |---|---|
-| `pyproject.toml` | Python 项目配置（依赖声明、pytest 配置、项目元数据） |
+| `pyproject.toml` | Python 项目配置（依赖声明、pytest 配置、项目元数据；含 pdfplumber、python-multipart） |
 | `alembic.ini` | Alembic 数据库迁移工具配置（迁移脚本目录、日志级别） |
 | `run.py` | 启动入口（解决 Windows 上 uvicorn ProactorEventLoop 与 psycopg SelectorEventLoop 冲突；--host 参数支持监听所有接口） |
 | `.env` | 本地开发环境变量（真实密钥：DATABASE_URL、COS_SECRET_* 等；已 gitignore，勿提交） |
@@ -281,7 +306,8 @@
 | `oauth.py` | QQ OAuth 端点（providers、start、bind-start、callback、bind；state/临时凭证存 Redis，callback 可写 Refresh Cookie） |
 | `images.py` | 公开图片端点（GET /images 列表、GET /images/{id} 详情、POST upload-intent、upload-complete、DELETE 删除、POST 举报、GET 下载） |
 | `profile.py` | 个人空间端点（资料/相册/头像、布局 GET/PUT/publish/discard、主题 PUT、素材 GET、图片展示授权 PATCH、匿名公开主页 GET、本人第三方绑定 GET/DELETE） |
-| `schedule.py` | 课表端点（GET /mine、POST upload-intent、upload-complete、GET /{id}、POST /compare、PATCH /{id}/visibility、GET /shared/{username}、DELETE /{id}） |
+| `schedule.py` | 课表、约饭与日期日程端点（手工创建、本人编辑保存、上传、读取、按周对比、可见性、公开查询、删除）；课表架重命名/存档/排序（PATCH、PUT /order）；PDF 预览（POST /pdf-preview，内存解析、不落库） |
+| `schedule_groups.py` | 课表群组端点：列表/创建/邀请码加入/详情/改名/解散/共享课表/审批/移除（前缀 `/schedule/groups`） |
 | `pages.py` | 动态页面端点（GET /{slug} 公开读取、/admin CRUD/发布/下线/版本列表/回滚） |
 | `events.py` | 活动端点（列表/详情/报名/取消/签到，含候补、幂等键、容量控制） |
 | `site.py` | 站点公开信息端点（GET /public-config[含 registration_config 与 oauth_config]、/footer、/legal，从 SiteSetting 读取并返回默认值） |
@@ -322,7 +348,8 @@
 | `third_party.py` | UserThirdParty（用户与 QQ 的绑定关系、OpenID/UnionID、第三方令牌与原始资料、时间戳） |
 | `image.py` | StoredObject（对象存储元数据）、Image（公开图片）、ProfileImage（私有相册图片，新增默认 false 的 is_displayable 展示授权） |
 | `profile_layout.py` | ProfileLayout 模型（JSONB 草稿、已发布块、主题、公开开关及时间戳，按用户唯一） |
-| `schedule.py` | Schedule（课表：stored_object_id、original_name、format、parsed_json、is_public、expires_at） |
+| `schedule.py` | Schedule（课表：stored_object_id、original_name、format、parsed_json、is_public、is_archived、sort_order、expires_at） |
+| `schedule_group.py` | ScheduleGroup（群组：名称、8 位邀请码、群主、open/approval）与 ScheduleGroupMember（角色、pending/active、成员共享课表 id） |
 | `content.py` | DynamicPage（动态页面：slug/schema_json/发布状态）、DynamicPageVersion（版本快照）、Announcement（公告） |
 | `event.py` | Event（活动：标题/时间/地点/容量/报名截止）、EventRegistration（报名记录：状态/签到/幂等键） |
 | `setting.py` | SiteSetting（网站配置：key/value_json/category/is_public；敏感密钥不入此表） |
@@ -337,7 +364,7 @@
 | `auth.py` | 认证 Schema（注册请求[密码强度+password_confirm+terms/privacy 同意与版本]/登录请求/Token 响应/用户信息响应/密码重置确认） |
 | `image.py` | 图片 Schema（上传意图请求、上传完成请求、ProfileUploadIntentRequest 等） |
 | `profile_layout.py` | ProfileImageDisplayPatch（严格布尔 is_displayable，拒绝额外字段） |
-| `schedule.py` | 课表 Schema（CourseSlot、CompareRequest、ScheduleUploadIntentRequest、ScheduleUploadCompleteRequest、ScheduleVisibilityRequest） |
+| `schedule.py` | 课表 Schema（CourseSlot/EditableSlot、手工创建、版本化保存、选周对比、上传、可见性、课表架元数据重命名/存档、完整顺序排序、时段边界 ScheduleSegments） |
 | `page.py` | 动态页面 Schema（页面创建/更新/响应、PageSchema/Theme） |
 | `event.py` | 活动 Schema（活动创建/报名请求/响应） |
 | `setting.py` | 网站设置 Schema（设置读写请求/响应） |
@@ -355,8 +382,10 @@
 | `image_processing.py` | 图片处理服务（下载原图 → 解码校验/防解压炸弹 → 生成 2000px 展示图 + 800px 缩略图 WebP → 上传派生图） |
 | `profile_image.py` | 私有相册服务（private/profiles/{user_id}/ 前缀、代理域素材 URL、本人归属校验、复用 image 校验逻辑） |
 | `profile_layout.py` | 布局草稿服务（模块白名单/字段清洗/大小校验、本人图片与前缀校验、展示授权、代理域素材及统计） |
-| `schedule.py` | 课表解析与对比算法（CourseSlot 数据类、ICS 解析、ZJUT TXT 解析、compare 对比：周次交集/同教室/冲突/空闲时段） |
-| `schedule_service.py` | 课表业务服务（上传意图/上传完成[下载+解析+落库]/我的课表/按用户查询公开课表/可见性开关/删除） |
+| `schedule.py` | 课表解析与对比算法（CourseSlot 数据类、ICS 解析、ZJUT TXT 解析、compare 对比：周次交集/同教室/冲突/空闲时段）；PDF 文件走 `schedule_pdf.py`，上传接口提示使用预览导入 |
+| `schedule_pdf.py` | 教务 PDF 课表解析：pdfplumber 表格/列映射、同格多课、合并节次、跨页课程名拼接、页眉页脚与 PII 过滤；返回 slots、warnings、建议名称 |
+| `schedule_service.py` | 课表业务服务；手工创建、本人编辑与版本冲突保护、课表架重命名/存档/拖动排序、上传/查询/可见性/删除，公开读取时脱敏个人日程并排除存档课表 |
+| `schedule_group.py` | 课表群组服务：创建/邀请码加入/审批/退群/移除/解散、成员共享课表、逐人共同空闲/共同忙碌/单方忙碌/同教室统计，群内事件脱敏 |
 | `rate_limit.py` | 限流服务（Redis 分布式计数器、原子递增+TTL、分层限流规则） |
 | `site_setting.py` | 网站设置服务（SiteSetting 读写、公开配置/页脚/法律/社团介绍/注册门控/第三方登录开关聚合，敏感密钥不入此表） |
 | `announcement.py` | 公告服务（公开列表：已发布+未过期+置顶在前；管理 CRUD：创建/更新/置顶/发布/删除） |
@@ -419,7 +448,12 @@
 | `versions/0addd5ed14cc_add_user_bio_avatar.py` | 迁移：添加用户 bio / avatar_url 字段 |
 | `versions/4f8a2c7d91b3_add_profile_layout.py` | 新增 profile_layouts 表及 profile_images.is_displayable 列/索引，承接 0addd5ed14cc |
 | `versions/e7f3a91b2d44_add_user_third_party.py` | 新增 user_third_parties 表及 provider 身份/UnionID/用户索引，承接 4f8a2c7d91b3 |
-| `versions/2b7e4c9d1a60_add_user_legal_consent.py` | 当前 head：users 新增 terms_version / privacy_version / legal_accepted_at，承接 e7f3a91b2d44 |
+| `versions/2b7e4c9d1a60_add_user_legal_consent.py` | users 新增 terms_version / privacy_version / legal_accepted_at，承接 e7f3a91b2d44 |
+| `versions/7b3d1c8a4f20_add_schedule_appointments.py` | 节次预约原型的建表迁移（后续由 af1c280b769e 汇合/升级） |
+| `versions/af1c280b769e_dated_meals.py` | 汇合 main 迁移，升级到日期日程；遇到非空的旧原型预约会停止 |
+| `versions/c4a91e7d2b60_add_schedule_archive.py` | 课表架：schedules.is_archived（默认 false），存档课表不参与公开查询 |
+| `versions/e9b2f7c4a1d0_add_schedule_sort_order.py` | 课表架拖动顺序 schedules.sort_order（默认 0），GET /schedule/mine 按此排序 |
+| `versions/a7d2e9c14b83_add_schedule_groups.py` | 当前 head：课表群组 schedule_groups / schedule_group_members（邀请码、审批、成员共享课表） |
 
 ### scripts/ — 运维/测试脚本
 
@@ -443,6 +477,9 @@
 | `__init__.py` | Python 包标记（空文件） |
 | `test_auth.py` | 认证测试（注册/登录/Token 刷新/权限） |
 | `test_schedule.py` | 课表对比算法测试（周次交集/同教室检测/时间冲突判定） |
+| `test_schedule_editing.py` | 编辑 API 契约测试：保存/重读/删除、版本冲突、本人权限、公开日程隐私、字段边界、旧数据兼容、按周占用，以及课表架重命名/存档/恢复、存档排除公开查询、拖动排序完整顺序校验和时段边界默认/乱序校验 |
+| `test_schedule_pdf.py` | PDF 解析测试：同格多课、跨页名称拼接、列映射、缺周次告警、PDF 预览接口响应与错误码 |
+| `test_schedule_groups.py` | 群组测试：逐人忙闲统计、真实 PostgreSQL 上的创建/加入/审批/共享/移除/解散流程与隐私脱敏 |
 | `test_schedule_parser.py` | 课表解析测试（ZJUT TXT 格式/周次范围/节次解析/空格/换行/异常格式） |
 | `test_image_processing.py` | 图片处理测试（WebP 生成/尺寸裁剪/防解压炸弹/非法文件拒绝） |
 | `test_permissions.py` | 权限矩阵测试（各角色操作权限验证） |
@@ -477,14 +514,14 @@
 
 | 文件 | 用途 |
 |---|---|
-| `API.md` | 已实现的 94 个 API 路径 / 109 个方法端点；含人机验证、QQ OAuth、主页与绑定契约、安全限流及前后端函数/类型参考 |
+| `API.md` | 已实现的 117 个 API 路径 / 139 个方法端点；含人机验证、QQ OAuth、主页与绑定契约、课表架命名/存档/排序、PDF 课表预览、课表群组、对比页固定约定、课表网格邀请通知、安全限流及前后端函数/类型参考 |
 | `WHATFILE.md` | 本文件 — 项目全部文件用途索引 |
 | `DEPLOYMENT.md` | 部署说明（EdgeOne Pages + 宝塔 2C2G + 本机 PostgreSQL/Redis、关键步骤索引） |
 | `SECURITY.md` | 安全基线（上线前 15 项检查清单、日志脱敏规则、HttpOnly Cookie 会话、OAuth/代理域注意事项） |
 
-### docs/ 迁移说明（本次变更）
+### docs/ 文档变更记录（2026-11-19，历史）
 
-| 文档 | 本次更新内容 |
+| 文档 | 当次更新内容 |
 |---|---|
 | `README.md` | 新增第三方登录/法律页面/图片代理说明、端口与 URL 对照、2026-11-19 变更总览；修正迁移 head 与 API 数量 |
 | `API.md` | 新增 QQ OAuth、第三方绑定、后台 OAuth 测试接口；更新 Cookie 会话、协议同意、代理域 URL、前端函数与服务索引 |
@@ -492,3 +529,19 @@
 | `DEPLOYMENT.md` | 补充 QQ 回调、Cookie 跨域/HTTPS、EdgeOne 前端环境与 OAuth 上线检查 |
 | `BT-DEPLOYMENT.md` | 补充生产环境 QQ 变量、回调地址、HttpOnly Cookie 与代理域说明 |
 | `SECURITY.md` | 补充 7 天 Cookie、CSRF/CORS、QQ state、回调域名白名单、私有图片代理访问策略 |
+
+后续变更（含课表架命名/存档/排序与课表拖动）以 README「变更记录」和 `docs/API.md` 为准；本表仅保留 2026-11-19 的历史记录。
+
+### 课表约定（旧约饭后端保留）
+
+| 项目内路径 | 用途 |
+|---|---|
+| backend/app/models/schedule_appointment.py | 预约、参与者（本人课表、选择、最终确认、站内提醒）、账号级日期日程 |
+| backend/app/services/meal_times.py | 教学周转日期、合并课程与日程占用、缓冲计算和候选排序 |
+| backend/app/services/schedule_appointment.py | 邀约授权与流转、确认写入、取消清理、日程与提醒查询；对比页固定时间约定（按周/星期/节次换算、接受即写双方日程） |
+| backend/migrations/versions/7b3d1c8a4f20_add_schedule_appointments.py | 本地节次原型的建表历史 |
+| backend/migrations/versions/af1c280b769e_dated_meals.py | 汇合 main 迁移，升级到日期日程；遇到非空的旧原型预约会停止 |
+| backend/tests/test_meal_planner.py | 分钟边界、真实 PostgreSQL 上的 API 流程、隐私、失效与回滚验证 |
+| backend/tests/test_schedule_meetup.py | 对比页固定时间约定的真实 PostgreSQL 流程：创建、接受即写双方日程、取消清理 |
+| frontend/src/components/schedule/CalendarAgenda.vue | 本人按日期查看、新增、编辑、删除一次性日程 |
+| backend/app/services/schedule_timing.py | 课表作息 1–24 节的生成/校验、默认 12 节兼容、时段边界默认/规范化，以及给约饭匹配使用的教学日历转换 |
