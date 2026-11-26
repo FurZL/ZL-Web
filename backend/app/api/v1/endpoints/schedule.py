@@ -36,6 +36,7 @@ from app.services.schedule import CourseSlot
 from app.services.schedule import compare as compare_service
 from app.services.schedule_appointment import AppointmentError
 from app.services.schedule_pdf import MAX_PDF_BYTES, PdfParseError, parse_pdf_schedule
+from app.services.schedule_config import require_schedule_feature
 
 router = APIRouter(prefix="/schedule", tags=["schedule"])
 
@@ -64,7 +65,9 @@ async def reorder_schedules(
 async def upload_intent(
     body: ScheduleUploadIntentRequest,
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
+    await require_schedule_feature(db, "file_import_enabled")
     try:
         intent = await schedule_service.create_schedule_upload_intent(
             user=user, filename=body.filename, size_bytes=body.size_bytes
@@ -78,8 +81,10 @@ async def upload_intent(
 async def preview_pdf(
     file: UploadFile = File(...),
     _user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """解析教务 PDF 课表并返回预览；原始 PDF 只在内存中读取，不落库、不写对象存储。"""
+    await require_schedule_feature(db, "file_import_enabled")
     data = await file.read(MAX_PDF_BYTES + 1)
     if len(data) > MAX_PDF_BYTES:
         raise error_to_http(ImageError("PDF_TOO_LARGE", "PDF 文件不能超过 10 MB", 422))
@@ -173,6 +178,7 @@ async def create_fixed_appointment(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await require_schedule_feature(db, "fixed_invite_enabled")
     try:
         result = await schedule_appointment_service.create_fixed_appointment(db, user, body)
     except AppointmentError as exc:
@@ -313,6 +319,7 @@ async def upload_complete(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await require_schedule_feature(db, "file_import_enabled")
     try:
         schedule = await schedule_service.complete_schedule_upload(
             db,
@@ -354,6 +361,8 @@ async def set_visibility(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if body.is_public:
+        await require_schedule_feature(db, "public_share_enabled")
     try:
         result = await schedule_service.set_schedule_visibility(
             db, parse_uuid(schedule_id), body.is_public, user

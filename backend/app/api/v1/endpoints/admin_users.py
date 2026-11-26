@@ -16,11 +16,12 @@ from app.models.user import User
 from app.schemas.auth import UserOut
 from app.services import auth as auth_service
 from app.services.auth import AuthError
+from app.services.audit import audit_admin_mutation
 
 router = APIRouter(
     prefix="/admin/users",
     tags=["admin"],
-    dependencies=[Depends(require_permission_dep("user.approve"))],
+    dependencies=[Depends(require_permission_dep("user.approve")), Depends(audit_admin_mutation)],
 )
 
 ALLOWED_ROLES = {"member", "photographer", "moderator", "admin"}
@@ -84,7 +85,7 @@ async def set_role(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    target = await db.get(User, parse_uuid(user_id))
+    target = await db.scalar(select(User).where(User.id == parse_uuid(user_id)).with_for_update())
     if target is None:
         raise HTTPException(status_code=404, detail={"code": "USER_NOT_FOUND", "message": "用户不存在"})
 
@@ -94,6 +95,9 @@ async def set_role(
             status_code=403,
             detail={"code": "FORBIDDEN", "message": "只有管理员可以修改用户角色"},
         )
+
+    if target.status == "pending":
+        raise HTTPException(status_code=409, detail={"code": "PENDING_APPROVAL", "message": "待审批账号请通过审批流程处理"})
 
     # 不能修改自己（防止误操作锁定自己）
     if target.id == current_user.id:
@@ -124,7 +128,7 @@ async def set_status(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    target = await db.get(User, parse_uuid(user_id))
+    target = await db.scalar(select(User).where(User.id == parse_uuid(user_id)).with_for_update())
     if target is None:
         raise HTTPException(status_code=404, detail={"code": "USER_NOT_FOUND", "message": "用户不存在"})
 
@@ -134,19 +138,19 @@ async def set_status(
             detail={"code": "FORBIDDEN", "message": "只有管理员可以修改用户状态"},
         )
 
+    if target.status == "pending":
+        raise HTTPException(status_code=409, detail={"code": "PENDING_APPROVAL", "message": "待审批账号请通过审批流程处理"})
+
     # 不能禁用自己
     if target.id == current_user.id:
         raise HTTPException(status_code=400, detail={"code": "SELF_CHANGE", "message": "不能修改自己的状态"})
 
+    if target.role in {"moderator", "admin", "super_admin"} and current_user.role != "super_admin":
+        raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": "只有超级管理员可以修改管理员或审核员的状态"})
+
     # 不能禁用 super_admin
     if target.role == "super_admin" and body.status == "disabled":
         raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": "不能禁用超级管理员"})
-    if target.role == "admin" and current_user.role != "super_admin" and body.status == "disabled":
-        raise HTTPException(
-            status_code=403,
-            detail={"code": "FORBIDDEN", "message": "只有超级管理员可以禁用管理员账号"},
-        )
-
     target.status = body.status
     target.is_active = body.status == "active"
 

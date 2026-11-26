@@ -15,11 +15,12 @@ from app.core.database import get_db
 from app.models.user import User
 from app.services.event import EventError
 from app.services import event as event_service
+from app.services.audit import audit_admin_mutation
 
 router = APIRouter(
     prefix="/admin/events",
     tags=["admin"],
-    dependencies=[Depends(require_permission_dep("event.manage"))],
+    dependencies=[Depends(require_permission_dep("event.manage")), Depends(audit_admin_mutation)],
 )
 
 

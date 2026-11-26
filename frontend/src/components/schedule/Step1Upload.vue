@@ -17,6 +17,8 @@ const props = defineProps<{
   slotMoving: boolean
   metaSaving: boolean
   invitations: AppointmentDetail[]
+  fileImportEnabled: boolean
+  publicShareEnabled: boolean
 }>()
 
 const emit = defineEmits<{
@@ -85,6 +87,8 @@ function onFileChange(e: Event) {
           :active-id="activeSchedule?.id ?? null"
           :creating="creating"
           :busy="metaSaving"
+          :file-import-enabled="fileImportEnabled"
+          :public-share-enabled="publicShareEnabled"
           @select="emit('select', $event)"
           @create="(name) => emit('create', name)"
           @rename="(schedule, name) => emit('rename', schedule, name)"
@@ -118,7 +122,7 @@ function onFileChange(e: Event) {
           v-else
           class="mt-5 rounded-2xl border border-dashed border-primary-200 bg-primary-50/40 px-4 py-6 text-center text-sm text-sub"
         >
-          从课表架选择一张课表开始编辑，或新建、恢复、上传一张课表。
+          {{ fileImportEnabled ? '从课表架选择一张课表开始编辑，或新建、恢复、上传一张课表。' : '从课表架选择一张课表开始编辑，或新建、恢复一张课表。' }}
         </div>
 
         <div class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-primary-100/70 pt-4">
@@ -145,6 +149,7 @@ function onFileChange(e: Event) {
       </div>
 
       <label
+        v-if="fileImportEnabled"
         class="mt-5 flex min-h-[15rem] cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed px-5 text-center transition"
         :class="uploadError ? 'border-red-300 bg-red-50/60' : 'border-primary-200 bg-white/40 hover:border-primary-400 hover:bg-primary-50/60'"
         @dragover.prevent
@@ -166,12 +171,14 @@ function onFileChange(e: Event) {
           <p class="mt-2 text-xs leading-5 text-faint">支持 .ics / .txt / .pdf<br />PDF 只解析预览，不保存原文件</p>
         </div>
       </label>
+      <p v-else class="mt-5 text-sm text-sub">文件导入暂不可用。</p>
 
       <div class="mt-5 space-y-2 rounded-2xl bg-ink/[0.04] p-4 text-xs leading-5 text-sub">
         <p class="font-semibold text-ink">上传前记得确认</p>
-        <p>· 上传 ICS / TXT / PDF，或使用浏览器扩展读取教务课表</p>
+        <p v-if="fileImportEnabled">· 上传 ICS / TXT / PDF，或使用浏览器扩展读取教务课表</p>
+        <p v-else>· 可使用浏览器扩展读取教务课表</p>
         <p>· 课表中的教室信息越完整，对比越准确</p>
-        <p>· 上传后可随时切换“仅自己 / 公开中”</p>
+        <p v-if="publicShareEnabled">· 课表可随时切换“仅自己 / 公开中”</p>
       </div>
 
       <section class="mt-5 border-t border-primary-100/70 pt-4">

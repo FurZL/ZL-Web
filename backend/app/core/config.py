@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     cos_dev_prefix: str = Field(default="", alias="COS_DEV_PREFIX")
 
     private_url_ttl_seconds: int = Field(default=900, alias="PRIVATE_URL_TTL_SECONDS")
+    public_api_base_url: str = Field(default="", alias="PUBLIC_API_BASE_URL")
     profile_layout_max_blocks: int = Field(default=16, alias="PROFILE_LAYOUT_MAX_BLOCKS")
 
     # 邮件 / 短信 / 人机验证

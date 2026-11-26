@@ -178,6 +178,26 @@ class ScheduleGroupScheduleRequest(BaseModel):
     schedule_id: UUID | None = None
 
 
+class GroupAvailabilityRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    week: int = Field(ge=1, le=53)
+    member_ids: list[UUID] = Field(min_length=1, max_length=9)
+
+    @model_validator(mode="after")
+    def unique_members(self):
+        if len(set(self.member_ids)) != len(self.member_ids):
+            raise ValueError("不能重复选择成员")
+        return self
+
+
+class GroupFixedInviteRequest(GroupAvailabilityRequest):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    weekday: int = Field(ge=0, le=6)
+    lesson_start: int = Field(ge=1, le=24)
+    title: str = Field(default="群组约定", min_length=1, max_length=128)
+    location: str | None = Field(default=None, max_length=255)
+
+
 class MealWindow(BaseModel):
     date_from: date
     date_to: date

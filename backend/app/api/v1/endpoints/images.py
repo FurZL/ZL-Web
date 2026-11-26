@@ -133,7 +133,7 @@ async def report_image(
 
 
     image = await db.get(Image, uid)
-    if image is None:
+    if image is None or not image.is_public or image.moderation_status != "approved":
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "图片不存在"})
 
     # 不能举报自己的图片

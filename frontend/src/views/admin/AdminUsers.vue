@@ -3,6 +3,11 @@ import { computed, onMounted, ref } from 'vue'
 import { request } from '@/api/client'
 import UserAvatar from '@/components/UserAvatar.vue'
 import type { AdminUser } from '@/types'
+import { useAuthStore } from '@/stores/auth'
+import { useDialog } from '@/composables/useDialog'
+
+const auth = useAuthStore()
+const { showConfirm } = useDialog()
 
 const tab = ref<'pending' | 'all'>('pending')
 const users = ref<AdminUser[]>([])
@@ -10,6 +15,7 @@ const pending = ref<AdminUser[]>([])
 const loading = ref(false)
 const error = ref('')
 const acting = ref<string | null>(null)
+const roleSelections = ref<Record<string, string>>({})
 
 const shown = computed(() => (tab.value === 'pending' ? pending.value : users.value))
 
@@ -23,6 +29,7 @@ async function load() {
     ])
     users.value = a.items
     pending.value = p.items
+    roleSelections.value = Object.fromEntries(a.items.map(u => [u.id, u.role]))
   } catch (e) {
     error.value = e instanceof Error ? e.message : '加载失败'
   } finally {
@@ -67,6 +74,44 @@ const roleLabel: Record<string, string> = {
   moderator: '审核员',
   admin: '管理员',
   super_admin: '超级管理员',
+}
+
+function canEditRole(u: AdminUser) {
+  return u.id !== auth.user?.id && u.status !== 'pending' && (auth.role === 'super_admin' || (auth.role === 'admin' && !['admin', 'super_admin', 'moderator'].includes(u.role)))
+}
+
+function canEditStatus(u: AdminUser) {
+  if (u.id === auth.user?.id || u.status === 'pending' || !auth.isAdmin) return false
+  if (auth.role !== 'super_admin' && ['moderator', 'admin', 'super_admin'].includes(u.role)) return false
+  if (u.status === 'active' && u.role === 'super_admin') return false
+  return true
+}
+
+async function changeRole(u: AdminUser) {
+  const role = roleSelections.value[u.id]
+  if (!role || role === u.role || !(await showConfirm(`确定将 ${u.display_name || u.username} 的角色改为「${roleLabel[role] ?? role}」吗？`))) return
+  acting.value = u.id
+  error.value = ''
+  try {
+    await request({ method: 'PATCH', url: `/admin/users/${u.id}/role`, data: { role } })
+    await load()
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : '修改角色失败'
+  } finally { acting.value = null }
+}
+
+async function changeStatus(u: AdminUser) {
+  const status = u.status === 'active' ? 'disabled' : 'active'
+  const detail = status === 'disabled' ? '禁用后该用户将被退出登录。' : ''
+  if (!(await showConfirm(`确定${status === 'disabled' ? '禁用' : '启用'} ${u.display_name || u.username} 吗？${detail}`))) return
+  acting.value = u.id
+  error.value = ''
+  try {
+    await request({ method: 'PATCH', url: `/admin/users/${u.id}/status`, data: { status } })
+    await load()
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : '修改状态失败'
+  } finally { acting.value = null }
 }
 
 onMounted(load)
@@ -115,9 +160,9 @@ onMounted(load)
     <!-- 用户列表 -->
     <div v-else class="mt-6 space-y-3">
       <div v-for="u in shown" :key="u.id" class="glass-card p-5">
-        <div class="flex items-start gap-4">
+        <div class="flex flex-wrap items-start gap-4">
           <UserAvatar :name="u.display_name || u.username" :size="48" />
-          <div class="flex-1 min-w-0">
+          <div class="flex-1 min-w-[180px]">
             <div class="flex flex-wrap items-center gap-2">
               <span class="font-semibold text-ink">{{ u.display_name }}</span>
               <span class="text-xs text-faint">@{{ u.username }}</span>
@@ -161,8 +206,18 @@ onMounted(load)
             </button>
           </div>
           <span v-else class="text-xs shrink-0 font-medium rounded-full px-2.5 py-0.5" :class="u.status === 'active' ? 'text-emerald-700 bg-emerald-50' : 'text-faint bg-neutral-100'">
-            {{ u.status === 'active' ? '已激活' : u.status }}
+            {{ ({ active: '已激活', disabled: '已禁用', pending: '待审批' } as Record<string, string>)[u.status] ?? u.status }}
           </span>
+        </div>
+        <div v-if="tab === 'all' && (canEditRole(u) || canEditStatus(u))" class="mt-4 flex flex-wrap items-end gap-2 border-t border-primary-100 pt-3">
+          <label v-if="canEditRole(u)" class="text-xs text-sub">角色
+            <select v-model="roleSelections[u.id]" class="input mt-1 block min-w-32" :disabled="acting === u.id">
+              <option value="member">成员</option><option value="photographer">摄影师</option>
+              <template v-if="auth.role === 'super_admin'"><option value="moderator">审核员</option><option value="admin">管理员</option><option value="super_admin">超级管理员</option></template>
+            </select>
+          </label>
+          <button v-if="canEditRole(u)" class="btn-sm" :disabled="acting === u.id || roleSelections[u.id] === u.role" @click="changeRole(u)">保存角色</button>
+          <button v-if="canEditStatus(u)" class="btn-sm" :disabled="acting === u.id" @click="changeStatus(u)">{{ u.status === 'active' ? '禁用账号' : '启用账号' }}</button>
         </div>
       </div>
     </div>

@@ -229,7 +229,10 @@ const tabs = [
 
 <template>
   <div>
-    <h1 class="text-2xl font-bold text-ink">网站设置</h1>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h1 class="text-2xl font-bold text-ink">网站设置</h1>
+      <RouterLink to="/admin/audit" class="btn-sm">操作审计</RouterLink>
+    </div>
     <p class="mt-1 text-sm text-sub">社团介绍、Logo、页脚备案信息、法律链接与注册控制</p>
 
     <!-- Tab 切换 -->

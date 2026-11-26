@@ -41,6 +41,7 @@ const fixedLabel = computed(() => {
 })
 
 const otherName = computed(() => {
+  if (props.invitation?.is_group) return props.invitation.participants.find(item => item.role === 'organizer')?.username ?? '群组成员'
   const participant = props.invitation?.participants.find(item => item.role !== (props.invitation?.viewer_participant.role ?? 'invitee'))
   return participant?.username ?? '对方'
 })
@@ -93,6 +94,10 @@ function decline() {
         </div>
 
         <p v-if="invitation.notice" class="rounded-xl bg-primary-50 px-3 py-2 text-sm text-sub">{{ invitation.notice }}</p>
+        <div v-if="invitation.is_group" class="text-sm text-sub">
+          <p class="font-medium text-ink">参与成员</p>
+          <p v-for="person in invitation.participants" :key="person.username" class="mt-1">{{ person.username }} · {{ person.status === 'accepted' ? '已接受' : person.status === 'declined' ? '已婉拒' : '待回应' }}</p>
+        </div>
 
         <template v-if="canAccept">
           <label class="label">参与约定的课表
@@ -103,27 +108,29 @@ function decline() {
               </option>
             </select>
           </label>
-          <p class="text-xs leading-5 text-sub">接受后会重新核对双方课表和已有日程；通过后自动加入双方「我的日程」。</p>
+          <p class="text-xs leading-5 text-sub">{{ invitation.is_group ? '接受后将等待其他成员回应，全部接受并复核通过后加入各自日程。' : '接受后会重新核对双方课表和已有日程；通过后自动加入双方「我的日程」。' }}</p>
           <p v-if="localError || error" role="alert" class="text-sm text-red-600">{{ localError || error }}</p>
           <div class="flex flex-wrap justify-end gap-2 pt-1">
             <button type="button" class="btn-ghost" :disabled="saving" @click="decline">婉拒</button>
             <button type="submit" class="btn-primary" :disabled="saving || !selectedScheduleId">
-              {{ saving ? '处理中…' : '接受并加入双方日程' }}
+              {{ saving ? '处理中…' : invitation.is_group ? '接受邀请' : '接受并加入双方日程' }}
             </button>
           </div>
         </template>
 
         <template v-else-if="invitation.status === 'pending'">
-          <p class="text-sm text-sub">邀请已经发出，等待对方接受。接受后会自动加入双方日程。</p>
+          <p class="text-sm text-sub">{{ invitation.is_group ? '等待所有成员接受。全部接受后会重新核对时间。' : '邀请已经发出，等待对方接受。接受后会自动加入双方日程。' }}</p>
           <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
           <div class="flex justify-end">
-            <button type="button" class="btn-sm-danger" :disabled="saving" @click="emit('cancel', invitation.id)">取消这次约定</button>
+            <button v-if="invitation.viewer_participant.role === 'organizer'" type="button" class="btn-sm-danger" :disabled="saving" @click="emit('cancel', invitation.id)">取消这次约定</button>
           </div>
         </template>
 
         <template v-else>
-          <p class="text-sm text-sub">这次邀请状态：{{ invitation.status }}，无需再处理。</p>
-          <div class="flex justify-end">
+          <p class="text-sm text-sub">{{ invitation.status === 'confirmed' ? '约定已确认，已加入参与者日程。' : `这次邀请状态：${invitation.status}` }}</p>
+          <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
+          <div class="flex justify-end gap-2">
+            <button v-if="invitation.is_group && invitation.status === 'confirmed'" type="button" class="btn-sm-danger" :disabled="saving" @click="emit('cancel', invitation.id)">取消这次约定</button>
             <button type="button" class="btn-sm" @click="emit('close')">关闭</button>
           </div>
         </template>

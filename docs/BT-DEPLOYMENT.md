@@ -154,6 +154,7 @@ COS_SECRET_KEY=<COS_SECRET_KEY>
 COS_REGION=<COS_REGION>
 COS_BUCKET=<COS_BUCKET>
 PUBLIC_ASSET_BASE_URL=https://img.furzl.cn
+PUBLIC_API_BASE_URL=https://api.furzl.cn
 PRIVATE_URL_TTL_SECONDS=900
 PROFILE_LAYOUT_MAX_BLOCKS=16
 
@@ -198,7 +199,7 @@ SENTRY_DSN=
 COS_DEV_PREFIX=
 ```
 
-`PUBLIC_ASSET_BASE_URL` 是图片公开访问域名。`img.furzl.cn` 需通过 CDN/EdgeOne/COS 自定义域名回源到对象桶；暂时未准备该域名时，可改为 COS 默认公开域名，或留空让程序回退到 COS 默认域名。
+`PUBLIC_ASSET_BASE_URL` 是公开图片访问域名。`img.furzl.cn` 需通过 CDN/EdgeOne/COS 自定义域名回源到对象桶；暂时未准备该域名时，可改为 COS 默认公开域名，或留空让程序回退到 COS 默认域名。前后端跨域部署时，`PUBLIC_API_BASE_URL` 必须填写浏览器可访问的 API 源，供私有图片票据 URL 使用；不可包含 `/api/v1` 路径。
 
 ## 9. 执行数据库迁移
 
@@ -318,7 +319,7 @@ python scripts/setup_cos_cors.py
 python scripts/setup_cos_public_read.py
 ```
 
-COS 桶默认私有，公开内容走 `PUBLIC_ASSET_BASE_URL` 代理域。应用返回的私有缩略图/下载 URL 也使用代理域但不带 COS 签名，因此在代理/CDN 层必须限制 `private/` 的访问；不要把 COS 桶改为整桶公有读来“修复”私有图。
+COS 桶默认私有，公开内容走 `PUBLIC_ASSET_BASE_URL`。个人相册使用后端短期票据代理；COS/CDN 仍必须禁止 `private/` 直读，不要把桶改为整桶公有读。
 
 ## 13. 上线验证清单
 
@@ -386,12 +387,7 @@ EdgeOne Pages 需要开启 SPA 回退：
 
 ## 15. 备份与日常维护
 
-数据库备份：
-
-```bash
-mkdir -p /opt/furry-zjut/backups
-pg_dump -U furry_app -h 127.0.0.1 -d furry_zjut -Fc -f /opt/furry-zjut/backups/furry_zjut_$(date +%F_%H%M).dump
-```
+数据库备份与隔离恢复请使用 `deploy/scripts/backup-furry-zjut.sh` 和 `verify-backup-furry-zjut.sh`，配置 age 公钥、独立上传钩子与告警；具体步骤及尚待生产验收事项见 `docs/DEPLOYMENT.md`。不要把未加密 dump 保存在普通备份目录。
 
 更新后端：
 
@@ -405,22 +401,13 @@ systemctl restart furry-zjut-api
 systemctl status furry-zjut-api
 ```
 
-回滚：
-
-```bash
-cd /opt/furry-zjut/backend
-git checkout <PREVIOUS_COMMIT>
-source venv/bin/activate
-pip install -e .
-alembic -c alembic.ini downgrade -1
-systemctl restart furry-zjut-api
-```
+回滚前先确认可恢复的备份，核对目标版本与当前数据库结构的兼容性，并审查涉及的迁移及其 downgrade 行为。不要机械执行 `downgrade -1`：它可能删除图片任务等数据，也不一定对应目标代码版本。先在隔离环境演练，再按具体版本制定代码和数据库回滚步骤；数据库无需降级时不要降级。
 
 ## 16. 常见问题
 
-- `/ready` 返回 `degraded`：检查 Redis 是否监听 `127.0.0.1` 且密码配置正确。
+- `/ready` 返回 HTTP 503 / `degraded`：分别检查响应中的 `database`、`redis` 状态以及数据库/Redis 连接配置。
 - 前端请求跨域失败：确认后端 `FRONTEND_ORIGINS` 只包含真实前端来源，逗号分隔，无 `*`，无末尾斜杠。
-- 私有图片打不开：先核对 `PUBLIC_ASSET_BASE_URL`、代理域回源和 EdgeOne/COS 路径映射；当前应用返回代理域 URL，不带 COS 签名。`PRIVATE_URL_TTL_SECONDS` 仍用于上传凭证等兼容字段，不要把它当作私有展示 URL 的签名期限。
+- 私有图片打不开：先核对 `PUBLIC_API_BASE_URL` 是否为浏览器可访问的 API 源、后端与 COS 的连接、票据是否过期以及图片授权；`PRIVATE_URL_TTL_SECONDS` 控制私有图片票据有效期，也用于上传凭证有效期。`PUBLIC_ASSET_BASE_URL` 用于公开图片和头像，不负责个人相册票据代理。
 - QQ 登录失败：核对 `QQ_APP_ID`/`QQ_APP_KEY`、QQ 互联登记的回调地址 `https://www.furzl.cn/oauth/qq`、`OAUTH_FRONTEND_BASE_URL`，以及 `FRONTEND_ORIGINS` 是否包含 `https://www.furzl.cn`；后台「第三方登录」总开关和 QQ 子开关也必须打开。
 - 登录后新标签页掉线：确认浏览器允许 `api.furzl.cn` 的 `HttpOnly` Cookie，生产使用 HTTPS、`AUTH_COOKIE_SAMESITE=lax`，并检查 CORS 是否允许正式前端来源携带凭据。
 - `/docs` 能打开：说明 `APP_ENV` 不是 `production`，重启服务前先修正环境文件。

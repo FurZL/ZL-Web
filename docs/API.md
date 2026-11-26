@@ -1,7 +1,7 @@
 # Furry ZJUT API 文档
 
-> 当前代码的 OpenAPI 注册 **117 个 API 路径（139 个方法端点）**。本数量包含约饭和日期日程、课表对比页直接约时间、课表架重命名/存档/拖动排序、PDF 课表预览、课表群组、人机验证、个人主页发布/丢弃/主题/素材、匿名公开页、QQ OAuth 登录/绑定及 OAuth Provider 测试接口。
-> 统一前缀：`/api/v1`，统一响应格式：`{"success": bool, "data": ..., "error": {"code", "message"}, "request_id": str}`
+> 当前代码的 OpenAPI 注册 **130 个 API 路径（153 个方法端点）**。本数量包含图片处理任务、仪表盘、举报处理、群组多人邀约、课表运营配置与审计等接口。
+> 统一前缀：`/api/v1`。大多数业务接口使用 `{"success": bool, "data": ..., "error": {"code", "message"}, "request_id": str}`；健康检查等接口以各端点说明为准。
 
 ## 通用约定
 
@@ -28,11 +28,11 @@
 }
 ```
 
-- 所有列表接口支持分页，限制最大 page size。
+- 各列表的分页能力以具体端点实现为准；例如用户管理列表当前一次性返回全部记录。
 - 写操作使用权限校验；报名等关键操作用幂等键。
 - API 文档仅在开发环境或管理员授权后公开；生产禁用。
 - 登录、OTP 发送、刷新令牌与密码重置按客户端 IP 做应用层限流，超限返回 HTTP 429 `RATE_LIMITED`。
-- 图片展示、私有缩略图、下载和头像通过 `PUBLIC_ASSET_BASE_URL` 代理域返回；URL 本身不带 COS 签名，访问控制依赖代理域回源策略。COS 原生预签名 URL 只用于浏览器上传直传，不返回给展示/下载接口。
+- 公开图库图片和头像使用 `PUBLIC_ASSET_BASE_URL`；个人相册原图和缩略图通过后端短期票据及 `/profile/media` 代理读取。`PUBLIC_API_BASE_URL` 在跨域部署时应设置为浏览器可访问的 API 源。COS 原生预签名 URL 用于上传直传；COS/CDN 必须禁止直接读取 `private/`，详见 `SECURITY.md`。
 - 用户角色与状态变更仅管理员可操作；授予/修改 `admin`、`super_admin`、`moderator` 角色仅 `super_admin` 可执行。
 - 生产环境同时关闭 `/docs`、`/redoc`、`/openapi.json`。
 - QQ 登录与绑定：`POST /auth/oauth/qq/start`、`POST /auth/oauth/qq/bind-start`、`GET /auth/oauth/qq/callback`、`POST /auth/oauth/qq/bind`、`GET /auth/oauth/providers`；`state`/授权码经 Redis 短时效保存并一次性消费，前端回调页只负责完成登录态。
@@ -56,9 +56,20 @@
 | 动态页面 | `/pages` | `endpoints/pages.py` |
 | 站点配置 | `/site` | `endpoints/site.py` |
 | 用户管理 | `/admin/users` | `endpoints/admin_users.py` |
+| 课表运营管理 | `/admin/schedule` | `endpoints/admin_schedule.py` |
+| 操作审计 | `/admin/audit` | `endpoints/admin_audit.py` |
+| 管理仪表盘 | `/admin/dashboard` | `endpoints/admin_dashboard.py` |
 | 网站设置 | `/admin/settings` | `endpoints/admin_settings.py` |
 
 ---
+
+## 管理操作审计 `/admin/audit`
+
+`GET /admin/audit` 需要 `site_config.manage` 权限。支持 `page`（从 1 开始）、`page_size`（1–100，默认 20）、`target_type`、`action`、`actor_id`（UUID）及带时区的 `start` / `end`；条件精确匹配，时间区间包含边界。响应为 `{items, total, page, page_size}`，按时间和 ID 倒序。每项包含 `id`、`actor_id`、`actor_name`、`action`、`target_type`、`target_id`、`request_id`、`ip_masked`、`changes` 和 `created_at`；历史课表设置审计也可查询。
+
+用户审批/角色/状态、网站设置和社团介绍、图片审核/可见性/标签/删除、公告和活动管理（包括管理员签到）、动态页面及发布/回滚写入同一 PostgreSQL 事务。仅保存白名单状态等前后值和其他修改字段名；正文、联系方式、密码、令牌、任意设置值不写入。注册和 QQ 设置中明确允许的布尔开关例外。无实际业务字段变化不生成新记录。失败请求、登录失败和用户自己的课表/群组操作尚未纳入。数据库变更与记录同事务，但对象存储操作属于外部副作用，不参与数据库事务。
+
+审计表不是防篡改数据库；需要防管理员或数据库操作者篡改时，应配置独立权限、备份或外部日志归档。
 
 ## 认证说明
 
@@ -77,7 +88,7 @@
 | 方法 | 路径 | 认证 | 说明 |
 |---|---|---|---|
 | GET | `/health` | 无 | 存活检查，返回 `{status: "ok"}` |
-| GET | `/ready` | 无 | 就绪检查，返回 `{status, redis}`（DB/Redis 连通性） |
+| GET | `/ready` | 无 | 检查 PostgreSQL `SELECT 1` 和 Redis `PING`，返回 `{status, database, redis}`；任一失败或超时返回 503 |
 
 ---
 
@@ -88,13 +99,15 @@
 | POST | `/auth/register` | 无 | 注册（受 registration_config 门控，关闭返回 403；密码须含大小写字母和数字；前端须传 password_confirm；须同意用户协议与隐私政策） |
 | POST | `/auth/verify/email` | 无 | 邮箱 OTP 验证（120s 冷却，须先通过人机验证，传入 verification_token） |
 | POST | `/auth/verify/phone` | 无 | 手机 OTP 验证（120s 冷却，须先通过人机验证，传入 verification_token） |
-| POST | `/auth/login` | 无 | 登录（须先通过人机验证，传入 verification_token），返回 `{access_token, refresh_token, user}` |
-| POST | `/auth/refresh` | Refresh Cookie | 刷新 Access Token（轮换 Refresh Token；Cookie 缺失时也可传 body.refresh_token） |
+| POST | `/auth/login` | 无 | 登录（须先通过人机验证），返回 `{access_token, user}`，Refresh Token 仅写入 HttpOnly Cookie |
+| POST | `/auth/refresh` | Refresh Cookie | 轮换 Refresh Token 并检测会话族重放；Cookie 缺失时可传 body.refresh_token，响应不包含 Refresh Token |
 | POST | `/auth/logout` | Refresh Cookie | 登出（撤销当前 Refresh Token Cookie） |
 | POST | `/auth/logout-all` | Bearer | 登出所有设备（撤销全部会话并清除 Refresh Cookie） |
 | POST | `/auth/password/forgot` | 无 | 找回密码（发送验证码） |
 | POST | `/auth/password/reset` | 无 | 重置密码（验证码 + 新密码；真实更新密码 + 撤销全部会话） |
 | GET | `/auth/me` | Bearer | 获取当前用户信息（含 bio/avatar_url） |
+
+使用 Cookie 的 refresh/logout 必须提供匹配 `FRONTEND_ORIGINS` 的 Origin，缺失 Origin 时可使用同源 Referer；不匹配返回 403。登录请求若带 Origin 也须匹配。旧 Access Token 需通过刷新换取带用途标识的新令牌。Web Locks 可用时前端会串行化跨标签页刷新。
 
 ### 阿里云短信（2026-11-16）
 
@@ -133,12 +146,12 @@ QQ 的 App ID / App Key 只从后端环境变量读取；`state` 与未绑定账
 | GET | `/auth/oauth/providers` | 无 | 返回可用的第三方登录方式及 `frontend_base_url` |
 | POST | `/auth/oauth/{provider}/start` | 无 + 人机验证 | 发起第三方登录，返回 `{authorize_url}`；`provider` 目前仅支持 `qq` |
 | POST | `/auth/oauth/{provider}/bind-start` | Bearer + 人机验证 | 已登录用户发起账号绑定，返回 `{authorize_url}` |
-| GET | `/auth/oauth/{provider}/callback` | 无 | QQ 回调：消费 `state`，换取 QQ 身份。已绑定时返回 `{bound:true,user,access_token,refresh_token}` 并写入 Refresh Cookie；未绑定时返回 `{bound:false,oauth_token,nickname,return_to}` |
+| GET | `/auth/oauth/{provider}/callback` | 无 | QQ 回调：消费 `state`，换取 QQ 身份。已绑定时返回 `{bound:true,user,access_token}` 并写入 Refresh Cookie；未绑定时返回 `{bound:false,oauth_token,nickname,return_to}` |
 | POST | `/auth/oauth/{provider}/bind` | 人机验证 | 未绑定 QQ 用本站账号密码完成绑定并登录；请求 `{oauth_token,account,password,verification_token}` |
 
 `start` / `bind-start` 请求体为 `{verification_token, return_to?}`。`return_to` 只允许站内绝对路径（必须以 `/` 开头且不能是 `//`），否则返回 400 `INVALID_RETURN_TO`。回调参数为 `code` 与 `state`。
 
-服务端当前响应仍保留 `refresh_token` 字段用于兼容；浏览器端只使用后端设置的 `HttpOnly` Cookie，前端 `OauthResolveResult` 虽保留该字段类型，但不会写入 `sessionStorage`。
+OAuth 登录与绑定均通过 HttpOnly Cookie 返回 Refresh Token，JSON 不包含该令牌。
 
 常见错误：`CAPTCHA_REQUIRED`（未完成拼图验证）、`OAUTH_DISABLED`（后台关闭该方式）、`OAUTH_QQ_UNAVAILABLE`（App ID/Key 未配置）、`OAUTH_STATE_INVALID`（state 过期/已消费）、`OAUTH_ALREADY_BOUND`（该 QQ 已绑定其他账号）、`OAUTH_PENDING_EXPIRED`（未绑定临时凭证过期）、`PENDING_APPROVAL` / `ACCOUNT_DISABLED`。
 
@@ -168,7 +181,7 @@ QQ 的 App ID / App Key 只从后端环境变量读取；`state` 与未绑定账
 | POST | `/images/upload-complete` | 摄影师+ | 上传完成（后端 HEAD 复核 + 落库） |
 | GET | `/images/{image_id}/download` | Bearer | 返回原图代理域下载 URL（不暴露 COS 原生预签名地址） |
 | DELETE | `/images/{image_id}` | Bearer | 删除图片（仅上传者本人或有 gallery.image.delete.any 权限；含派生图清理） |
-| POST | `/images/{image_id}/report` | Bearer | 举报图片（不能举报自己的图片；同一图片仅一条未处理举报） |
+| POST | `/images/{image_id}/report` | Bearer | 举报已公开且审核通过的图片（不能举报自己的图片；同一用户对同一图片仅一条未处理举报） |
 
 **上传流程**：`upload-intent` → 前端直传 COS → `upload-complete` → 后台 worker 生成缩略图（800px）/展示图（2000px）WebP。
 
@@ -186,12 +199,12 @@ QQ 的 App ID / App Key 只从后端环境变量读取；`state` 与未绑定账
 | POST | `/profile/me/layout/publish` | Bearer | 校验草稿后发布，返回带时区的 published_at |
 | POST | `/profile/me/layout/discard` | Bearer | 丢弃草稿并恢复到已发布版本，返回完整布局 |
 | PUT | `/profile/me/theme` | Bearer | 严格校验并保存主题，返回完整布局 |
-| GET | `/profile/me/media` | Bearer | 本人所有私有图片素材及代理域 URL（含展示授权状态） |
+| GET | `/profile/me/media` | Bearer | 本人所有私有图片素材及后端短期票据 URL（含展示授权状态） |
 | PATCH | `/profile/me/images/{image_id}` | Bearer | 更新本人私有图的展示授权 is_displayable（已实现） |
 | GET | `/profile/{username}/page` | 无 | 匿名读取已发布且公开的个人主页 |
 | POST | `/profile/me/images/upload-intent` | Bearer | 私有图片上传凭证 |
 | POST | `/profile/me/images/upload-complete` | Bearer | 私有图片上传完成 |
-| GET | `/profile/me/images/{image_id}/url` | Bearer | 返回私有图代理域 URL（后端先校验本人归属） |
+| GET | `/profile/me/images/{image_id}/url` | Bearer | 校验本人归属后返回带短期票据的后端原图 URL |
 | DELETE | `/profile/me/images/{image_id}` | Bearer | 删除私有图片 |
 | POST | `/profile/me/avatar/upload-intent` | Bearer | 头像上传凭证（返回 COS 预签名 URL，限 5MB） |
 | POST | `/profile/me/avatar/upload-complete` | Bearer | 头像上传完成（验证对象存在，自动清理旧头像） |
@@ -262,7 +275,7 @@ QQ 的 App ID / App Key 只从后端环境变量读取；`state` 与未绑定账
 | `stats` | 3 / 4 / 6 / 12 | items 最多 2 项，仅 joined_days / gallery_image_count |
 | `html_block` | 12 | html ≤ 24576 字符；height 仅 200 / 400 / 600；前端使用隔离 iframe 渲染 |
 
-照片和背景素材必须是本人的 `ProfileImage`、已开启 `is_displayable`，且对象 Key 位于 `private/profiles/{当前用户 id}/` 前缀下。`media` 按 object_key 映射 `{thumb_url, display_url, width, height}`，仅包含符合这些条件的引用素材；缩略图与展示图都通过 `PUBLIC_ASSET_BASE_URL` 代理域返回，URL 不带 COS 签名，访问控制依赖代理域回源策略。`stats` 在每次布局/公开主页读取时重新计算：`joined_days` 为账号创建后经过的完整 24 小时数；`gallery_image_count` 只统计本人 `approved` 且 `is_public=true` 的公开图库图片，不包含个人空间私有相册。
+照片和背景素材必须是本人的 `ProfileImage`、已开启 `is_displayable`，且对象 Key 位于 `private/profiles/{当前用户 id}/` 前缀下。`media` 按 object_key 映射 `{thumb_url, display_url, width, height}`；URL 为后端短期签名票据，非 COS 地址。公开票据每次访问时复核主页发布状态、引用和展示授权；本人票据仅通过认证接口签发。`stats` 在每次布局/公开主页读取时重新计算：`joined_days` 为账号创建后经过的完整 24 小时数；`gallery_image_count` 只统计本人 `approved` 且 `is_public=true` 的公开图库图片，不包含个人空间私有相册。
 
 `PATCH /profile/me/images/{image_id}` 接受严格请求体 `{"is_displayable": true}`，拒绝额外字段和字符串/整数布尔值，成功返回 `{"id": "图片 UUID", "is_displayable": true}`。此标记默认 `false`，不会自动发布主页或把私有相册整体公开。
 
@@ -271,7 +284,8 @@ QQ 的 App ID / App Key 只从后端环境变量读取；`state` 与未绑定账
 - `POST /profile/me/layout/publish` 不接受请求体。草稿为空时返回 422 `PROFILE_LAYOUT_EMPTY`；成功时把通过结构与素材授权复核的草稿复制到已发布版本，并返回 `{ "published_at": "ISO-8601 with timezone" }`。
 - `POST /profile/me/layout/discard` 不接受请求体。草稿恢复为已发布块；尚无已发布版本时恢复为空数组。响应与 `GET /profile/me/layout` 同形。
 - `PUT /profile/me/theme` 请求体为 `ProfileTheme` 对象本身，包含 `primary`、`accent`、`background_type`、`background_key`、`background_blur`、`card_style`。颜色必须为 `#RRGGBB`，类型/卡片样式只能取已定义枚举，模糊度为整数 `0–20`，额外字段拒绝。非空 `background_key` 必须是本人可展示的私有图片。成功响应与 `GET /profile/me/layout` 同形。
-- `GET /profile/me/media` 返回 `{ "items": [...] }`。列表包括本人所有私有图片（无论 `is_displayable` 状态），字段为 `id`、`object_key`、`title`、`created_at`、`is_displayable`、`thumb_url`、`display_url`、`width`、`height`。对象 Key 必须位于本人 `private/profiles/{user_id}/` 前缀；URL 使用代理域生成，响应中的 `media_expires_in` 仍保留为兼容值。
+- `GET /profile/me/media` 返回 `{ "items": [...] }`。列表包括本人所有私有图片（无论 `is_displayable` 状态），字段为 `id`、`object_key`、`title`、`created_at`、`is_displayable`、`thumb_url`、`display_url`、`width`、`height`。对象 Key 必须位于本人 `private/profiles/{user_id}/` 前缀；URL 的有效期为 `PRIVATE_URL_TTL_SECONDS`。
+- `GET /profile/media/{image_id}/{thumb|original}?ticket=...` 验证短期票据并代理图片，过期、篡改或授权撤销返回 404；响应 `Cache-Control: private, no-store`。票据本身是临时访问凭证，日志不得记录查询字符串。
 - `GET /profile/{username}/page` 无需登录。仅当用户为 active、存在布局、`is_public=true` 且 `published_blocks` 非 `null` 时返回主页。用户不存在、未发布、设为私有或未启用都统一返回 404 `PROFILE_PAGE_NOT_FOUND` / `该用户还没有公开主页`。响应中的 `user` 只含 `username`、`display_name`、`avatar_url`；公开素材仅返回已发布内容引用且仍为本人授权展示的图片，不返回邮箱、手机号或用户 UUID 字段。
 
 对应服务函数：`publish_layout()`（发布及素材复核）、`discard_layout()`（恢复草稿）、`put_theme()`（主题持久化）、`get_media_options()`（本人素材清单）、`get_public_page_payload()`（公开主页与隐私过滤）。
@@ -294,6 +308,19 @@ QQ 的 App ID / App Key 只从后端环境变量读取；`state` 与未绑定账
 ---
 
 ## 六、课表 `/schedule`
+
+### 课表运营配置
+
+`GET /site/public-config` 包含 `schedule_config`，由四个布尔字段组成，默认均为 `true`：`file_import_enabled`（ICS/TXT 上传与 PDF 预览）、`group_join_enabled`（创建或加入群组）、`public_share_enabled`（新增公开分享）、`fixed_invite_enabled`（发起固定时间邀约）。浏览器扩展和手工创建不受文件导入开关影响。关闭时相应新操作由后端返回 403 `SCHEDULE_FEATURE_DISABLED`；已有公开课表不会自动撤销，用户仍可改回私有；已有群组和邀约仍可管理。配置发生变化后，已打开的课表页面需重新进入或刷新才能读取新配置，服务端立即执行新规则。
+
+| 方法 | 路径 | 权限 | 说明 |
+|---|---|---|---|
+| GET | `/admin/schedule/config` | `site_config.manage` | 获取四项课表开关 |
+| PUT | `/admin/schedule/config` | `site_config.manage` | 完整提交四个严格布尔字段；设置与变更审计在同一事务提交 |
+| GET | `/admin/schedule/overview` | `site_config.manage` | 返回课表总数、存档数、公开数、群组数与邀约状态数量；不返回课程或个人日程 |
+| GET | `/admin/schedule/audit` | `site_config.manage` | 最近 50 条课表设置变更（操作者、时间、变更前后开关值） |
+
+通用 `PUT /admin/settings/` 拒绝 `schedule_config`，避免绕过专用接口的校验与审计。该概况不包含历史导入成功率，现阶段没有新增导入事件记录。
 
 | 方法 | 路径 | 认证 | 说明 |
 |---|---|---|---|
@@ -340,13 +367,17 @@ QQ 的 App ID / App Key 只从后端环境变量读取；`state` 与未绑定账
 | PATCH | `/schedule/groups/{group_id}` | 群主 | 改名或切换 `join_mode` |
 | DELETE | `/schedule/groups/{group_id}` | 群主 | 解散群组 |
 | PUT | `/schedule/groups/{group_id}/schedule` | 群成员 | 设置本人共享给群的课表 `{schedule_id}`，`null` 取消 |
+| POST | `/schedule/groups/{group_id}/availability` | 活跃群成员 | `{week, member_ids}` 查询本人及 1–9 个指定成员的共同空闲 |
+| POST | `/schedule/groups/{group_id}/appointments` | 活跃群成员 | `{week, member_ids, weekday, lesson_start, title, location?}` 发起一个单节固定时间的群组邀约 |
 | POST | `/schedule/groups/{group_id}/members/{user_id}/approve` | 群主 | 同意待审批成员 |
 | POST | `/schedule/groups/{group_id}/members/{user_id}/reject` | 群主 | 拒绝待审批成员 |
 | DELETE | `/schedule/groups/{group_id}/members/{user_id}` | 群主/本人 | 移除成员或自己退群 |
 
 - 群组名 1–50 字；邀请码 8 位大写字母/数字（去掉易混淆字符），不区分大小写；`join_mode` 为 `open` / `approval`。每个用户最多同时加入 20 个群组，群组最多 50 名有效成员。
 - 成员只能共享自己**未存档**的课表；仅 active 成员可设置共享课表。其他成员看到课程名称/地点/校区，但 event（个人日程）统一脱敏为“已有安排”、地点为空；待审批成员看不到邀请码、成员课表或统计。非成员访问统一 404。
-- 群组详情以“我”为基准，逐人返回 `stats`：`both_free`（双方都空闲的 7×节次格数）、`both_busy`、`my_busy_only`、`their_busy_only`、`same_classroom`，以及 `lesson_count`。指定 `week` 时只统计该周；不提供全组共同空闲。点击成员后前端复用 `POST /schedule/compare` 进入双人周课表对比。
+- 群组详情以“我”为基准，逐人返回 `stats`：`both_free`（双方都空闲的 7×节次格数）、`both_busy`、`my_busy_only`、`their_busy_only`、`same_classroom` 和 `lesson_count`；点击成员可进入双人对比。
+- 多人查询需要所有所选用户为活跃群成员、账号可用、共享未存档课表且设置学期第一周。返回 `{week, member_count, slots}`，每项只有 `{weekday, lesson, starts_at, ends_at}`；以发起人的真实日期和单节作息为基准，将所有参与者的课程和账号级日期日程换算到实际时间。不会返回个人日程名称、地点或逐人忙闲。不可覆盖的学期或未设置作息返回 409。结果仅作建议，发起和最终接受时会复核。
+- 多人邀约最多 10 人（含发起人），遵循 `fixed_invite_enabled`。重复的同一发起人、参与者集合和时段的待处理邀约返回 409；任何受邀人婉拒即整体结束。部分接受时不写日程；最后一人接受时按参与者最新课表及日期日程复核，全部空闲才同一事务写入各自日程，冲突返回 409。任何参与者可取消已确认邀约并删除关联日程。邀约建立后参与者固定，后续退群或解散群组不会自动撤销已发出的邀请；邀请在开始时间或 3 天后（取较早者）到期。列表响应 `mode=fixed` 并带 `is_group=true` 及参与者状态。
 - 群主不能直接退群（避免无主群）；可解散群组。当前版本没有邀请链接有效期、二维码、群内备注/显示名和成员上传文件，邀请码即入口；这些可作为后续迭代。
 
 例如仅第 8 周周三第 5–6 节的个人日程：
@@ -435,11 +466,22 @@ QQ 的 App ID / App Key 只从后端环境变量读取；`state` 与未绑定账
 | 方法 | 路径 | 认证 | 说明 |
 |---|---|---|---|
 | GET | `/admin/images/stats` | 管理员 | 图片统计（总数/待审核/已通过/已拒绝） |
+| GET | `/admin/images/processing-jobs` | 管理员 | 图片处理任务列表；支持状态筛选和分页，不返回私有图片内容 |
+| POST | `/admin/images/processing-jobs/{id}/retry` | 管理员 | 重试失败任务，图片或对象已删除返回 404，任务非失败状态返回 409，操作写入审计 |
+| GET | `/admin/images/reports` | 图片管理权限 | 图片举报列表，支持 `status=open/handled/dismissed`、`page`、`page_size`（上限 50） |
+| GET | `/admin/images/reports/{id}/image` | 图片管理权限 | 读取举报对应图片的管理详情；图片不存在时返回 404 |
+| PATCH | `/admin/images/reports/{id}` | 图片管理权限 | `{outcome: handled/dismissed/hide}`；`hide` 原子地将图片设为拒绝、非公开并处理举报；已处理返回 409 |
 | GET | `/admin/images/` | 管理员 | 图片列表（支持 status/is_public 筛选 + 分页） |
 | PATCH | `/admin/images/{id}/moderation` | 管理员 | 审核（pending → approved / rejected） |
 | PATCH | `/admin/images/{id}/visibility` | 管理员 | 公开/私有开关 |
 | PUT | `/admin/images/{id}/tags` | 管理员 | 编辑标签 |
 | DELETE | `/admin/images/{id}` | 管理员 | 删除图片（含派生图清理） |
+
+举报处理记录操作者及处理时间，举报状态和图片审核变化进入审计。对已删除图片可标记处理或驳回，不能选择下架。
+
+`GET /admin/dashboard/overview` 需 `site_config.manage`，返回 `users`、`pending_users`、`images`、`registrations`、`open_reports`。报名数只计 `registered` 和 `checked_in`，不计候补和取消；待处理举报只计图片举报。
+
+用户审批仅接受 `pending` 状态；待审批用户不能通过角色/状态接口绕过审批。普通管理员不能修改管理员、超级管理员或审核员的状态，授予或修改这些角色仅超级管理员可操作；不能修改自己的角色或状态，不能禁用超级管理员。
 
 ---
 
@@ -723,7 +765,7 @@ QQ 的 App ID / App Key 只从后端环境变量读取；`state` 与未绑定账
 | `decode_access_token(token) -> dict` | 解码并验证 JWT |
 | `register_user(db, ...) -> User` | 注册用户（创建 pending 状态，含摄影师申请；写入协议版本与 `legal_accepted_at`） |
 | `login(db, account, password) -> dict` | 登录（校验密码 → 生成 token 对 → 记录会话） |
-| `refresh_tokens(db, refresh_token) -> dict` | 刷新令牌（轮换 + 旧令牌复用检测 → 撤销会话族） |
+| `refresh_tokens(db, refresh_token) -> dict` | 刷新令牌轮换；检测旧令牌重放并撤销整个会话族 |
 | `revoke_session(db, refresh_token)` | 撤销单个会话（登出） |
 | `revoke_all_sessions(db, user_id)` | 撤销全部会话（登出所有设备） |
 | `approve_user(db, user_id) -> User` | 审批通过（激活账号） |
@@ -771,8 +813,8 @@ QQ 接口入口：`https://graph.qq.com/oauth2.0/authorize`、`/token`、`/me`�
 |---|---|
 | `create_profile_upload_intent(...) -> dict` | 私有图片上传凭证 |
 | `complete_profile_upload(db, ...) -> ProfileImage` | 私有图上传完成（含缩略图 worker 入队） |
-| `list_my_profile_images(db, user) -> dict` | 私有相册列表（缩略图走代理域 URL） |
-| `get_profile_image_signed_url(db, *, user, image_id) -> dict` | 校验本人后返回私有图代理域 URL（函数名保留兼容） |
+| `list_my_profile_images(db, user) -> dict` | 私有相册列表（缩略图使用后端短期票据 URL） |
+| `get_profile_image_signed_url(db, *, user, image_id) -> dict` | 校验本人后返回带短期票据的后端原图 URL |
 | `delete_profile_image(db, *, user, image_id)` | 删除私有图片 |
 
 ### `services/profile_layout.py` — 布局草稿与展示授权
@@ -787,7 +829,7 @@ QQ 接口入口：`https://graph.qq.com/oauth2.0/authorize`、`/token`、`/me`�
 | `DEFAULT_THEME` / `ALLOWED_SPANS` | 默认主题与按模块类型划分的允许宽度 |
 | `MAX_LAYOUT_BYTES` / `MAX_HTML_LENGTH` | 布局重新编码后最多 256 KiB；HTML 字符数最多 24576 |
 
-`schemas/profile_layout.py` 的 `ProfileImageDisplayPatch` 使用 `StrictBool`，配置 `extra="forbid", strict=True`。模型 `ProfileLayout` 预留发布/主题字段，当前服务只实现草稿读写和图片展示授权，未提供发布/主题更新服务函数。
+`schemas/profile_layout.py` 的 `ProfileImageDisplayPatch` 使用 `StrictBool`，配置 `extra="forbid", strict=True`。发布、丢弃草稿、主题和公开主页服务已实现，详见前文「个人主页发布与公开读取」。
 
 ### `services/image_processing.py` — 图片处理
 

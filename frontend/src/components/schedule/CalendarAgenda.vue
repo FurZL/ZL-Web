@@ -38,7 +38,7 @@ async function remove(e:CalendarEntry) {
   <p v-if="error" role="alert" class="text-sm text-red-700">{{error}}</p>
   <p v-if="!entries.length" class="text-sm text-sub">还没有一次性日程。确认的约饭也会出现在这里。</p>
   <article v-for="e in entries" :key="e.id" class="rounded-xl bg-primary-50 p-3">
-    <strong>{{ e.title }}</strong> <span class="text-xs">{{ e.appointment_id ? '已确认约饭' : '个人安排' }} · {{e.location || '未填地点'}}</span>
+    <strong>{{ e.title }}</strong> <span class="text-xs">{{ e.appointment_id ? '已确认约定' : '个人安排' }} · {{e.location || '未填地点'}}</span>
     <p class="text-sm">{{ e.starts_at.slice(0,16).replace('T',' ') }} 至 {{e.ends_at.slice(0,16).replace('T',' ')}}</p>
     <div v-if="!e.appointment_id"><button class="btn-xs" :disabled="busy" @click="edit(e)">编辑</button> <button class="btn-xs" :disabled="busy" @click="remove(e)">删除</button></div>
   </article>

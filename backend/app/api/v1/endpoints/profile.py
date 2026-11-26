@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Response
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,9 +22,33 @@ from app.services import avatar as avatar_service
 from app.services import profile_image as profile_image_service
 from app.services import profile_layout as profile_layout_service
 from app.services import third_party_auth
+from app.services import profile_media
+from app.providers.factory import get_storage_provider
 from app.services.image import ImageError
 
 router = APIRouter(prefix="/profile", tags=["profile"])
+
+
+@router.get("/media/{image_id}/{variant}")
+async def profile_media_content(
+    image_id: uuid.UUID, variant: str, ticket: str,
+    db: AsyncSession = Depends(get_db),
+):
+    bucket, key, mime = await profile_media.resolve_media(db, image_id, variant, ticket)
+    data = await get_storage_provider().get_object_bytes(bucket, key)
+    if mime == "application/octet-stream":
+        from io import BytesIO
+        from PIL import Image as PillowImage
+
+        try:
+            with PillowImage.open(BytesIO(data)) as image:
+                mime = PillowImage.MIME.get(image.format, mime)
+        except (OSError, ValueError):
+            raise HTTPException(status_code=404, detail="图片不可用")
+    return Response(content=data, media_type=mime, headers={
+        "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "no-referrer",
+    })
 
 
 @router.get("/me")

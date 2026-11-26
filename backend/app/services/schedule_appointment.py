@@ -84,7 +84,7 @@ async def detail(db, meal, members, viewer, names=None):
         )
     mode = (meal.preferences or {}).get("mode", "meal")
     fixed = None
-    if mode == "fixed":
+    if mode in {"fixed", "group_fixed"}:
         fixed = {
             "starts_at": meal.preferences.get("fixed_start"),
             "ends_at": meal.preferences.get("fixed_end"),
@@ -97,7 +97,8 @@ async def detail(db, meal, members, viewer, names=None):
         "id": str(meal.id),
         "title": meal.title,
         "location": meal.location,
-        "mode": mode,
+        "mode": "fixed" if mode == "group_fixed" else mode,
+        "is_group": mode == "group_fixed",
         "fixed": fixed,
         "window": meal.preferences,
         "status": state(meal),
@@ -356,6 +357,14 @@ async def occupancy(db, meal, members):
     for p in members:
         schedule = await owned(db, p.schedule_id, p.user_id, lock=True)
         slots = (schedule.parsed_json or {}).get("slots", [])
+        if (meal.preferences or {}).get("mode") == "group_fixed":
+            if schedule.is_archived:
+                raise AppointmentError("SCHEDULE_NOT_FOUND", "参与课表已存档，请重新选择课表", 409)
+            try:
+                p.calendar = timing_to_calendar((schedule.parsed_json or {}).get("timing"))
+                check_calendar(p.calendar, window)
+            except (ValueError, KeyError, TypeError) as exc:
+                raise AppointmentError("TIMING_NOT_READY", "参与成员的课表作息已变化，请重新确认", 409) from exc
         if any(
             not 1
             <= s.get("lesson_start", 0)
@@ -424,6 +433,29 @@ async def respond(db, appointment_id, user, body):
                 p.notice = "时间约定已确认，已加入我的日程"
             await db.commit()
             return await detail(db, meal, members, viewer)
+        if mode == "group_fixed":
+            viewer.status = "accepted"
+            accepted_members = [p for p in members if p.status == "accepted"]
+            _, busy = await occupancy(db, meal, accepted_members)
+            start = datetime.fromisoformat(meal.preferences["fixed_start"])
+            end = datetime.fromisoformat(meal.preferences["fixed_end"])
+            if not available(start, end, busy, 0 * MINUTE, now()):
+                raise AppointmentError("APPOINTMENT_STALE", "这个时间已经有安排，请婉拒或让对方重新发起", 409)
+            viewer.responded_at = now()
+            viewer.notice = None
+            if len(accepted_members) == len(members):
+                db.add_all([CalendarEvent(owner_id=p.user_id, appointment_id=meal.id,
+                    title=meal.title, location=meal.location, starts_at=start, ends_at=end, buffer_minutes=0)
+                    for p in members])
+                meal.selected_candidate_id, meal.status = "fixed", "confirmed"
+                for p in members:
+                    p.notice = "群组约定已确认，已加入我的日程"
+            else:
+                for p in members:
+                    if p.role == "organizer":
+                        p.notice = "有成员接受了群组约定，等待其他成员回应"
+            await db.commit()
+            return await detail(db, meal, members, viewer)
         window, busy = await occupancy(db, meal, members)
         meal.candidates_json = recommend(window, busy, now())
         meal.status = "choosing"
@@ -433,7 +465,7 @@ async def respond(db, appointment_id, user, body):
     viewer.notice = None
     for p in members:
         if p != viewer:
-            p.notice = "对方已接受，请选择时间" if body.accepted else "对方婉拒了这次邀请"
+                p.notice = "对方已接受，请选择时间" if body.accepted else ("群组约定有成员婉拒，邀请已结束" if (meal.preferences or {}).get("mode") == "group_fixed" else "对方婉拒了这次邀请")
     viewer.responded_at = now()
     await db.commit()
     return await detail(db, meal, members, viewer)

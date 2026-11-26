@@ -251,6 +251,7 @@ export interface AppointmentDetail {
   title: string
   location: string | null
   mode: 'meal' | 'fixed'
+  is_group?: boolean
   fixed: {
     starts_at: string
     ends_at: string
@@ -272,7 +273,13 @@ export interface AppointmentDetail {
     choices: string[]
     confirmed_candidate_id: string | null
   }
-  participants: {username: string; role: 'organizer' | 'invitee'; has_chosen: boolean; confirmed_candidate_id: string | null}[]
+  participants: {username: string; role: 'organizer' | 'invitee'; status: 'invited' | 'accepted' | 'declined'; has_chosen: boolean; confirmed_candidate_id: string | null}[]
+}
+
+export interface GroupAvailability {
+  week: number
+  member_count: number
+  slots: { weekday: number; lesson: number; starts_at: string; ends_at: string }[]
 }
 
 export interface ScheduleUploadIntent {
@@ -312,6 +319,14 @@ export interface PublicConfig {
   police_number: string | null
   registration_config?: RegistrationConfig
   oauth_config?: OauthConfig
+  schedule_config?: ScheduleConfig
+}
+
+export interface ScheduleConfig {
+  file_import_enabled: boolean
+  group_join_enabled: boolean
+  public_share_enabled: boolean
+  fixed_invite_enabled: boolean
 }
 
 export interface RegistrationConfig {
@@ -349,7 +364,6 @@ export interface OauthResolveResult {
   access_token?: string
   token_type?: string
   expires_in?: number
-  refresh_token?: string
 }
 
 export interface ThirdPartyBinding {

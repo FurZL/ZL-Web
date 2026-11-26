@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { getPublicConfig } from '@/api/site'
-import type { OauthConfig, RegistrationConfig } from '@/types'
+import type { OauthConfig, RegistrationConfig, ScheduleConfig } from '@/types'
 
 const siteName = ref('啫喱小站')
 const siteSubtitle = ref('温暖、可爱、有社群感的同好之家')
@@ -10,11 +10,12 @@ const registrationConfig = ref<RegistrationConfig>({
   require_phone_verification: true,
 })
 const oauthConfig = ref<OauthConfig>({ enabled: false, qq_enabled: false })
+const scheduleConfig = ref<ScheduleConfig>({ file_import_enabled: true, group_join_enabled: true, public_share_enabled: true, fixed_invite_enabled: true })
 const configLoaded = ref(false)
 let fetched = false
 
-export async function fetchSiteConfig() {
-  if (fetched) return
+export async function fetchSiteConfig(force = false) {
+  if (fetched && !force) return
   try {
     const cfg = await getPublicConfig()
     if (cfg.site_name) {
@@ -26,6 +27,7 @@ export async function fetchSiteConfig() {
     }
     if (cfg.registration_config) registrationConfig.value = cfg.registration_config
     if (cfg.oauth_config) oauthConfig.value = cfg.oauth_config
+    if (cfg.schedule_config) scheduleConfig.value = cfg.schedule_config
   } catch {
     // 保持默认值
   } finally {
@@ -35,5 +37,5 @@ export async function fetchSiteConfig() {
 }
 
 export function useSiteConfig() {
-  return { siteName, siteSubtitle, registrationConfig, oauthConfig, configLoaded }
+  return { siteName, siteSubtitle, registrationConfig, oauthConfig, scheduleConfig, configLoaded }
 }

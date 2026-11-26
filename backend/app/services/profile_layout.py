@@ -18,9 +18,8 @@ from app.core.config import settings
 from app.models.image import Image, ProfileImage, StoredObject
 from app.models.profile_layout import ProfileLayout
 from app.models.user import User
-from app.providers.factory import get_storage_provider
 from app.services.avatar import get_avatar_public_url
-from app.services.image_processing import derive_profile_thumb_key
+from app.services.profile_media import media_url
 
 DEFAULT_THEME: dict[str, Any] = {
     "primary": "#6B5CE7",
@@ -264,14 +263,12 @@ def _layout_theme(layout: ProfileLayout | None) -> dict[str, Any]:
 
 
 async def _media_item(
-    image: ProfileImage, stored: StoredObject, storage: Any
+    image: ProfileImage, stored: StoredObject, scope: str
 ) -> dict[str, Any]:
     thumb_url = None
     if stored.processing_status == "ready":
-        thumb_url = storage.public_url(
-            stored.bucket, derive_profile_thumb_key(stored.object_key)
-        )
-    display_url = storage.public_url(stored.bucket, stored.object_key)
+        thumb_url = media_url(image, "thumb", scope)
+    display_url = media_url(image, "original", scope)
     return {
         "thumb_url": thumb_url,
         "display_url": display_url,
@@ -281,12 +278,11 @@ async def _media_item(
 
 
 async def _media_payload(
-    rows: dict[str, tuple[ProfileImage, StoredObject]],
+    rows: dict[str, tuple[ProfileImage, StoredObject]], scope: str = "owner",
 ) -> dict[str, dict[str, Any]]:
-    storage = get_storage_provider()
     media: dict[str, dict[str, Any]] = {}
     for object_key, (image, stored) in rows.items():
-        media[object_key] = await _media_item(image, stored, storage)
+        media[object_key] = await _media_item(image, stored, scope)
     return media
 
 
@@ -301,7 +297,6 @@ async def get_media_options(db: AsyncSession, user: User) -> dict[str, list[dict
         .order_by(ProfileImage.created_at.desc())
     )
     owner_prefix = f"private/profiles/{user.id}/"
-    storage = get_storage_provider()
     items = []
     for image, stored in result.all():
         if (
@@ -311,7 +306,7 @@ async def get_media_options(db: AsyncSession, user: User) -> dict[str, list[dict
             or not stored.object_key.startswith(owner_prefix)
         ):
             continue
-        media = await _media_item(image, stored, storage)
+        media = await _media_item(image, stored, "owner")
         items.append(
             {
                 "id": str(image.id),
@@ -507,7 +502,7 @@ async def get_public_page_payload(db: AsyncSession, username: str) -> dict[str, 
         },
         "theme": theme,
         "blocks": blocks,
-        "media": await _media_payload(rows),
+        "media": await _media_payload(rows, "public"),
         "media_expires_in": settings.private_url_ttl_seconds,
         "stats": await _stats(db, user),
         "published_at": published_at.isoformat() if published_at else None,

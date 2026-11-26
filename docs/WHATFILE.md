@@ -127,7 +127,7 @@
 
 | 文件 | 用途 |
 |---|---|
-| `AdminLayout.vue` | 管理后台布局（左侧导航栏 + RouterView 内容区） |
+| `AdminLayout.vue` | 管理后台布局（桌面左侧导航；移动端等宽菜单按宽度切换一行或两行，不显示 emoji） |
 
 #### src/components/ — 公共组件
 
@@ -146,7 +146,8 @@
 | 文件 | 用途 |
 |---|---|
 | `Step1Upload.vue` | Step 1：课表架容器、可编辑周网格、上传/分享/切换；支持 ICS/TXT/PDF 选择，把网格拖动、加节、课表架事件和课表内的约定邀请卡片转给页面处理 |
-| `ScheduleGroupPanel.vue` | 群组对比面板：创建群组/邀请码加入/审批/成员共享课表/逐人忙闲统计，点击成员进入双人对比 |
+| `ScheduleGroupPanel.vue` | 群组对比面板：创建/加入/审批、共享课表、逐人对比及多人协作入口 |
+| `GroupAvailability.vue` | 选择群成员、查询单周共同空闲并发起群组固定时间邀约 |
 | `ScheduleShelf.vue` | 课表架：卡片式列出在用课表与历史课表，支持内联命名、拖动/方向键排序、存档/恢复、公开开关、切换与删除；新建空白课表入口 |
 | `ScheduleMiniPreview.vue` | 课表架卡片的迷你周网格缩略图：按星期/节次比例绘制课程与日程色块 |
 | `ScheduleWeekPicker.vue` | 周次选择器；完整模式为学期总览 + 横向周次胶囊，`compact` 模式压缩为「‹ / 全学期下拉 / ›」单行 |
@@ -182,6 +183,8 @@
 | `EventRegistrationsDialog.vue` | 活动报名管理弹窗（报名列表/候补/代签到） |
 | `ImageCard.vue` | 图片管理卡片（缩略图/状态角标/审核/标签/删除操作） |
 | `ImageTagDialog.vue` | 图片标签编辑弹窗 |
+| `ImageReports.vue` | 图片举报列表、筛选、分页、预览、驳回/处理/下架 |
+| `ImageProcessingJobs.vue` | 管理员查看图片处理任务、筛选分页与重试失败任务 |
 | `PageFormDialog.vue` | 动态页面创建/编辑弹窗（slug/标题/JSON Schema 编辑器） |
 | `PageVersionsDialog.vue` | 页面版本历史弹窗（版本列表/回滚） |
 
@@ -198,7 +201,7 @@
 | `UploadPrivateDialog.vue` | 私有图片上传弹窗（文件选择/预览/描述/预签名直传） |
 | `EditProfileDialog.vue` | 编辑资料弹窗（昵称/简介/头像上传：选择图片→裁剪弹窗→保存时上传 COS→实时预览） |
 | `ProfileRenderer.vue` | 主页白名单模块渲染器（响应式栅格、主题变量、背景及素材） |
-| `ProfileMediaPickerDialog.vue` | 主页图片展示授权管理弹窗（依赖待实现的素材清单接口，PATCH 授权端点已实现） |
+| `ProfileMediaPickerDialog.vue` | 主页图片展示授权管理弹窗（调用已实现的本人素材清单与 PATCH 授权接口） |
 | `AvatarCropDialog.vue` | 头像裁剪弹窗（拖拽/缩放正方形选区、网格辅助线、128×128 Canvas 预览、两步高质量缩放输出 JPEG） |
 | `theme.ts` | 默认主题、5 套主题预设及颜色混合、背景、卡片表面样式函数 |
 
@@ -225,7 +228,7 @@
 | `PreviewCanvas.vue` | 编辑画布（选中、排序、复制、删除） |
 | `PropertyPanel.vue` | 按模块类型编辑内容及栅格宽度 |
 | `ThemePanel.vue` | 主题预设、颜色、背景与卡片样式面板 |
-| `MediaPicker.vue` | 编辑器素材选择与展示授权开关（素材清单依赖待实现接口） |
+| `MediaPicker.vue` | 编辑器素材选择与展示授权开关（使用已实现的本人素材清单接口） |
 
 #### src/views/ — 页面组件
 
@@ -251,13 +254,15 @@
 
 | 文件 | 用途 |
 |---|---|
-| `AdminDashboard.vue` | 仪表盘（用户数、待审批数、图片数等数字总览，已接真实接口） |
-| `AdminUsers.vue` | 用户管理（待审批列表、审批/拒绝操作、成员列表，已接真实接口） |
-| `AdminImages.vue` | 图片管理（统计卡片、审核/拒绝/公开/标签/删除、筛选 Tab、分页、图片详情弹窗） |
+| `AdminDashboard.vue` | 仪表盘：真实用户、待审批、图片、有效报名和待处理举报聚合统计 |
+| `AdminUsers.vue` | 用户审批、角色与账号状态管理，按权限展示操作并二次确认 |
+| `AdminImages.vue` | 图片审核管理和举报视图入口 |
 | `AdminEvents.vue` | 活动管理（活动 CRUD、发布/取消、报名列表/签到管理弹窗） |
 | `AdminPages.vue` | 页面管理（页面列表、JSON Schema 编辑器、发布/下线、版本历史/回滚） |
 | `AdminAnnouncements.vue` | 公告管理（公告列表、新建/编辑弹窗、置顶/发布/删除操作） |
 | `AdminSettings.vue` | 网站设置（社团介绍/公开配置/页脚信息/法律信息/注册设置/第三方登录六个 Tab；第三方登录含总开关与 QQ 子开关） |
+| `AdminSchedule.vue` | 课表运营：脱敏聚合概况、功能开关和最近设置变更记录 |
+| `AdminAudit.vue` | 管理操作审计：按对象、动作、操作者、时间筛选及分页查看；入口位于网站设置 |
 | `PlaceholderView.vue` | 通用占位页面组件（尚未开发的管理子模块共用的空壳视图） |
 
 ---
@@ -301,13 +306,16 @@
 | 文件 | 用途 |
 |---|---|
 | `__init__.py` | Python 包标记（空文件） |
-| `health.py` | 健康检查端点（GET /health 纯存活检查 + GET /ready 检查 DB/Redis 连通性） |
+| `health.py` | 存活检查及 PostgreSQL/Redis 就绪检查（失败或超时返回 503） |
 | `auth.py` | 认证端点（POST /auth/register[注册门控+密码强度+协议同意]、verify/email、verify/phone、login/refresh/logout 写入或清除 HttpOnly Refresh Cookie、logout-all、password/forgot、password/reset、GET /me） |
 | `oauth.py` | QQ OAuth 端点（providers、start、bind-start、callback、bind；state/临时凭证存 Redis，callback 可写 Refresh Cookie） |
 | `images.py` | 公开图片端点（GET /images 列表、GET /images/{id} 详情、POST upload-intent、upload-complete、DELETE 删除、POST 举报、GET 下载） |
 | `profile.py` | 个人空间端点（资料/相册/头像、布局 GET/PUT/publish/discard、主题 PUT、素材 GET、图片展示授权 PATCH、匿名公开主页 GET、本人第三方绑定 GET/DELETE） |
 | `schedule.py` | 课表、约饭与日期日程端点（手工创建、本人编辑保存、上传、读取、按周对比、可见性、公开查询、删除）；课表架重命名/存档/排序（PATCH、PUT /order）；PDF 预览（POST /pdf-preview，内存解析、不落库） |
 | `schedule_groups.py` | 课表群组端点：列表/创建/邀请码加入/详情/改名/解散/共享课表/审批/移除（前缀 `/schedule/groups`） |
+| `admin_schedule.py` | 管理员课表配置、脱敏聚合概况及设置变更审计接口 |
+| `admin_audit.py` | 管理员审计记录查询，支持筛选和分页 |
+| `admin_dashboard.py` | 仪表盘聚合统计，不返回用户详情 |
 | `pages.py` | 动态页面端点（GET /{slug} 公开读取、/admin CRUD/发布/下线/版本列表/回滚） |
 | `events.py` | 活动端点（列表/详情/报名/取消/签到，含候补、幂等键、容量控制） |
 | `site.py` | 站点公开信息端点（GET /public-config[含 registration_config 与 oauth_config]、/footer、/legal，从 SiteSetting 读取并返回默认值） |
@@ -347,6 +355,7 @@
 | `user.py` | User（用户名/邮箱/手机/密码/bio/avatar/角色/状态/摄影师申请、terms_version/privacy_version/legal_accepted_at）、UserSession（刷新令牌会话）、VerificationChallenge（验证码挑战） |
 | `third_party.py` | UserThirdParty（用户与 QQ 的绑定关系、OpenID/UnionID、第三方令牌与原始资料、时间戳） |
 | `image.py` | StoredObject（对象存储元数据）、Image（公开图片）、ProfileImage（私有相册图片，新增默认 false 的 is_displayable 展示授权） |
+| `image_job.py` | 图片处理任务、重试状态与租约 |
 | `profile_layout.py` | ProfileLayout 模型（JSONB 草稿、已发布块、主题、公开开关及时间戳，按用户唯一） |
 | `schedule.py` | Schedule（课表：stored_object_id、original_name、format、parsed_json、is_public、is_archived、sort_order、expires_at） |
 | `schedule_group.py` | ScheduleGroup（群组：名称、8 位邀请码、群主、open/approval）与 ScheduleGroupMember（角色、pending/active、成员共享课表 id） |
@@ -375,17 +384,22 @@
 | 文件 | 用途 |
 |---|---|
 | `__init__.py` | Python 包标记（空文件） |
-| `auth.py` | 认证服务（注册[记录协议版本与同意时间]/登录/刷新令牌轮换/审批/复用检测撤销会话族；Argon2id + JWT） |
+| `auth.py` | 认证服务（注册、登录、会话族刷新轮换和重放撤销、审批；Argon2id + JWT） |
+| `audit.py` | 管理操作的同事务审计，白名单记录状态变化并隐藏正文与敏感值 |
+| `reports.py` | 图片举报分页查询、处理与下架，同事务更新状态并记录审计 |
 | `third_party_auth.py` | QQ 第三方登录/绑定服务（Redis state 与 pending 凭证、QQ 身份解析、绑定关系查询/解绑、OAuth 开关校验、会话签发） |
 | `otp.py` | OTP 验证码服务（生成/发送/校验；哈希存储、短时效、单次使用、用途隔离、OTP_DEV_MODE 开发模式） |
 | `image.py` | 图片服务（上传意图：MIME 白名单/随机 Object Key/预签名 URL；上传完成：HEAD 复核/落库；列表/删除） |
 | `image_processing.py` | 图片处理服务（下载原图 → 解码校验/防解压炸弹 → 生成 2000px 展示图 + 800px 缩略图 WebP → 上传派生图） |
-| `profile_image.py` | 私有相册服务（private/profiles/{user_id}/ 前缀、代理域素材 URL、本人归属校验、复用 image 校验逻辑） |
-| `profile_layout.py` | 布局草稿服务（模块白名单/字段清洗/大小校验、本人图片与前缀校验、展示授权、代理域素材及统计） |
+| `profile_image.py` | 私有相册服务（本人前缀和存储桶校验、短期素材票据） |
+| `profile_media.py` | 私有图片短期票据生成与验证，公开图片实时检查发布状态和授权 |
+| `profile_layout.py` | 布局草稿服务（模块校验、素材授权、短期票据及统计） |
 | `schedule.py` | 课表解析与对比算法（CourseSlot 数据类、ICS 解析、ZJUT TXT 解析、compare 对比：周次交集/同教室/冲突/空闲时段）；PDF 文件走 `schedule_pdf.py`，上传接口提示使用预览导入 |
 | `schedule_pdf.py` | 教务 PDF 课表解析：pdfplumber 表格/列映射、同格多课、合并节次、跨页课程名拼接、页眉页脚与 PII 过滤；返回 slots、warnings、建议名称 |
 | `schedule_service.py` | 课表业务服务；手工创建、本人编辑与版本冲突保护、课表架重命名/存档/拖动排序、上传/查询/可见性/删除，公开读取时脱敏个人日程并排除存档课表 |
 | `schedule_group.py` | 课表群组服务：创建/邀请码加入/审批/退群/移除/解散、成员共享课表、逐人共同空闲/共同忙碌/单方忙碌/同教室统计，群内事件脱敏 |
+| `schedule_group_meeting.py` | 多成员真实日期/作息共同空闲计算与固定时间群组邀约 |
+| `schedule_config.py` | 课表功能开关默认值、严格输入校验及后端功能门控 |
 | `rate_limit.py` | 限流服务（Redis 分布式计数器、原子递增+TTL、分层限流规则） |
 | `site_setting.py` | 网站设置服务（SiteSetting 读写、公开配置/页脚/法律/社团介绍/注册门控/第三方登录开关聚合，敏感密钥不入此表） |
 | `announcement.py` | 公告服务（公开列表：已发布+未过期+置顶在前；管理 CRUD：创建/更新/置顶/发布/删除） |
@@ -420,8 +434,8 @@
 | 文件 | 用途 |
 |---|---|
 | `__init__.py` | Python 包标记（空文件） |
-| `image_worker.py` | 图片处理 worker（asyncio.Queue + 固定数量串行 worker、lifespan 启停、upload-complete 入队） |
-| `README.md` | 异步任务设计说明（初期不引入 Celery 的原因与约束） |
+| `image_worker.py` | PostgreSQL 持久任务领取、租约续期、有限重试与 worker 生命周期 |
+| `README.md` | 图片 worker 的持久任务、租约、重试与资源约束说明 |
 
 ### app/repositories/ — 数据访问层
 
@@ -453,7 +467,9 @@
 | `versions/af1c280b769e_dated_meals.py` | 汇合 main 迁移，升级到日期日程；遇到非空的旧原型预约会停止 |
 | `versions/c4a91e7d2b60_add_schedule_archive.py` | 课表架：schedules.is_archived（默认 false），存档课表不参与公开查询 |
 | `versions/e9b2f7c4a1d0_add_schedule_sort_order.py` | 课表架拖动顺序 schedules.sort_order（默认 0），GET /schedule/mine 按此排序 |
-| `versions/a7d2e9c14b83_add_schedule_groups.py` | 当前 head：课表群组 schedule_groups / schedule_group_members（邀请码、审批、成员共享课表） |
+| `versions/a7d2e9c14b83_add_schedule_groups.py` | 课表群组 schedule_groups / schedule_group_members（邀请码、审批、成员共享课表） |
+| `versions/b81e6a24f903_refresh_token_family.py` | 为已有和新会话添加会话族及索引，支持刷新令牌重放检测 |
+| `versions/d34a81e7b9c2_image_processing_jobs.py` | 当前 head：图片任务表与旧的未完成图片任务恢复 |
 
 ### scripts/ — 运维/测试脚本
 
@@ -467,7 +483,7 @@
 | `e2e_auth_test.py` | 认证端到端测试（含每步滑块验证、协议同意字段；注册 → 邮箱/手机验证 → 管理员审批 → 登录 → 刷新令牌） |
 | `e2e_upload_test.py` | 图片上传端到端测试（预签名直传 → upload-complete → 列表验证） |
 | `e2e_processing_test.py` | 图片处理端到端测试（上传 → worker 生成缩略图/展示图 → 派生图验证） |
-| `e2e_profile_album_test.py` | 私有相册端到端测试（上传私有图 → 代理域 URL 访问 → 隔离验证） |
+| `e2e_profile_album_test.py` | 私有相册端到端测试脚本；执行前需核对是否与当前短期票据接口一致 |
 | `e2e_profile_real_test.py` | 个人空间真实链路端到端测试（完整 Profile 流程验证） |
 
 ### tests/ — 单元测试
@@ -480,10 +496,17 @@
 | `test_schedule_editing.py` | 编辑 API 契约测试：保存/重读/删除、版本冲突、本人权限、公开日程隐私、字段边界、旧数据兼容、按周占用，以及课表架重命名/存档/恢复、存档排除公开查询、拖动排序完整顺序校验和时段边界默认/乱序校验 |
 | `test_schedule_pdf.py` | PDF 解析测试：同格多课、跨页名称拼接、列映射、缺周次告警、PDF 预览接口响应与错误码 |
 | `test_schedule_groups.py` | 群组测试：逐人忙闲统计、真实 PostgreSQL 上的创建/加入/审批/共享/移除/解散流程与隐私脱敏 |
+| `test_group_meeting.py` | 多人空闲、隐私、逐人接受、冲突复核、取消和婉拒的 PostgreSQL 事务测试 |
+| `test_admin_schedule.py` | 本地 PostgreSQL 事务回滚集成测试：配置权限、功能门控、公开配置、聚合概况与审计 |
+| `test_admin_audit.py` | 审计权限、管理操作覆盖、分页筛选、敏感字段保护与写入失败回滚集成测试 |
+| `test_admin_dashboard_reports.py` | 仪表盘、举报处理、账号权限和审计 PostgreSQL 集成测试 |
 | `test_schedule_parser.py` | 课表解析测试（ZJUT TXT 格式/周次范围/节次解析/空格/换行/异常格式） |
 | `test_image_processing.py` | 图片处理测试（WebP 生成/尺寸裁剪/防解压炸弹/非法文件拒绝） |
+| `test_image_jobs.py` | 图片任务事务、租约恢复、重试、权限和审计测试 |
+| `test_runtime_readiness.py` | PostgreSQL/Redis 就绪与失败响应测试 |
 | `test_permissions.py` | 权限矩阵测试（各角色操作权限验证） |
 | `test_profile_layout.py` | 个人主页布局路由/service 契约测试（发布/丢弃、主题范围与素材授权、本人素材清单、匿名公开页隐私与统一 404；DB/存储为测试替身） |
+| `test_security_controls.py` | Cookie 来源校验及 PostgreSQL 会话族重放回归测试 |
 
 ### furry_zjut_backend.egg-info/ — pip 安装元数据（自动生成）
 
@@ -504,7 +527,8 @@
 | `nginx/api.example.com.conf` | Nginx API 站点配置模板（HTTPS、反代 127.0.0.1:8000、安全头、请求体限制） |
 | `nginx/www.example.com.conf` | Nginx 前端站点配置模板（SPA fallback try_files、静态资源缓存） |
 | `systemd/furry-zjut-api.service` | systemd 服务单元（uvicorn 1 Worker、User=furry、NoNewPrivileges、PrivateTmp 等安全加固） |
-| `scripts/backup-furry-zjut.sh` | PostgreSQL 备份脚本（pg_dump + 过期清理 + COS 上传占位） |
+| `scripts/backup-furry-zjut.sh` | pg_dump 流式 age 加密、校验和、可选异地上传钩子 |
+| `scripts/verify-backup-furry-zjut.sh` | 校验备份并恢复到预先创建的空验证数据库 |
 | `scripts/start-vite.ps1` | Windows 启动 Vite 开发服务器 PowerShell 脚本（设置 NODE 路径、清理日志、后台启动） |
 | `edgeone/README.md` | EdgeOne Pages 部署说明（SPA fallback 配置、构建发布流程） |
 
@@ -514,9 +538,10 @@
 
 | 文件 | 用途 |
 |---|---|
-| `API.md` | 已实现的 117 个 API 路径 / 139 个方法端点；含人机验证、QQ OAuth、主页与绑定契约、课表架命名/存档/排序、PDF 课表预览、课表群组、对比页固定约定、课表网格邀请通知、安全限流及前后端函数/类型参考 |
+| `API.md` | 已实现的 130 个 API 路径 / 153 个方法端点；含图片任务、群组协作与审计接口参考 |
 | `WHATFILE.md` | 本文件 — 项目全部文件用途索引 |
 | `DEPLOYMENT.md` | 部署说明（EdgeOne Pages + 宝塔 2C2G + 本机 PostgreSQL/Redis、关键步骤索引） |
+| `BT-DEPLOYMENT.md` | 宝塔生产部署、排障与备份操作说明 |
 | `SECURITY.md` | 安全基线（上线前 15 项检查清单、日志脱敏规则、HttpOnly Cookie 会话、OAuth/代理域注意事项） |
 
 ### docs/ 文档变更记录（2026-11-19，历史）

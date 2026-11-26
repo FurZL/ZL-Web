@@ -57,16 +57,14 @@ class VerifyRequest(BaseModel):
 
 @router.post("/verify")
 async def verify_captcha(body: VerifyRequest):
-    stored = await redis.get(_captcha_key(body.token))
+    stored = await redis.getdel(_captcha_key(body.token))
     if stored is None:
         raise HTTPException(status_code=400, detail={"code": "CAPTCHA_EXPIRED", "message": "验证已过期，请刷新重试"})
 
     gap_x = int(stored.split(",")[0])
     if abs(body.x - gap_x) > TOLERANCE:
-        await redis.delete(_captcha_key(body.token))
         raise HTTPException(status_code=400, detail={"code": "CAPTCHA_FAILED", "message": "验证失败，请重试"})
 
-    await redis.delete(_captcha_key(body.token))
     verify_token = _make_token()
     await redis.set(_verify_key(verify_token), "1", ex=VERIFY_TTL)
     return ok({"verification_token": verify_token, "expires_in": int(VERIFY_TTL.total_seconds())})
@@ -77,8 +75,4 @@ async def check_verification_token(token: str) -> bool:
     if not token:
         return False
     key = _verify_key(token)
-    exists = await redis.get(key)
-    if exists:
-        await redis.delete(key)
-        return True
-    return False
+    return bool(await redis.getdel(key))

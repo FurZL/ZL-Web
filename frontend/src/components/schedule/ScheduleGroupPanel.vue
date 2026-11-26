@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import ScheduleWeekPicker from '@/components/schedule/ScheduleWeekPicker.vue'
+import GroupAvailability from '@/components/schedule/GroupAvailability.vue'
 import { useDialog } from '@/composables/useDialog'
 import {
   approveScheduleGroupMember,
@@ -20,6 +21,7 @@ import type {
   ScheduleGroupMember,
   ScheduleGroupSummary,
   ScheduleRecord,
+  AppointmentDetail,
 } from '@/types'
 import { scheduleWeeks } from './calendar'
 
@@ -27,9 +29,13 @@ const props = withDefaults(defineProps<{
   schedules: ScheduleRecord[]
   initialGroupId?: string | null
   comparing?: boolean
+  joinEnabled?: boolean
+  inviteEnabled?: boolean
 }>(), {
   initialGroupId: null,
   comparing: false,
+  joinEnabled: true,
+  inviteEnabled: true,
 })
 
 const emit = defineEmits<{
@@ -40,6 +46,7 @@ const emit = defineEmits<{
     week: number | null
     myScheduleId: string
   }]
+  created: [appointment: AppointmentDetail]
 }>()
 
 const { showToast, showConfirm } = useDialog()
@@ -291,7 +298,7 @@ onMounted(async () => {
         <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary-500">Study group</p>
         <h2 class="mt-1 text-xl font-bold text-ink">群组对比</h2>
         <p class="mt-1 text-sm text-sub">
-          加入私密群组，成员各选一份课表共享；这里只显示每个人和你的忙闲对比，不会公开课表。
+          {{ joinEnabled ? '加入私密群组，成员各选一份课表共享。' : '群组成员可共享课表并对比忙闲。' }}
         </p>
       </div>
       <button v-if="detail" type="button" class="btn-sm" :disabled="busy || loadingDetail" @click="backToList">← 群组列表</button>
@@ -301,7 +308,7 @@ onMounted(async () => {
 
     <!-- 未选择群组：创建 / 加入 / 我的群组 -->
     <template v-if="!detail">
-      <div class="mt-5 grid gap-4 lg:grid-cols-2">
+      <div v-if="joinEnabled" class="mt-5 grid gap-4 lg:grid-cols-2">
         <form class="rounded-2xl border border-primary-100 bg-white/50 p-4" @submit.prevent="createGroup">
           <h3 class="text-sm font-bold text-ink">创建群组</h3>
           <label class="label mt-3">群组名称
@@ -333,7 +340,7 @@ onMounted(async () => {
         <h3 class="text-sm font-bold text-ink">我的群组</h3>
         <div v-if="loadingGroups" class="mt-3 h-16 animate-pulse rounded-xl bg-primary-50"></div>
         <div v-else-if="!groups.length" class="mt-3 rounded-xl border border-dashed border-primary-200 px-4 py-5 text-sm text-sub">
-          还没有加入群组。创建一个，把邀请码发给同学即可。
+          {{ joinEnabled ? '还没有加入群组。创建一个，把邀请码发给同学即可。' : '还没有加入群组。' }}
         </div>
         <div v-else class="mt-3 grid gap-2">
           <button
@@ -395,6 +402,8 @@ onMounted(async () => {
           </div>
         </div>
         <p class="mt-1 text-xs text-sub">只有群成员能看到你选的这份课表；个人日程只显示占用时间。</p>
+
+        <GroupAvailability :group-id="detail.id" :members="detail.members" :week="selectedWeek" :my-schedule-id="detail.my.schedule_id" :invite-enabled="inviteEnabled" @created="emit('created', $event)" />
 
         <div v-if="detail.pending.length" class="mt-5 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
           <p class="text-sm font-semibold text-amber-900">想进群的人（{{ detail.pending.length }}）</p>

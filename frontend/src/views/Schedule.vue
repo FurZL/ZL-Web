@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useDialog } from '@/composables/useDialog'
+import { fetchSiteConfig, useSiteConfig } from '@/composables/useSiteConfig'
 import Step1Upload from '@/components/schedule/Step1Upload.vue'
 import Step2Partner from '@/components/schedule/Step2Partner.vue'
 import Step3Result from '@/components/schedule/Step3Result.vue'
@@ -33,6 +34,7 @@ import type { CalendarEntry, AppointmentDetail, CompareFreeSlot, ScheduleCompare
 
 const step = ref(1)
 const { showToast, showConfirm } = useDialog()
+const { scheduleConfig } = useSiteConfig()
 
 // ---------- 我的课表 ----------
 const mySchedules = ref<ScheduleRecord[]>([])
@@ -120,6 +122,7 @@ function acknowledgeBrowserImport(importId: string) {
 }
 
 onMounted(() => {
+  void fetchSiteConfig(true)
   void loadMine()
   window.addEventListener('message', onScheduleExtensionMessage)
   window.postMessage({ source: 'furzl-schedule-page', type: 'READY' }, window.location.origin)
@@ -137,7 +140,10 @@ const gridInvitations = computed(() => appointments.value.filter(item => (
   item.mode === 'fixed'
   && item.status === 'pending'
   && item.viewer_participant.role === 'invitee'
+  && item.viewer_participant.status === 'invited'
+  && !item.is_group
 )))
+const groupInvitations = computed(() => appointments.value.filter(item => item.is_group && ['pending', 'confirmed'].includes(item.status)))
 const invitationSchedules = computed(() => mySchedules.value.filter(item => !item.is_archived))
 
 const calendarEntries = ref<CalendarEntry[]>([])
@@ -191,7 +197,7 @@ async function respondInvitation(id: string, accepted: boolean, scheduleId?: str
     ++generation
     replaceAppointment(updated)
     selectedInvitation.value = updated
-    showToast(updated.status === 'confirmed' ? '已接受约定，双方日程已加入' : '已婉拒这次约定')
+    showToast(updated.status === 'confirmed' ? '约定已确认，已加入参与者日程' : accepted ? '已接受，等待其他成员回应' : '已婉拒这次约定')
     await loadAppointments()
     if (updated.status !== 'pending') selectedInvitation.value = null
   } catch (error) {
@@ -202,7 +208,7 @@ async function respondInvitation(id: string, accepted: boolean, scheduleId?: str
 }
 
 async function cancelInvitation(id: string) {
-  if (!(await showConfirm('取消这次约定后，双方已写入的日程也会移除。确定继续吗？'))) return
+  if (!(await showConfirm('取消这次约定后，参与者已写入的日程也会移除。确定继续吗？'))) return
   if (appointmentWorking.value) return
   appointmentWorking.value = true
   invitationError.value = ''
@@ -744,6 +750,8 @@ async function compareGroupMember(payload: GroupComparePayload) {
       :slot-moving="slotMoving"
       :meta-saving="metaSaving"
       :invitations="gridInvitations"
+      :file-import-enabled="scheduleConfig.file_import_enabled"
+      :public-share-enabled="scheduleConfig.public_share_enabled"
       @select="activeSchedule = $event"
       @toggle-share="toggleShare"
       @remove="removeSchedule"
@@ -762,7 +770,15 @@ async function compareGroupMember(payload: GroupComparePayload) {
       @reorder="reorderSchedules"
       @invitation="openInvitation"
     />
-    <CalendarAgenda v-if="step === 1" :entries="calendarEntries" @refresh="loadAppointments" />
+    <template v-if="step === 1">
+    <CalendarAgenda :entries="calendarEntries" @refresh="loadAppointments" />
+    <section v-if="groupInvitations.length" class="mt-5 border-t border-primary-100 pt-4">
+      <h2 class="text-base font-semibold text-ink">群组邀约</h2>
+      <button v-for="invitation in groupInvitations" :key="invitation.id" class="mt-2 flex w-full flex-wrap items-center justify-between gap-2 rounded-md border border-primary-100 bg-white px-4 py-3 text-left text-sm" @click="openInvitation(invitation.id)">
+        <span class="font-medium text-ink">{{ invitation.title }}</span><span class="text-sub">{{ invitation.status === 'confirmed' ? '已确认' : invitation.viewer_participant.status === 'invited' ? '待你回应' : '等待成员回应' }} · {{ invitation.fixed ? new Date(invitation.fixed.starts_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '' }}</span>
+      </button>
+    </section>
+    </template>
 
     <!-- Step 2 -->
     <template v-else-if="step === 2">
@@ -778,10 +794,13 @@ async function compareGroupMember(payload: GroupComparePayload) {
         @compare="runCompare"
       />
       <ScheduleGroupPanel
+        :join-enabled="scheduleConfig.group_join_enabled"
         :schedules="mySchedules"
         :initial-group-id="activeGroupId"
         :comparing="groupCompareLoading"
+        :invite-enabled="scheduleConfig.fixed_invite_enabled"
         @compare="compareGroupMember"
+        @created="(appointment) => { replaceAppointment(appointment); selectedInvitation = appointment; void loadAppointments() }"
       />
     </template>
 
@@ -797,6 +816,7 @@ async function compareGroupMember(payload: GroupComparePayload) {
       :invite="meetupInvite"
       :inviting="meetupInviting"
       :invite-error="meetupError"
+      :invite-enabled="scheduleConfig.fixed_invite_enabled"
       @week="runCompare"
       @back="step = 2"
       @invite="inviteMeetup"

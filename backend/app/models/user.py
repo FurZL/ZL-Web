@@ -62,6 +62,9 @@ class UserSession(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), index=True, nullable=False
     )
+    family_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), default=uuid.uuid4, index=True, nullable=False
+    )
     refresh_token_hash: Mapped[str] = mapped_column(String(64), index=True)
     device_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     ip_hash_or_masked: Mapped[str | None] = mapped_column(String(128), nullable=True)

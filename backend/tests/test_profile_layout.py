@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from app.api.deps import get_current_user
 from app.api.v1.endpoints.profile import router as profile_router
+from app.api.v1.endpoints import profile as profile_endpoint
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.image import ProfileImage, StoredObject
@@ -39,6 +40,8 @@ class FakeDatabase:
         self.layouts = {}
 
     async def get(self, model, key):
+        if model is User:
+            return self.public_user if key == self.user_id else None
         if model is ProfileLayout:
             return self.layouts.get(key)
         if model is ProfileImage:
@@ -107,6 +110,9 @@ class FakeStorage:
     async def presign_download(self, bucket, object_key, expires_in=900):
         return f"signed://{bucket}/{object_key}?ttl={expires_in}"
 
+    async def get_object_bytes(self, bucket, object_key):
+        return b"test-image"
+
 
 @pytest.fixture
 def profile_api(monkeypatch):
@@ -171,8 +177,8 @@ def profile_api(monkeypatch):
     app.dependency_overrides[get_current_user] = fake_current_user
     app.dependency_overrides[get_db] = fake_db
     fake_storage = FakeStorage()
-    monkeypatch.setattr(profile_layout_service, "get_storage_provider", lambda: fake_storage)
     monkeypatch.setattr(profile_image_service, "get_storage_provider", lambda: fake_storage)
+    monkeypatch.setattr(profile_endpoint, "get_storage_provider", lambda: fake_storage)
     monkeypatch.setattr(
         profile_layout_service,
         "get_avatar_public_url",
@@ -259,13 +265,51 @@ def test_seed_layout_put_get_and_media_permissions(profile_api, seed_blocks):
     }
     assert payload["media_expires_in"] == settings.private_url_ttl_seconds
     assert all(
-        item["display_url"].startswith("https://assets.example.test/")
+        item["display_url"].startswith("/api/v1/profile/media/")
         for item in payload["media"].values()
     )
 
     get_response = client.get("/api/v1/profile/me/layout")
     assert get_response.status_code == 200
-    assert get_response.json()["data"] == payload
+    assert get_response.json()["data"]["draft_blocks"] == payload["draft_blocks"]
+
+
+def test_private_media_capability_and_public_revocation(profile_api, seed_blocks):
+    from urllib.parse import parse_qs, urlsplit
+    from app.services.auth import decode_access_token
+    import jwt
+
+    client, db, images, user_id, _storage = profile_api
+    owner_data = client.get("/api/v1/profile/me/media").json()["data"]
+    private_url = owner_data["items"][0]["thumb_url"]
+    response = client.get(private_url)
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "private, no-store"
+    ticket = parse_qs(urlsplit(private_url).query)["ticket"][0]
+    with pytest.raises(jwt.InvalidTokenError):
+        decode_access_token(ticket)
+    assert client.get(private_url.replace("thumb?", "original?")).status_code == 404
+    assert client.get(private_url + "bad").status_code == 404
+    claims = jwt.decode(ticket, settings.secret_key, algorithms=["HS256"])
+    claims["exp"] = datetime.now(UTC) - timedelta(seconds=1)
+    expired = jwt.encode(claims, settings.secret_key, algorithm="HS256")
+    assert client.get(private_url.replace(ticket, expired)).status_code == 404
+    claims["exp"] = datetime.now(UTC) + timedelta(minutes=1)
+    claims["sub"] = "other"
+    wrong_owner = jwt.encode(claims, settings.secret_key, algorithm="HS256")
+    assert client.get(private_url.replace(ticket, wrong_owner)).status_code == 404
+
+    client.put("/api/v1/profile/me/layout", json={"blocks": seed_blocks})
+    assert client.post("/api/v1/profile/me/layout/publish").status_code == 200
+    page = client.get("/api/v1/profile/demo/page").json()
+    if not page.get("success"):
+        # The public page route uses the username without a /page suffix.
+        page = client.get("/api/v1/profile/demo").json()
+    public_url = next(iter(page["data"]["media"].values()))["thumb_url"]
+    assert client.get(public_url).status_code == 200
+    db.layouts[user_id].is_public = False
+    assert client.get(public_url).status_code == 404
+    assert client.get(private_url).status_code == 200
 
 
 def test_layout_validation_error_includes_block_id(profile_api, seed_blocks):
@@ -407,7 +451,7 @@ def test_theme_update_validates_assets_and_returns_layout_payload(profile_api):
     assert payload["theme"] == theme
     assert payload["draft_blocks"] == []
     assert payload["media"][theme["background_key"]]["display_url"].startswith(
-        "https://assets.example.test/"
+        "/api/v1/profile/media/"
     )
 
 
@@ -472,7 +516,7 @@ def test_my_media_lists_all_own_images_with_visibility_state(profile_api):
     }
     hidden = next(item for item in items if item["object_key"].endswith("/a3"))
     assert hidden["is_displayable"] is False
-    assert hidden["display_url"].startswith("https://assets.example.test/")
+    assert hidden["display_url"].startswith("/api/v1/profile/media/")
     assert all("id" in item and "created_at" in item for item in items)
 
 

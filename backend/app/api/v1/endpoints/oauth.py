@@ -137,7 +137,7 @@ async def oauth_callback(
         raise error_to_http(exc)
     if result.get("refresh_token"):
         response.set_cookie(
-            value=result["refresh_token"],
+            value=result.pop("refresh_token"),
             key=settings.auth_cookie_name,
             max_age=settings.refresh_token_ttl_days * 24 * 3600,
             path=f"{settings.api_v1_prefix}/auth",
@@ -152,6 +152,7 @@ async def oauth_callback(
 async def oauth_bind(
     provider: str,
     body: OauthBindRequest,
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ):
     if provider != "qq":
@@ -173,5 +174,8 @@ async def oauth_bind(
         )
     except QqOAuthError as exc:
         raise error_to_http(exc)
+    if result.get("refresh_token"):
+        from app.api.v1.endpoints.auth import _set_refresh_cookie
+        _set_refresh_cookie(response, result.pop("refresh_token"))
     return ok(result)
 

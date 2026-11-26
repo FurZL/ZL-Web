@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from urllib.parse import urlsplit
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +34,16 @@ from app.services.otp import OtpError, send_otp, verify_otp
 from app.services import site_setting
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _check_cookie_origin(request: Request) -> None:
+    origin = request.headers.get("origin")
+    if not origin:
+        referer = request.headers.get("referer", "")
+        parsed = urlsplit(referer)
+        origin = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else ""
+    if origin not in settings.cors_origins:
+        raise HTTPException(status_code=403, detail={"code": "CSRF_ORIGIN_INVALID", "message": "请求来源不受信任"})
 
 
 def _refresh_cookie_opts() -> dict:
@@ -159,6 +171,8 @@ async def login(
     db: AsyncSession = Depends(get_db),
     _: None = Depends(rate_limit("login", 10, 60)),
 ):
+    if request.headers.get("origin"):
+        _check_cookie_origin(request)
     if not await check_verification_token(body.verification_token or ""):
         raise HTTPException(status_code=400, detail={"code": "CAPTCHA_REQUIRED", "message": "请先完成人机验证"})
     try:
@@ -170,7 +184,7 @@ async def login(
         )
     except AuthError as exc:
         raise error_to_http(exc)
-    _set_refresh_cookie(response, result["refresh_token"])
+    _set_refresh_cookie(response, result.pop("refresh_token"))
     return ok(result)
 
 
@@ -182,7 +196,10 @@ async def refresh(
     db: AsyncSession = Depends(get_db),
     _: None = Depends(rate_limit("refresh", 30, 60)),
 ):
-    refresh_token = body.refresh_token or request.cookies.get(settings.auth_cookie_name)
+    cookie_token = request.cookies.get(settings.auth_cookie_name)
+    if cookie_token:
+        _check_cookie_origin(request)
+    refresh_token = body.refresh_token or cookie_token
     if not refresh_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -192,7 +209,7 @@ async def refresh(
         result = await auth_service.refresh_tokens(db, refresh_token)
     except AuthError as exc:
         raise error_to_http(exc)
-    _set_refresh_cookie(response, result["refresh_token"])
+    _set_refresh_cookie(response, result.pop("refresh_token"))
     return ok(result)
 
 
@@ -203,7 +220,10 @@ async def logout(
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
-    refresh_token = body.refresh_token or request.cookies.get(settings.auth_cookie_name)
+    cookie_token = request.cookies.get(settings.auth_cookie_name)
+    if cookie_token:
+        _check_cookie_origin(request)
+    refresh_token = body.refresh_token or cookie_token
     if refresh_token:
         await auth_service.revoke_session(db, refresh_token)
     _clear_refresh_cookie(response)

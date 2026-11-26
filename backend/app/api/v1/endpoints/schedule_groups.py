@@ -14,11 +14,32 @@ from app.schemas.schedule import (
     ScheduleGroupJoinRequest,
     ScheduleGroupScheduleRequest,
     ScheduleGroupUpdateRequest,
+    GroupAvailabilityRequest,
+    GroupFixedInviteRequest,
 )
 from app.services import schedule_group as group_service
 from app.services.image import ImageError
+from app.services.schedule_config import require_schedule_feature
+from app.services import schedule_group_meeting
 
 router = APIRouter(prefix="/schedule/groups", tags=["schedule-groups"])
+
+
+@router.post("/{group_id}/availability")
+async def group_availability(group_id: str, body: GroupAvailabilityRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    try:
+        return ok(await schedule_group_meeting.availability(db, user, parse_uuid(group_id), body))
+    except ImageError as exc:
+        raise error_to_http(exc)
+
+
+@router.post("/{group_id}/appointments", status_code=201)
+async def group_appointment(group_id: str, body: GroupFixedInviteRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    await require_schedule_feature(db, "fixed_invite_enabled")
+    try:
+        return ok(await schedule_group_meeting.create_invitation(db, user, parse_uuid(group_id), body))
+    except ImageError as exc:
+        raise error_to_http(exc)
 
 
 @router.get("")
@@ -32,6 +53,7 @@ async def create_group(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await require_schedule_feature(db, "group_join_enabled")
     try:
         return ok(await group_service.create_group(db, user, body))
     except ImageError as exc:
@@ -44,6 +66,7 @@ async def join_group(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await require_schedule_feature(db, "group_join_enabled")
     try:
         return ok(await group_service.join_group(db, user, body.code))
     except ImageError as exc:

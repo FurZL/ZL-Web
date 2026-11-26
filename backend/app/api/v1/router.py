@@ -6,7 +6,10 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     admin_events,
+    admin_audit,
+    admin_dashboard,
     admin_images,
+    admin_schedule,
     captcha,
     admin_settings,
     admin_users,
@@ -36,10 +39,13 @@ api_router.include_router(schedule.router)
 api_router.include_router(pages.router)
 api_router.include_router(events.router)
 api_router.include_router(admin_events.router)
+api_router.include_router(admin_audit.router)
+api_router.include_router(admin_dashboard.router)
 api_router.include_router(site.router)
 api_router.include_router(club.router)
 api_router.include_router(captcha.router)
 api_router.include_router(announcements.router)
 api_router.include_router(admin_users.router)
 api_router.include_router(admin_images.router)
+api_router.include_router(admin_schedule.router)
 api_router.include_router(admin_settings.router)

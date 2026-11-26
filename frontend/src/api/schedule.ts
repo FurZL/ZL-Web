@@ -10,6 +10,7 @@ import type {
   ScheduleSlot,
   ScheduleTiming,
   ScheduleUploadIntent,
+  GroupAvailability,
 } from '@/types'
 
 export interface PdfSchedulePreview {
@@ -51,6 +52,14 @@ export function createAppointment(data: MealInvite) {
 
 export function createFixedAppointment(data: FixedMeetupInvite) {
   return request<AppointmentDetail>({ method: 'POST', url: '/schedule/appointments/fixed', data })
+}
+
+export function getGroupAvailability(groupId: string, week: number, member_ids: string[]) {
+  return request<GroupAvailability>({ method: 'POST', url: `/schedule/groups/${groupId}/availability`, data: { week, member_ids } })
+}
+
+export function createGroupAppointment(groupId: string, data: { week: number; member_ids: string[]; weekday: number; lesson_start: number; title: string; location?: string }) {
+  return request<AppointmentDetail>({ method: 'POST', url: `/schedule/groups/${groupId}/appointments`, data })
 }
 
 export function getAppointment(appointmentId: string) {

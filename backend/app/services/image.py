@@ -165,14 +165,12 @@ async def complete_upload(
         is_public=(purpose == "gallery"),
     )
     db.add(image)
+    await db.flush()
+    if purpose == "gallery":
+        from app.models.image_job import ImageProcessingJob
+        db.add(ImageProcessingJob(kind="gallery", image_id=image.id))
     await db.commit()
     await db.refresh(image)
-
-    # 公开图片触发后台处理（生成展示图/缩略图）
-    if purpose == "gallery":
-        from app.workers.image_worker import enqueue_image
-
-        enqueue_image(image.id)
 
     return image
 

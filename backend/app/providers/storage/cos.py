@@ -193,7 +193,7 @@ class CosStorageProvider(StorageProvider):
                 Key=phys_key,
                 Body=data,
                 ContentType=content_type,
-                CacheControl="public, max-age=31536000, immutable",
+                CacheControl=("private, no-store" if object_key.startswith("private/") else "public, max-age=31536000, immutable"),
             )
 
         await asyncio.to_thread(_do)

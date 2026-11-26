@@ -60,6 +60,7 @@ async function refreshNotices() {
       item.mode === 'fixed'
       && item.status === 'pending'
       && item.viewer_participant.role === 'invitee'
+      && item.viewer_participant.status === 'invited'
     )).length
     announcements.value = latest.items.slice(0, 5)
   } catch {

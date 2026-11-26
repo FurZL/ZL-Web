@@ -10,7 +10,7 @@ import sys
 import httpx
 
 BASE = "http://127.0.0.1:8000/api/v1"
-client = httpx.Client(timeout=20)
+client = httpx.Client(timeout=20, headers={"Origin": "http://localhost:5173"})
 
 step = 0
 
@@ -72,8 +72,8 @@ def main() -> None:
             "display_name": "测试用户",
             "email": email,
             "phone": phone,
-            "password": "testpassword123",
-            "password_confirm": "testpassword123",
+            "password": "Testpassword123",
+            "password_confirm": "Testpassword123",
             "email_code": email_code,
             "phone_code": phone_code,
             "terms_accepted": True,
@@ -97,7 +97,7 @@ def main() -> None:
         f"{BASE}/auth/login",
         json={
             "account": "testuser",
-            "password": "testpassword123",
+            "password": "Testpassword123",
             "verification_token": pass_captcha(),
         },
     )
@@ -117,28 +117,30 @@ def main() -> None:
         f"{BASE}/auth/login",
         json={
             "account": "testuser",
-            "password": "testpassword123",
+            "password": "Testpassword123",
             "verification_token": pass_captcha(),
         },
     )
     assert r.status_code == 200, f"user login: {r.text}"
     data = r.json()["data"]
     user_token = data["access_token"]
-    refresh_token = data["refresh_token"]
+    assert "refresh_token" not in data
+    refresh_token = client.cookies.get("refresh_token")
     log("新用户登录成功")
 
     # 9. /me 验证当前用户
     r = client.get(f"{BASE}/auth/me", headers={"Authorization": f"Bearer {user_token}"})
     assert r.status_code == 200, f"me: {r.text}"
-    me = r.json()
+    me = r.json()["data"]
     assert me["username"] == "testuser"
     log(f"/me 验证通过（username={me['username']}, role={me['role']}）")
 
     # 10. 刷新令牌轮换
-    r = client.post(f"{BASE}/auth/refresh", json={"refresh_token": refresh_token})
+    r = client.post(f"{BASE}/auth/refresh", json={})
     assert r.status_code == 200, f"refresh: {r.text}"
     refresh_data = r.json()["data"]
-    assert refresh_data["refresh_token"] != refresh_token
+    assert "refresh_token" not in refresh_data
+    assert client.cookies.get("refresh_token") != refresh_token
     log("刷新令牌轮换成功（旧令牌已撤销，签发新令牌）")
 
     # 11. 复用检测：旧 refresh token 再刷新应失败

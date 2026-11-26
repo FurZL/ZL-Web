@@ -17,6 +17,7 @@ const props = defineProps<{
   invite: AppointmentDetail | null
   inviting: boolean
   inviteError: string
+  inviteEnabled: boolean
 }>()
 
 const emit = defineEmits<{
@@ -56,7 +57,8 @@ const activeCell = computed<PinnedCell | null>(() => {
 let hideTimer: ReturnType<typeof setTimeout> | undefined
 
 const canInvite = computed(() => Boolean(
-  props.partner?.owner?.username
+  props.inviteEnabled
+  && props.partner?.owner?.username
   && props.mySchedule?.timing?.term_start
   && effectiveInviteWeek.value !== null
   && props.result?.both_free.length
@@ -192,7 +194,7 @@ const inviteTime = computed(() => {
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary-500">Together view</p>
           <h2 class="mt-1 text-xl font-bold text-ink">你们的时间地图</h2>
-          <p class="mt-1 text-sm text-sub">点表头选中一列，再点绿色空闲格发出约定；悬停或点按列会浮起绿框。同教室用琥珀色小圆点标在网格里。</p>
+          <p class="mt-1 text-sm text-sub">{{ inviteEnabled ? '点表头选中一列，再点绿色空闲格发出约定。' : '点表头选中一列，查看双方时间安排。' }}同教室用琥珀色小圆点标在网格里。</p>
         </div>
         <div class="flex flex-wrap gap-2 text-[11px] text-sub">
           <span class="flex items-center gap-1.5 rounded-full bg-primary-50 px-2.5 py-1"><i class="h-2.5 w-2.5 rounded-full bg-primary"></i>我的安排</span>
@@ -200,14 +202,14 @@ const inviteTime = computed(() => {
         </div>
       </div>
 
-      <div v-if="week === null && weeks.length" class="mt-3 inline-flex flex-wrap items-center gap-2 rounded-full bg-primary-50/60 px-3 py-1.5">
+      <div v-if="inviteEnabled && week === null && weeks.length" class="mt-3 inline-flex flex-wrap items-center gap-2 rounded-full bg-primary-50/60 px-3 py-1.5">
         <label class="text-xs font-semibold text-primary-700" for="invite-week">约定周次</label>
         <select id="invite-week" v-model="inviteWeek" class="input !w-auto !py-1 text-xs">
           <option v-for="item in weeks" :key="item" :value="item">第 {{ item }} 周</option>
         </select>
         <span class="text-[11px] text-sub">选中后加入的是具体日期，不是每周重复。</span>
       </div>
-      <p v-if="!mySchedule?.timing?.term_start" class="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+      <p v-if="inviteEnabled && !mySchedule?.timing?.term_start" class="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
         先在我的课表“作息设置”里填写学期第一周周一，才能把空闲格子约成具体日程。
       </p>
 
@@ -244,7 +246,7 @@ const inviteTime = computed(() => {
       </div>
 
       <div class="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs text-sub">
-        <span class="flex items-center gap-1.5"><i class="h-3 w-3 rounded bg-emerald-100 ring-1 ring-emerald-300"></i>双方空闲（点按发起邀请）</span>
+        <span class="flex items-center gap-1.5"><i class="h-3 w-3 rounded bg-emerald-100 ring-1 ring-emerald-300"></i>{{ inviteEnabled ? '双方空闲（点按发起邀请）' : '双方空闲' }}</span>
         <span class="flex items-center gap-1.5"><i class="h-3 w-3 rounded bg-amber-100 ring-1 ring-amber-300"></i>同教室同时间</span>
         <span class="flex items-center gap-1.5"><i class="h-3 w-3 rounded bg-blush/20 ring-1 ring-blush/40"></i>双方都有安排</span>
         <span class="flex items-center gap-1.5"><i class="h-3 w-3 rounded bg-primary-100 ring-1 ring-primary-300"></i>只有一方有安排</span>
@@ -253,7 +255,7 @@ const inviteTime = computed(() => {
     </section>
 
     <ScheduleInvitePopover
-      v-if="activeCell && activeBlock && effectiveInviteWeek !== null"
+      v-if="inviteEnabled && activeCell && activeBlock && effectiveInviteWeek !== null"
       :cell="activeBlock"
       :rect="activeCell.rect"
       :week="effectiveInviteWeek"

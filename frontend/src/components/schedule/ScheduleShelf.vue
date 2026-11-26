@@ -8,6 +8,8 @@ const props = defineProps<{
   activeId: string | null
   creating: boolean
   busy: boolean
+  fileImportEnabled: boolean
+  publicShareEnabled: boolean
 }>()
 
 const emit = defineEmits<{
@@ -287,7 +289,7 @@ function onDragCancel(event: PointerEvent) {
           >使用</button>
           <button type="button" class="btn-xs" :disabled="busy || renamingId === schedule.id" @click="startRename(schedule)">命名</button>
           <button type="button" class="btn-xs" :disabled="busy" title="存档到历史课表" @click="emit('archive', schedule)">存档</button>
-          <button type="button" class="btn-xs" :disabled="busy" @click="emit('toggleShare', schedule)">
+          <button v-if="publicShareEnabled || schedule.is_public" type="button" class="btn-xs" :disabled="busy" @click="emit('toggleShare', schedule)">
             {{ schedule.is_public ? '仅自己' : '公开' }}
           </button>
           <button type="button" class="btn-xs-danger" :disabled="busy" @click="emit('remove', schedule)">删除</button>
@@ -299,7 +301,7 @@ function onDragCancel(event: PointerEvent) {
       v-else
       class="mt-4 rounded-2xl border border-dashed border-primary-200 bg-primary-50/40 px-4 py-6 text-center text-sm text-sub"
     >
-      课表架还是空的。可以在上方命名新建一张空白课表，或从右侧上传 ICS / TXT。
+      {{ fileImportEnabled ? '课表架还是空的。可以在上方新建空白课表，或从右侧上传文件。' : '课表架还是空的。可以在上方新建空白课表。' }}
     </div>
 
     <div v-if="archivedSchedules.length" class="mt-5 rounded-2xl border border-primary-100/70 bg-white/40 p-3">

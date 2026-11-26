@@ -24,6 +24,7 @@ from app.services.image import (
     create_upload_intent,
     sanitize_filename,
 )
+from app.services.profile_media import media_url
 
 logger = logging.getLogger(__name__)
 
@@ -86,16 +87,20 @@ async def complete_profile_upload(
         raise ImageError("INVALID_KEY", "无效的对象 Key")
 
     storage = get_storage_provider()
+    if bucket and bucket != storage.bucket:
+        raise ImageError("INVALID_BUCKET", "无效的存储桶")
     head = await storage.head_object(bucket or storage.bucket, object_key)
     if not head.exists:
         raise ImageError("OBJECT_NOT_FOUND", "对象不存在，请重新上传")
+    if head.size_bytes is None or head.size_bytes <= 0 or head.size_bytes > settings.upload_max_bytes:
+        raise ImageError("FILE_TOO_LARGE", "图片大小无效或超过上传限制")
 
     stored = StoredObject(
         provider=settings.storage_provider,
         bucket=bucket or storage.bucket,
         object_key=object_key,
         visibility="private",
-        mime_type=None,
+        mime_type=head.content_type,
         size_bytes=head.size_bytes,
         processing_status="pending",
         created_by=user.id,
@@ -110,13 +115,11 @@ async def complete_profile_upload(
         description=description,
     )
     db.add(image)
+    await db.flush()
+    from app.models.image_job import ImageProcessingJob
+    db.add(ImageProcessingJob(kind="profile", image_id=image.id))
     await db.commit()
     await db.refresh(image)
-
-    # 私有图也做缩略图处理（复用后台 worker），但不对外公开
-    from app.workers.image_worker import enqueue_profile_image
-
-    enqueue_profile_image(image.id)
 
     return image
 
@@ -132,7 +135,6 @@ async def list_my_profile_images(
     images = (await db.scalars(stmt)).all()
 
     items = []
-    storage = get_storage_provider()
     for img in images:
         stored = await db.get(StoredObject, img.stored_object_id)
         if stored is None:
@@ -142,10 +144,7 @@ async def list_my_profile_images(
         thumb_url = None
         if stored.processing_status == "ready":
             try:
-                from app.services.image_processing import derive_profile_thumb_key
-
-                thumb_key = derive_profile_thumb_key(stored.object_key)
-                thumb_url = storage.public_url(stored.bucket, thumb_key)
+                thumb_url = media_url(img, "thumb", "owner")
             except Exception:
                 logger.warning("生成缩略图签名 URL 失败 key=%s", stored.object_key, exc_info=True)
                 thumb_url = None
@@ -175,9 +174,7 @@ async def get_profile_image_signed_url(
     if stored is None:
         raise ImageError("NOT_FOUND", "对象不存在", 404)
 
-    storage = get_storage_provider()
-    # 私有文件展示走代理域名，由 CDN/EdgeOne 回源鉴权限定访问，不暴露 COS 原生域名。
-    url = storage.public_url(stored.bucket, stored.object_key)
+    url = media_url(image, "original", "owner")
     return {"url": url, "expires_in": settings.private_url_ttl_seconds}
 
 

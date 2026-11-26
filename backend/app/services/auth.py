@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -40,6 +40,7 @@ def create_access_token(user_id: uuid.UUID, role: str) -> str:
     payload = {
         "sub": str(user_id),
         "role": role,
+        "purpose": "access",
         "iat": now,
         "exp": now + timedelta(minutes=settings.access_token_ttl_minutes),
     }
@@ -47,7 +48,10 @@ def create_access_token(user_id: uuid.UUID, role: str) -> str:
 
 
 def decode_access_token(token: str) -> dict:
-    return jwt.decode(token, settings.secret_key, algorithms=["HS256"])
+    payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"], options={"require": ["exp", "sub"]})
+    if payload.get("purpose") != "access":
+        raise jwt.InvalidTokenError("Not an access token")
+    return payload
 
 
 def _create_refresh_token() -> str:
@@ -245,7 +249,23 @@ async def refresh_tokens(db: AsyncSession, refresh_token: str) -> dict:
         select(UserSession).where(UserSession.refresh_token_hash == token_hash)
     )
 
-    if session is None or session.revoked_at is not None:
+    if session is None:
+        raise AuthError("INVALID_REFRESH", "刷新令牌无效", 401)
+
+    # Serialize all generations in the family, including replay of an older token.
+    await db.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(str(session.family_id), 0))))
+    session = await db.scalar(
+        select(UserSession).where(UserSession.refresh_token_hash == token_hash)
+        .with_for_update().execution_options(populate_existing=True)
+    )
+
+    if session.revoked_at is not None:
+        await db.execute(
+            update(UserSession)
+            .where(UserSession.family_id == session.family_id, UserSession.revoked_at.is_(None))
+            .values(revoked_at=datetime.now(timezone.utc))
+        )
+        await db.commit()
         raise AuthError("INVALID_REFRESH", "刷新令牌无效", 401)
 
     if session.expires_at < datetime.now(timezone.utc):
@@ -259,6 +279,7 @@ async def refresh_tokens(db: AsyncSession, refresh_token: str) -> dict:
     new_refresh = _create_refresh_token()
     new_session = UserSession(
         user_id=user.id,
+        family_id=session.family_id,
         refresh_token_hash=hash_token(new_refresh),
         device_name=session.device_name,
         ip_hash_or_masked=session.ip_hash_or_masked,
@@ -307,9 +328,11 @@ async def revoke_all_sessions(db: AsyncSession, user_id: uuid.UUID) -> None:
 # ---------- 审批 ----------
 
 async def approve_user(db: AsyncSession, user_id: uuid.UUID) -> User:
-    user = await db.get(User, user_id)
+    user = await db.scalar(select(User).where(User.id == user_id).with_for_update())
     if user is None:
         raise AuthError("USER_NOT_FOUND", "用户不存在", 404)
+    if user.status != "pending":
+        raise AuthError("NOT_PENDING", "只有待审批账号可以审批", 409)
     user.status = "active"
     user.is_active = True
     if user.applied_role == "photographer":
@@ -324,9 +347,11 @@ async def approve_user(db: AsyncSession, user_id: uuid.UUID) -> User:
 
 
 async def reject_user(db: AsyncSession, user_id: uuid.UUID) -> User:
-    user = await db.get(User, user_id)
+    user = await db.scalar(select(User).where(User.id == user_id).with_for_update())
     if user is None:
         raise AuthError("USER_NOT_FOUND", "用户不存在", 404)
+    if user.status != "pending":
+        raise AuthError("NOT_PENDING", "只有待审批账号可以审批", 409)
     user.status = "disabled"
     user.is_active = False
     await db.commit()

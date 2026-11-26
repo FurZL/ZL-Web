@@ -6,7 +6,6 @@ import { clearTokens, setAccessToken } from '@/api/token'
 
 interface LoginResult {
   access_token: string
-  refresh_token: string
   user: { id: string; username: string; display_name: string; role: string; avatar_url?: string | null; bio?: string }
 }
 

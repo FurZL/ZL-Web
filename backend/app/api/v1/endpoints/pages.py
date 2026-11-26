@@ -15,6 +15,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.services import page as page_service
 from app.services.page import PageError
+from app.services.audit import audit_admin_mutation
 
 router = APIRouter(prefix="/pages", tags=["pages"])
 
@@ -67,7 +68,7 @@ async def list_pages(
     return ok(result)
 
 
-@router.post("/admin")
+@router.post("/admin", dependencies=[Depends(audit_admin_mutation)])
 async def create_page(
     body: PageCreateRequest,
     user: User = Depends(require_permission_dep("page.publish")),
@@ -104,7 +105,7 @@ async def get_page_detail(
     return ok(result)
 
 
-@router.put("/admin/{page_id}")
+@router.put("/admin/{page_id}", dependencies=[Depends(audit_admin_mutation)])
 async def update_page(
     page_id: str,
     body: PagePatchRequest,
@@ -124,7 +125,7 @@ async def update_page(
     return ok(result)
 
 
-@router.post("/admin/{page_id}/publish")
+@router.post("/admin/{page_id}/publish", dependencies=[Depends(audit_admin_mutation)])
 async def publish_page(
     page_id: str,
     user: User = Depends(require_permission_dep("page.publish")),
@@ -137,7 +138,7 @@ async def publish_page(
     return ok(result)
 
 
-@router.post("/admin/{page_id}/unpublish")
+@router.post("/admin/{page_id}/unpublish", dependencies=[Depends(audit_admin_mutation)])
 async def unpublish_page(
     page_id: str,
     user: User = Depends(require_permission_dep("page.publish")),
@@ -150,7 +151,7 @@ async def unpublish_page(
     return ok(result)
 
 
-@router.delete("/admin/{page_id}")
+@router.delete("/admin/{page_id}", dependencies=[Depends(audit_admin_mutation)])
 async def delete_page(
     page_id: str,
     user: User = Depends(require_permission_dep("page.publish")),
@@ -176,7 +177,7 @@ async def list_versions(
     return ok(result)
 
 
-@router.post("/admin/{page_id}/rollback/{version_id}")
+@router.post("/admin/{page_id}/rollback/{version_id}", dependencies=[Depends(audit_admin_mutation)])
 async def rollback_page(
     page_id: str,
     version_id: str,

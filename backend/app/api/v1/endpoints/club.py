@@ -11,6 +11,7 @@ from app.api.response import ok
 from app.core.database import get_db
 from app.models.user import User
 from app.services import site_setting
+from app.services.audit import audit_admin_mutation
 
 router = APIRouter(prefix="/club", tags=["club"])
 
@@ -25,7 +26,7 @@ async def get_intro(db: AsyncSession = Depends(get_db)):
     return ok(await site_setting.get_club_intro(db))
 
 
-@router.put("/intro")
+@router.put("/intro", dependencies=[Depends(audit_admin_mutation)])
 async def update_intro(
     body: ClubIntroUpdate,
     user: User = Depends(require_permission_dep("site_config.manage")),

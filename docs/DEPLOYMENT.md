@@ -10,7 +10,7 @@ PostgreSQL/Redis 本机、仅回环监听，文件走 COS。
 - Nginx API 站点：`deploy/nginx/api.example.com.conf`
 - systemd 服务：`deploy/systemd/furry-zjut-api.service`
 - EdgeOne Pages：`deploy/edgeone/README.md`
-- 备份脚本：`deploy/scripts/backup-furry-zjut.sh`
+- 加密备份及隔离恢复验证：`deploy/scripts/backup-furry-zjut.sh`、`deploy/scripts/verify-backup-furry-zjut.sh`
 
 ## 步骤概览
 
@@ -21,7 +21,7 @@ PostgreSQL/Redis 本机、仅回环监听，文件走 COS。
 5. Nginx：宝塔创建 `api.example.com` 站点，反代 `127.0.0.1:8000`，配 TLS。
 6. CORS：在 `.env` 的 `FRONTEND_ORIGINS` 配真实前端来源。
 7. 前端：`npm run build` 后发布到 EdgeOne Pages，配 SPA fallback 与自定义域名；后端已通过 HttpOnly Cookie 跨标签页保持登录。
-8. 备份：`deploy/scripts/backup-furry-zjut.sh` 接 cron，补齐加密与 COS 上传，定期恢复演练。
+8. 备份：配置 age 接收者和异地上传钩子，先手动验证备份与隔离恢复，再接定时任务并配置失败告警。
 
 ## 域名、端口与第三方回调
 
@@ -52,17 +52,46 @@ AUTH_COOKIE_SAMESITE=lax
 - 前端站点和 API 同属 `furzl.cn` 时默认 `SameSite=Lax` 可用于顶层导航；若后续拆到不同可注册域，改 Cookie/CSRF 方案前不要直接改成 `None` 就上线。
 - QQ App Key 只放后端 `/etc/furry-zjut/api.env` 或 Secret 管理，不写入 `site_settings`，不在后台页面回显。
 - 后台「网站设置 → 第三方登录」写入 `oauth_config`（`enabled` / `qq_enabled`），前端与后端都会读取；关闭后 OAuth 开始接口返回 503。
-- QQ 授权 state 和未绑定临时凭证存 Redis，10 分钟过期且一次性消费；回调后要检查 `/api/v1/ready` 的 Redis 状态。
+- QQ 授权 state 和未绑定临时凭证存 Redis，10 分钟过期且一次性消费；`/api/v1/ready` 同时检查 Redis 和 PostgreSQL，任一失败返回 HTTP 503。
+
+## 备份与恢复
+
+备份脚本需要 `pg_dump`、`age`、`sha256sum`，使用 PostgreSQL 标准环境变量（如 `PGHOST`、`PGPORT`、`PGUSER`、`PGDATABASE`、`PGPASSFILE`）。不要把密码写在命令行；凭据文件应限制权限。`BACKUP_AGE_RECIPIENT` 是 age 公钥，解密身份文件与备份分开保存。
+
+```bash
+export PGHOST=127.0.0.1 PGUSER=furry_backup PGDATABASE=furry_zjut
+export PGPASSFILE=/root/.pgpass-furry-zjut
+export BACKUP_AGE_RECIPIENT='<age 公钥>'
+export BACKUP_DIR=/var/backups/furry-zjut
+export REQUIRE_OFFSITE=1
+export BACKUP_UPLOAD_HOOK=/usr/local/bin/upload-furry-backup
+bash deploy/scripts/backup-furry-zjut.sh
+```
+
+`BACKUP_UPLOAD_HOOK` 必须由部署方提供为可执行文件，接收两个参数：加密备份文件和 SHA-256 文件的绝对路径；上传失败必须返回非零。`REQUIRE_OFFSITE=1` 时缺少钩子会失败；默认 `0` 时只生成本地加密备份并提示没有异地上传。脚本不自动配置上传、告警或删除旧备份；需要在部署侧设置独立存储、保留策略和失败告警，并确认远端完整性。
+
+恢复演练先使用独立权限**手动创建空数据库** `furry_restore_check_<唯一标识>`，不要指向正式库，再执行：
+
+```bash
+export VERIFY_DATABASE=furry_restore_check_example
+export BACKUP_AGE_IDENTITY=/secure/path/age-identity.txt
+bash deploy/scripts/verify-backup-furry-zjut.sh /secure/backups/example.age
+```
+
+恢复脚本先验证 SHA-256，只接受上述名称格式、拒绝源数据库或非空验证库；验证库含个人数据，演练后由运维按权限清理。脚本使用相同 PostgreSQL 连接环境变量，私钥文件不可提交 Git。实际加密、异地上传和生产恢复需要部署方配置与演练；本地仅已验证 Docker PostgreSQL 的 dump 和隔离恢复，尚未实测 age 或远端钩子。
+
+图片任务在 PostgreSQL 中持久化，最多尝试 5 次，重启后过期租约可恢复；管理员可在图片管理的“处理任务”中查看和重试失败任务。处理是至少一次语义，不保证跨 COS 和数据库的严格原子性；运维仍需监控失败任务和日志。
 
 ## 图片代理域
 
-`PUBLIC_ASSET_BASE_URL` 用于生成公开图、私有缩略图、下载和头像的展示 URL；上传仍由浏览器用 COS 预签名 URL 直传。生产建议：
+`PUBLIC_ASSET_BASE_URL` 用于公开图和头像；个人相册通过后端短期票据代理。上传仍由浏览器用 COS 预签名 URL 直传。生产建议：
 
 ```dotenv
 PUBLIC_ASSET_BASE_URL=https://img.furzl.cn
+PUBLIC_API_BASE_URL=https://api.furzl.cn
 ```
 
-`img.furzl.cn` 必须通过 EdgeOne/CDN 或 COS 自定义域名回源到对象桶。当前代码返回的代理域 URL 不带 COS 签名；`private/` 内容不能被公开桶策略直接读取，代理层必须做路径/鉴权控制。若暂未配置代理域，代码会回退 COS 默认域名，不应把这种回退当作私有文件保护。
+跨域部署必须设置 `PUBLIC_API_BASE_URL` 为浏览器可访问的 HTTPS API 源；留空只适用于前端同源代理 `/api/v1` 的部署。必须禁止 COS 与 CDN 直接读取 `private/` 和带开发前缀的私有路径，并验收旧链接不能绕过 API。API/CDN/反向代理日志不得记录图片票据查询字符串；不要缓存图片代理响应。代理读取原图目前占用单张文件的内存，上线时应设置并发限制并评估大图资源消耗。升级前执行 Alembic；旧 Access Token 会在刷新后恢复。
 
 ## 环境变量
 

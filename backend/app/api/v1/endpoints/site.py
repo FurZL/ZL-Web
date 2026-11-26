@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.response import ok
 from app.core.database import get_db
 from app.services import site_setting
+from app.services.schedule_config import get_schedule_config
 
 router = APIRouter(prefix="/site", tags=["site"])
 
@@ -18,6 +19,7 @@ async def public_config(db: AsyncSession = Depends(get_db)):
     reg = await site_setting.get_registration_config(db)
     oauth_cfg = await site_setting.get_oauth_config(db)
     cfg["registration_config"] = reg
+    cfg["schedule_config"] = (await get_schedule_config(db)).model_dump()
     cfg["oauth_config"] = {
         "enabled": bool(oauth_cfg.get("enabled")),
         "qq_enabled": bool(oauth_cfg.get("qq_enabled")),

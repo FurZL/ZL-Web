@@ -15,6 +15,7 @@ _SENSITIVE_KEYS = {
     "passwd",
     "secret",
     "token",
+    "ticket",
     "authorization",
     "cookie",
     "access_key",
@@ -58,3 +59,4 @@ def setup_logging() -> None:
     logging.getLogger("uvicorn.access").setLevel(
         logging.WARNING if not settings.debug else logging.INFO
     )
+    logging.getLogger("uvicorn.access").addFilter(MaskingFilter())

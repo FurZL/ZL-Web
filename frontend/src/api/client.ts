@@ -69,9 +69,16 @@ export function setUnauthorizedHandler(fn: (() => void) | null) {
 let refreshing: Promise<string | null> | null = null
 
 async function doRefresh(): Promise<string | null> {
+  if (navigator.locks) {
+    return navigator.locks.request('auth-refresh', () => performRefresh())
+  }
+  return performRefresh()
+}
+
+async function performRefresh(): Promise<string | null> {
   try {
     const res = await api.post('/auth/refresh', {})
-    const data = res.data as ApiResponse<{ access_token: string; refresh_token: string }>
+    const data = res.data as ApiResponse<{ access_token: string }>
     if (data.success && data.data) {
       setAccessToken(data.data.access_token)
       return data.data.access_token

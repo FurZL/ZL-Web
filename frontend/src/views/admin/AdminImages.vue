@@ -14,8 +14,14 @@ import {
 import type { AdminImageStats, GalleryImage } from '@/types'
 import { MODERATION_STATUS } from '@/utils/statusStyles'
 import { useDialog } from '@/composables/useDialog'
+import ImageReports from '@/components/admin/ImageReports.vue'
+import ImageProcessingJobs from '@/components/admin/ImageProcessingJobs.vue'
+import { useRoute, useRouter } from 'vue-router'
 
 const { showConfirm } = useDialog()
+const route = useRoute()
+const router = useRouter()
+const view = computed(() => route.query.view === 'reports' ? 'reports' : route.query.view === 'jobs' ? 'jobs' : 'images')
 
 const images = ref<GalleryImage[]>([])
 const stats = ref<AdminImageStats | null>(null)
@@ -165,6 +171,15 @@ const statusMap = MODERATION_STATUS
       </div>
     </div>
 
+    <div class="mt-6 flex gap-2" role="tablist" aria-label="图片管理视图">
+      <button type="button" role="tab" class="btn-sm" :aria-selected="view === 'images'" :class="view === 'images' ? 'bg-primary/20 text-primary-800' : ''" @click="router.replace({ query: {} })">图片</button>
+      <button type="button" role="tab" class="btn-sm" :aria-selected="view === 'reports'" :class="view === 'reports' ? 'bg-primary/20 text-primary-800' : ''" @click="router.replace({ query: { view: 'reports' } })">举报</button>
+      <button type="button" role="tab" class="btn-sm" :aria-selected="view === 'jobs'" :class="view === 'jobs' ? 'bg-primary/20 text-primary-800' : ''" @click="router.replace({ query: { view: 'jobs' } })">处理任务</button>
+    </div>
+    <ImageReports v-if="view === 'reports'" />
+    <ImageProcessingJobs v-else-if="view === 'jobs'" />
+    <template v-else>
+
     <!-- 统计卡片 -->
     <div v-if="stats" class="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="glass-card p-5">
@@ -285,5 +300,6 @@ const statusMap = MODERATION_STATUS
         </div>
       </template>
     </ImageLightbox>
+    </template>
   </div>
 </template>

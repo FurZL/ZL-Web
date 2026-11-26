@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,12 +18,13 @@ from app.providers.factory import (
     get_storage_provider,
 )
 from app.services import site_setting
+from app.services.audit import audit_admin_mutation
 from app.providers.qq import QqOAuthProvider
 
 router = APIRouter(
     prefix="/admin/settings",
     tags=["admin"],
-    dependencies=[Depends(require_permission_dep("site_config.manage"))],
+    dependencies=[Depends(require_permission_dep("site_config.manage")), Depends(audit_admin_mutation)],
 )
 
 
@@ -45,6 +46,8 @@ async def upsert_setting(
     user: User = Depends(require_permission_dep("site_config.manage")),
     db: AsyncSession = Depends(get_db),
 ):
+    if body.key == "schedule_config":
+        raise HTTPException(status_code=400, detail={"code": "USE_SCHEDULE_CONFIG", "message": "请使用课表管理接口修改"})
     result = await site_setting.upsert_setting(
         db,
         key=body.key,

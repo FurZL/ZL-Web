@@ -14,6 +14,7 @@ from app.api.response import ok, parse_uuid
 from app.core.database import get_db
 from app.models.user import User
 from app.services import announcement as announcement_service
+from app.services.audit import audit_admin_mutation
 
 router = APIRouter(prefix="/announcements", tags=["announcements"])
 
@@ -52,7 +53,7 @@ async def list_admin(
     return ok(await announcement_service.list_all(db))
 
 
-@router.post("/admin")
+@router.post("/admin", dependencies=[Depends(audit_admin_mutation)])
 async def create_announcement(
     body: AnnouncementCreate,
     user: User = Depends(require_permission_dep("site_config.manage")),
@@ -70,7 +71,7 @@ async def create_announcement(
     return ok(result)
 
 
-@router.patch("/admin/{announcement_id}")
+@router.patch("/admin/{announcement_id}", dependencies=[Depends(audit_admin_mutation)])
 async def update_announcement(
     announcement_id: str,
     body: AnnouncementPatch,
@@ -86,7 +87,7 @@ async def update_announcement(
     return ok(result)
 
 
-@router.delete("/admin/{announcement_id}")
+@router.delete("/admin/{announcement_id}", dependencies=[Depends(audit_admin_mutation)])
 async def delete_announcement(
     announcement_id: str,
     user: User = Depends(require_permission_dep("site_config.manage")),
